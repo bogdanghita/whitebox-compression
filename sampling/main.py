@@ -25,11 +25,13 @@ def get_sample(fp, nb_dataset_rows, nb_sample_points, nb_block_rows):
 
 	fp_line_idx = 0
 	step = int(nb_dataset_rows / nb_sample_points)
-	for i in range(0, nb_dataset_rows, step):
+	# print("[get_sample] step={}".format(step))
+
+	for i in range(0, nb_dataset_rows - (step - nb_block_rows), step):
 		rand_start, rand_end = i, i + step - nb_block_rows
-		# print(rand_start, rand_end)
+		# print("rand_start={}, rand_end={}".format(rand_start, rand_end))
 		block_start = randint(rand_start, rand_end)
-		print("block_start={}, block_end={}".format(block_start, block_start + nb_block_rows))
+		# print("block_start={}, block_end={}".format(block_start, block_start + nb_block_rows))
 
 		# seek until block start
 		while fp_line_idx < block_start:
@@ -126,8 +128,19 @@ if __name__ == "__main__":
 
 """
 wbs_dir=/ufs/bogdan/work/master-project/public_bi_benchmark-master_project/benchmark
-
 max_sample_size=$((1024*1024*10))
+
 dataset_nb_rows=20
 ./main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 2 --output-file ./output/output.csv $wbs_dir/Arade/samples/Arade_1.sample.csv
+
+================================================================================
+
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+max_sample_size=$((1024*1024*10))
+
+dataset_nb_rows=9888775
+./main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 32 --output-file ./output/output.csv $wbs_dir/Arade/Arade_1.csv
+
+dataset_nb_rows=9624351
+./main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 32 --output-file ./output/output.csv $wbs_dir/NYC/NYC_1.csv
 """
