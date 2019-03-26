@@ -4,7 +4,7 @@ import os
 import sys
 import argparse
 import json
-from util import *
+from lib.util import *
 from patterns import *
 
 

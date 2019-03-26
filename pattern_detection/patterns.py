@@ -1,6 +1,7 @@
 import os
 import sys
-from util import *
+from lib.util import *
+from lib.prefix_tree import PrefixTree
 
 
 class PatternDetector(object):
@@ -52,10 +53,11 @@ class NumberAsString(StringPatternDetector):
 class StringCommonPrefix(StringPatternDetector):
 	def __init__(self, columns, null_value):
 		StringPatternDetector.__init__(self, columns, null_value)
+		self.prefix_tree = PrefixTree()
 
 	def feed_tuple(self, tpl):
 		StringPatternDetector.feed_tuple(self, tpl)
 
 		for idx in self.columns.keys():
 			attr = tpl[idx]
-			# TODO
+			self.prefix_tree.insert(attr)
