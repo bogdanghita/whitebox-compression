@@ -35,30 +35,37 @@ class PatternDetector(object):
 class StringPatternDetector(PatternDetector):
 	def __init__(self, columns, null_value):
 		PatternDetector.__init__(self, columns, null_value)
-
 		self.columns = {}
 		for idx, col in enumerate(columns):
 			if not col.datatype.startswith("varchar"):
 				continue
 			self.columns[idx] = {
 				"info": deepcopy(col),
-				"rows": []
+				"rows": [],
+				"nulls": []
 			}
+
+	def handle_attr(self, attr, idx):
+		'''Handles an attribute
+
+		Returns:
+			handled: boolean value indicating whether the attr was handled by this function or not
+		'''
+		if self.is_null(attr):
+			self.columns[idx]["nulls"].append(dict(row_id=self.row_count, details=dict()))
+			return True
+		return False
+
+	def feed_tuple(self, tpl):
+		PatternDetector.feed_tuple(self, tpl)
+		for idx in self.columns.keys():
+			attr = tpl[idx]
+			self.handle_attr(attr, idx)
 
 
 class NumberAsString(StringPatternDetector):
 	def __init__(self, columns, null_value):
 		StringPatternDetector.__init__(self, columns, null_value)
-
-	def feed_tuple(self, tpl):
-		StringPatternDetector.feed_tuple(self, tpl)
-
-		for idx in self.columns.keys():
-			attr = tpl[idx]
-			if not (self.is_number(attr) or self.is_null(attr)):
-				continue
-			self.columns[idx]["rows"].append(
-				dict(row_id=self.row_count, details=dict()))
 
 	def is_number(self, attr):
 		try:
@@ -67,12 +74,23 @@ class NumberAsString(StringPatternDetector):
 		except ValueError as e:
 			return False
 
+	def handle_attr(self, attr, idx):
+		handled = StringPatternDetector.handle_attr(self, attr, idx)
+		if handled:
+			return True
+		if not self.is_number(attr):
+			return True
+		self.columns[idx]["rows"].append(
+			dict(row_id=self.row_count, details=dict()))
+		return True
+
 	def evaluate(self):
 		res = []
 		for idx, col in self.columns.items():
 			if len(col["rows"]) == 0:
 				continue
-			score = 0 if self.row_count == 0 else (len(col["rows"]) / self.row_count)
+			# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
+			score = 0 if self.row_count == 0 else (len(col["rows"]) + len(col["nulls"])) / self.row_count
 			col_item = {
 				"col_id": col["info"].col_id,
 				"score": score,
@@ -88,12 +106,37 @@ class StringCommonPrefix(StringPatternDetector):
 		StringPatternDetector.__init__(self, columns, null_value)
 		self.prefix_tree = PrefixTree()
 
-	def feed_tuple(self, tpl):
-		StringPatternDetector.feed_tuple(self, tpl)
+	def handle_attr(self, attr, idx):
+		handled = StringPatternDetector.handle_attr(self, attr, idx)
+		if handled:
+			return True
+		self.prefix_tree.insert(attr)
+		return True
 
-		for idx in self.columns.keys():
-			attr = tpl[idx]
-			self.prefix_tree.insert(attr)
+	def evaluate(self):
+		return []
+		# TODO
+
+
+class CharSetSplit(StringPatternDetector):
+	def __init__(self, columns, null_value, char_sets):
+		StringPatternDetector.__init__(self, columns, null_value)
+		self.char_sets = char_sets
+		self.occurrence_dict = {}
+
+	def get_pattern_string(self, attr):
+		pass
+		# TODO
+
+	def handle_attr(self, attr, idx):
+		handled = StringPatternDetector.handle_attr(self, attr, idx)
+		if handled:
+			return True
+		pattern_string = self.get_pattern_string(attr)
+		if pattern_string not in self.occurrence_dict:
+			self.occurrence_dict[pattern_string] = []
+		self.occurrence_dict[pattern_string].append(self.row_count)
+		return True
 
 	def evaluate(self):
 		return []

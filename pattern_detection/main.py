@@ -95,8 +95,10 @@ def parse_args():
 
 def output_patterns(columns, patterns):
 	# print(json.dumps(patterns, indent=2))
+	# TODO: also output percentage of NULLs on each columns
 	for p in patterns.values():
 		print("*** {} ***".format(p["name"]))
+		print("# TODO: also output percentage of NULLs on each column")
 		for c in sorted(p["columns"], key=lambda x: x["score"], reverse=True):
 			print("{:.2f}\t{}".format(c["score"], columns[c["col_id"]]))
 
@@ -117,7 +119,11 @@ def main():
 
 	pattern_detectors = [
 		NumberAsString(columns, args.null),
-		StringCommonPrefix(columns, args.null)
+		StringCommonPrefix(columns, args.null),
+		CharSetSplit(columns, args.null, char_sets=[
+			{"name": "digits", "placeholder": "D", "char_set": list(map(str, range(0,10)))},
+			{"name": "other", "placeholder": "?", "char_set": None}, # "char_set: None" means "any other char"
+		])
 	]
 	pd_engine = PatternDetectionEngine(columns, pattern_detectors)
 
