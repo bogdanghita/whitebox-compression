@@ -111,7 +111,7 @@ def main():
 		print("row_stats: {}".format(row_stats))
 
 		# TODO: maybe use some other row metric instead of "avg_size"; ex: median
-		nb_sample_points = int(args.max_sample_size / (args.sample_block_nb_rows * max(1, row_stats["avg_size"])))
+		nb_sample_points = max(1, int(args.max_sample_size / (args.sample_block_nb_rows * max(1, row_stats["avg_size"]))))
 
 		fp.seek(0)
 		sample = get_sample(fp,

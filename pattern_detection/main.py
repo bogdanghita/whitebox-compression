@@ -37,19 +37,10 @@ class PatternDetectionEngine(object):
 		patterns = {}
 
 		for pd in self.pattern_detectors:
-			pd_info = {
+			patterns[pd.name] = {
 				"name": pd.name,
-				"columns": []
+				"columns": pd.evaluate()
 			}
-			for col in self.columns:
-				if pd.name in col.patterns and len(col.patterns[pd.name]["rows"]) > 0:
-					pd_info["columns"].append({
-						"column": repr(col),
-						"rows": col.patterns[pd.name]["rows"],
-						"percentage": (len(col.patterns[pd.name]["rows"]) / pd.row_count * 100) if pd.row_count > 0 else 0
-					})
-			# if len(pd_info["columns"]) > 0:
-			patterns[pd.name] = pd_info
 
 		return patterns
 
@@ -102,12 +93,12 @@ def parse_args():
 	return parser.parse_args()
 
 
-def output_patterns(patterns):
+def output_patterns(columns, patterns):
 	# print(json.dumps(patterns, indent=2))
 	for p in patterns.values():
 		print("*** {} ***".format(p["name"]))
-		for c in sorted(p["columns"], key=lambda x: x["percentage"], reverse=True):
-			print("{}\t{}".format(c["percentage"], c["column"]))
+		for c in sorted(p["columns"], key=lambda x: x["score"], reverse=True):
+			print("{:.2f}\t{}".format(c["score"], columns[c["col_id"]]))
 
 
 def main():
@@ -142,7 +133,7 @@ def main():
 
 	patterns = pd_engine.get_patterns()
 
-	output_patterns(patterns)
+	output_patterns(columns, patterns)
 
 
 if __name__ == "__main__":
@@ -157,4 +148,20 @@ wbs_dir=/ufs/bogdan/work/master-project/public_bi_benchmark-master_project/bench
 ./main.py --header-file $wbs_dir/CommonGovernment/samples/CommonGovernment_1.header.csv --datatypes-file $wbs_dir/CommonGovernment/samples/CommonGovernment_1.datatypes.csv $wbs_dir/CommonGovernment/samples/CommonGovernment_1.sample.csv
 
 ./main.py --header-file $wbs_dir/Eixo/samples/Eixo_1.header.csv --datatypes-file $wbs_dir/Eixo/samples/Eixo_1.datatypes.csv $wbs_dir/Eixo/samples/Eixo_1.sample.csv
+
+================================================================================
+*** CommonGovernment/CommonGovernment_1 ***
+
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
+wb=CommonGovernment
+table=CommonGovernment_1
+
+#[sample]
+max_sample_size=$((1024*1024*10))
+dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
+./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 32 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
+
+#[pattern-detection]
+./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv $wbs_dir/$wb/$table.sample.csv
 """
