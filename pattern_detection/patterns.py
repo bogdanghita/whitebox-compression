@@ -133,6 +133,7 @@ class CharSetSplit(StringPatternDetector):
 		self.default_placeholder = default_placeholder
 		self.char_sets = char_sets
 		self.empty_string_pattern = empty_string_pattern
+		# print(char_sets)
 
 	def get_pattern_string(self, attr):
 		pattern_string = []

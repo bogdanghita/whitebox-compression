@@ -4,6 +4,7 @@ import os
 import sys
 import argparse
 import json
+import string
 from lib.util import *
 from patterns import *
 
@@ -72,6 +73,18 @@ def driver_loop(driver, pd_engine, fdelim):
 		pd_engine.feed_tuple(tpl)
 
 
+def output_patterns(columns, patterns):
+	# print(json.dumps(patterns, indent=2))
+	# TODO: also output percentage of NULLs on each columns
+	for pd in patterns.values():
+		print("*** {} ***".format(pd["name"]))
+		print("# TODO: also output percentage of NULLs on each column")
+		for col_id, col_p_list in pd["columns"].items():
+			print("{}".format(columns[col_id]))
+			for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
+				print("{:.2f}\t{}".format(p["score"], p["p_id"]))
+
+
 def parse_args():
 	parser = argparse.ArgumentParser(
 		description="""Detect column patterns in CSV file."""
@@ -93,20 +106,6 @@ def parse_args():
 	return parser.parse_args()
 
 
-def output_patterns(columns, patterns):
-	# print(json.dumps(patterns, indent=2))
-	# TODO: also output percentage of NULLs on each columns
-	for pd in patterns.values():
-		print("*** {} ***".format(pd["name"]))
-		print("# TODO: also output percentage of NULLs on each column")
-		# for c in sorted(p["columns"], key=lambda x: x["score"], reverse=True):
-		# 	print("{:.2f}\t{}".format(c["score"], columns[c["col_id"]]))
-		for col_id, col_p_list in pd["columns"].items():
-			print("{}".format(columns[col_id]))
-			for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
-				print("{:.2f}\t{}".format(p["score"], p["p_id"]))
-
-
 def main():
 	args = parse_args()
 
@@ -126,6 +125,7 @@ def main():
 		# StringCommonPrefix(columns, args.null),
 		CharSetSplit(columns, args.null, default_placeholder="?", char_sets=[
 			{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
+			# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
 			# TODO: play around with the char sets here
 		]),
 		# TODO: add new pattern detectors here
