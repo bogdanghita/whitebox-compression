@@ -18,15 +18,18 @@ class PatternDetector(object):
 		'''Evaluates the pattern based on the data fed so far
 
 		Returns:
-			columns: list of columns analyzed by the pattern detector; format of a column:
-				dict(
-					col_id: int # id of the column
-					score: float # number between 0 and 1 indicating how well the column fits this pattern
-					rows: [dict(row_id: int, details: dict() # pattern-specific info), ...], # rows where the pattern applies
-					details: dict() # pattern-specific info
+			columns: dict(col_id, patterns) columns analyzed by the pattern detector, where:
+				col_id: int # id of the column
+				patterns: list(
+					dict(
+						p_id: # id of the pattern
+						score: float # number between 0 and 1 indicating how well the column fits this pattern
+						rows: [dict(row_id: int, details: dict() # pattern-specific info), ...], # rows where the pattern applies
+						details: dict() # pattern-specific info
+					)
 				)
 		'''
-		return []
+		return dict()
 
 	def is_null(self, attr):
 		return attr == self.null_value
@@ -41,8 +44,13 @@ class StringPatternDetector(PatternDetector):
 				continue
 			self.columns[idx] = {
 				"info": deepcopy(col),
-				"rows": [],
-				"nulls": []
+				"nulls": [],
+				"patterns": {
+					"default": {"rows": [], "details": {}},
+					#  NOTE: pattern detectors with only one pattern should use the "default" pattern;
+					# multi-pattern detectors should add a new entry for each pattern;
+					# "default" can be used if there is a main pattern or it can be left empty
+				}
 			}
 
 	def handle_attr(self, attr, idx):
@@ -80,24 +88,25 @@ class NumberAsString(StringPatternDetector):
 			return True
 		if not self.is_number(attr):
 			return True
-		self.columns[idx]["rows"].append(
+		self.columns[idx]["patterns"]["default"]["rows"].append(
 			dict(row_id=self.row_count, details=dict()))
 		return True
 
 	def evaluate(self):
-		res = []
+		res = dict()
 		for idx, col in self.columns.items():
-			if len(col["rows"]) == 0:
+			if len(col["patterns"]["default"]["rows"]) == 0:
 				continue
 			# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
-			score = 0 if self.row_count == 0 else (len(col["rows"]) + len(col["nulls"])) / self.row_count
-			col_item = {
-				"col_id": col["info"].col_id,
+			score = 0 if self.row_count == 0 else (len(col["patterns"]["default"]["rows"]) + len(col["nulls"])) / self.row_count
+			p_item = {
+				"p_id": "default",
 				"score": score,
-				"rows": col["rows"],
+				"rows": col["patterns"]["default"]["rows"],
 				"details": dict(),
 			}
-			res.append(col_item)
+			patterns = [p_item]
+			res[col["info"].col_id] = patterns
 		return res
 
 
@@ -114,18 +123,16 @@ class StringCommonPrefix(StringPatternDetector):
 		return True
 
 	def evaluate(self):
-		return []
+		return dict()
 		# TODO
 
 
 class CharSetSplit(StringPatternDetector):
-	def __init__(self, columns, null_value, default_placeholder, char_sets):
+	def __init__(self, columns, null_value, default_placeholder, char_sets, empty_string_pattern="<empty_string>"):
 		StringPatternDetector.__init__(self, columns, null_value)
 		self.default_placeholder = default_placeholder
 		self.char_sets = char_sets
-		# pattern_strings for each column
-		for col in self.columns.values():
-			col["pattern_strings"] = {}
+		self.empty_string_pattern = empty_string_pattern
 
 	def get_pattern_string(self, attr):
 		pattern_string = []
@@ -144,7 +151,10 @@ class CharSetSplit(StringPatternDetector):
 			if len(pattern_string) == 0 or pattern_string[-1] != ph:
 				pattern_string.append(ph)
 
-		return "".join(pattern_string)
+		if len(pattern_string) == 0:
+			return self.empty_string_pattern
+		else:
+			return "".join(pattern_string)
 
 	def handle_attr(self, attr, idx):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
@@ -152,17 +162,33 @@ class CharSetSplit(StringPatternDetector):
 			return True
 		col = self.columns[idx]
 
+		# NOTE: drop leading and trailing whitespace
+		# TODO: IMPORTANT: it may be fine to strip whitespace for the original columns; but on subcolumns resulted after a SPLIT operation (or other operations) stripping; take this into consideration
+		attr = attr.strip()
+
 		ps = self.get_pattern_string(attr)
-		if ps not in col["pattern_strings"]:
-			col["pattern_strings"][ps] = []
-		col["pattern_strings"][ps].append(self.row_count)
+		if ps not in col["patterns"]:
+			col["patterns"][ps] = {"rows": [], "details": {}}
+		col["patterns"][ps]["rows"].append(self.row_count)
 		return True
 
 	def evaluate(self):
-		for col in self.columns.values():
-			print(col["info"])
-			for key, value in col["pattern_strings"].items():
-				print(key, len(value))
+		res = dict()
 
-		return []
-		# TODO
+		for idx, col in self.columns.items():
+			patterns = []
+			for ps, ps_data in col["patterns"].items():
+				if len(ps_data["rows"]) == 0:
+					continue
+				# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
+				score = 0 if self.row_count == 0 else (len(ps_data["rows"]) + len(col["nulls"])) / self.row_count
+				p_item = {
+					"p_id": ps,
+					"score": score,
+					"rows": ps_data["rows"],
+					"details": dict(),
+				}
+				patterns.append(p_item)
+			res[col["info"].col_id] = patterns
+
+		return res
