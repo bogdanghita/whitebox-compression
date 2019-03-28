@@ -119,25 +119,50 @@ class StringCommonPrefix(StringPatternDetector):
 
 
 class CharSetSplit(StringPatternDetector):
-	def __init__(self, columns, null_value, char_sets):
+	def __init__(self, columns, null_value, default_placeholder, char_sets):
 		StringPatternDetector.__init__(self, columns, null_value)
+		self.default_placeholder = default_placeholder
 		self.char_sets = char_sets
-		self.occurrence_dict = {}
+		# pattern_strings for each column
+		for col in self.columns.values():
+			col["pattern_strings"] = {}
 
 	def get_pattern_string(self, attr):
-		pass
-		# TODO
+		pattern_string = []
+
+		for c in attr:
+			# look for c in each char set
+			for c_set in self.char_sets:
+				if c not in c_set["char_set"]:
+					continue
+				ph = c_set["placeholder"]
+				break
+			# use the default placeholder if not match
+			else:
+				ph = self.default_placeholder
+			# update pattern string (if necessary)
+			if len(pattern_string) == 0 or pattern_string[-1] != ph:
+				pattern_string.append(ph)
+
+		return "".join(pattern_string)
 
 	def handle_attr(self, attr, idx):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
 		if handled:
 			return True
-		pattern_string = self.get_pattern_string(attr)
-		if pattern_string not in self.occurrence_dict:
-			self.occurrence_dict[pattern_string] = []
-		self.occurrence_dict[pattern_string].append(self.row_count)
+		col = self.columns[idx]
+
+		ps = self.get_pattern_string(attr)
+		if ps not in col["pattern_strings"]:
+			col["pattern_strings"][ps] = []
+		col["pattern_strings"][ps].append(self.row_count)
 		return True
 
 	def evaluate(self):
+		for col in self.columns.values():
+			print(col["info"])
+			for key, value in col["pattern_strings"].items():
+				print(key, len(value))
+
 		return []
 		# TODO

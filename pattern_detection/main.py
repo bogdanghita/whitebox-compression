@@ -118,12 +118,13 @@ def main():
 		columns.append(Column(col_id, col_name, datatypes[col_id]))
 
 	pattern_detectors = [
-		NumberAsString(columns, args.null),
-		StringCommonPrefix(columns, args.null),
-		CharSetSplit(columns, args.null, char_sets=[
-			{"name": "digits", "placeholder": "D", "char_set": list(map(str, range(0,10)))},
-			{"name": "other", "placeholder": "?", "char_set": None}, # "char_set: None" means "any other char"
-		])
+		# NumberAsString(columns, args.null),
+		# StringCommonPrefix(columns, args.null),
+		CharSetSplit(columns, args.null, default_placeholder="?", char_sets=[
+			{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
+			# TODO: play around with the char sets here
+		]),
+		# TODO: add new pattern detectors here
 	]
 	pd_engine = PatternDetectionEngine(columns, pattern_detectors)
 
