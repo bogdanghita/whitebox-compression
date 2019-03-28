@@ -156,6 +156,7 @@ def parse_args():
 
 def main():
 	args = parse_args()
+	print(args)
 
 	with open(args.header_file, 'r') as fd:
 		header = list(map(lambda x: x.strip(), fd.readline().split(args.fdelim)))
