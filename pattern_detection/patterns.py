@@ -24,7 +24,7 @@ class PatternDetector(object):
 					dict(
 						p_id: # id of the pattern
 						score: float # number between 0 and 1 indicating how well the column fits this pattern
-						rows: [dict(row_id: int, details: dict() # pattern-specific info), ...], # rows where the pattern applies
+						rows: [row_id: int, ...], # rows where the pattern applies
 						details: dict() # pattern-specific info
 					)
 				)
@@ -60,7 +60,7 @@ class StringPatternDetector(PatternDetector):
 			handled: boolean value indicating whether the attr was handled by this function or not
 		'''
 		if self.is_null(attr):
-			self.columns[idx]["nulls"].append(dict(row_id=self.row_count, details=dict()))
+			self.columns[idx]["nulls"].append(self.row_count)
 			return True
 		return False
 
@@ -88,8 +88,7 @@ class NumberAsString(StringPatternDetector):
 			return True
 		if not self.is_number(attr):
 			return True
-		self.columns[idx]["patterns"]["default"]["rows"].append(
-			dict(row_id=self.row_count, details=dict()))
+		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count)
 		return True
 
 	def evaluate(self):
@@ -100,7 +99,7 @@ class NumberAsString(StringPatternDetector):
 			# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
 			score = 0 if self.row_count == 0 else (len(col["patterns"]["default"]["rows"]) + len(col["nulls"])) / self.row_count
 			p_item = {
-				"p_id": "default",
+				"p_id": "{}:default".format(self.name),
 				"score": score,
 				"rows": col["patterns"]["default"]["rows"],
 				"details": dict(),
@@ -184,7 +183,7 @@ class CharSetSplit(StringPatternDetector):
 				# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
 				score = 0 if self.row_count == 0 else (len(ps_data["rows"]) + len(col["nulls"])) / self.row_count
 				p_item = {
-					"p_id": ps,
+					"p_id": "{}:{}".format(self.name, ps),
 					"score": score,
 					"rows": ps_data["rows"],
 					"details": dict(),

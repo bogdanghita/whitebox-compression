@@ -9,4 +9,4 @@ class Column(object):
 		self.datatype = datatype
 
 	def __repr__(self):
-		return "Column(id=%r,name=%r,datatype=%r)" % (self.col_id, self.name, self.datatype)
+		return "Column(col_id=%r,name=%r,datatype=%r)" % (self.col_id, self.name, self.datatype)

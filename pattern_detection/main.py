@@ -73,7 +73,7 @@ def driver_loop(driver, pd_engine, fdelim):
 		pd_engine.feed_tuple(tpl)
 
 
-def output_patterns(columns, patterns):
+def output_stats(columns, patterns):
 	# print(json.dumps(patterns, indent=2))
 	# TODO: also output percentage of NULLs on each columns
 	for pd in patterns.values():
@@ -83,6 +83,52 @@ def output_patterns(columns, patterns):
 			print("{}".format(columns[col_id]))
 			for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
 				print("{:.2f}\t{}".format(p["score"], p["p_id"]))
+
+
+def output_pattern_distribution(columns, patterns, pattern_distribution_output_dir, fdelim=","):
+	# group patterns by columns
+	column_patterns = {}
+	for c in columns:
+		column_patterns[c.col_id] = {}
+	for pd in patterns.values():
+		for col_id, col_p_list in pd["columns"].items():
+			for p in col_p_list:
+				column_patterns[col_id][p["p_id"]] = p
+
+	# output pattern distributions
+	for col_id, col_p in column_patterns.items():
+		if len(col_p.keys()) == 0:
+			continue
+
+		out_file = "{}/col_{}.csv".format(pattern_distribution_output_dir, col_id)
+		with open(out_file, 'w') as fd:
+			# write header
+			header = sorted(col_p.keys())
+			fd.write(fdelim.join(header)); fd.write("\n")
+
+			# write one row at a time
+			# NOTE: we assume that col_p[p_id]["rows"] is sorted in increasing order
+			row_iterators = {p:0 for p in col_p.keys()}
+			row_count = 1
+			while True:
+				current_row = []
+				done_cnt = 0
+				for p in header:
+					rows, r_it = col_p[p]["rows"], row_iterators[p]
+					if r_it == len(rows):
+						current_row.append("0")
+						done_cnt += 1
+					elif row_count < rows[r_it]:
+						current_row.append("0")
+					elif row_count == rows[r_it]:
+						row_iterators[p] += 1
+						current_row.append("1")
+					else:
+						raise Exception("Rows are not sorted: col_id={}, p={}, row_count={}, rows[{}]={}".format(col_id, p, row_count, r_it, rows[r_it]))
+				if done_cnt == len(header):
+					break
+				fd.write(fdelim.join(current_row)); fd.write("\n")
+				row_count += 1
 
 
 def parse_args():
@@ -98,6 +144,8 @@ def parse_args():
 	parser.add_argument('--datatypes-file', dest='datatypes_file', type=str,
 		help="CSV file containing the datatypes row (<workbook>/samples/<table>.datatypes.csv)",
 		required=True)
+	parser.add_argument('--pattern-distribution-output-dir', dest='pattern_distribution_output_dir', type=str,
+		help="Output file to write pattern distribution to")
 	parser.add_argument("-F", "--fdelim", dest="fdelim",
 		help="Use <fdelim> as delimiter between fields", default="|")
 	parser.add_argument("--null", dest="null", type=str,
@@ -121,7 +169,7 @@ def main():
 		columns.append(Column(col_id, col_name, datatypes[col_id]))
 
 	pattern_detectors = [
-		# NumberAsString(columns, args.null),
+		NumberAsString(columns, args.null),
 		# StringCommonPrefix(columns, args.null),
 		CharSetSplit(columns, args.null, default_placeholder="?", char_sets=[
 			{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
@@ -132,6 +180,7 @@ def main():
 	]
 	pd_engine = PatternDetectionEngine(columns, pattern_detectors)
 
+	# feed data to engine
 	try:
 		if args.file is None:
 			fd = os.fdopen(os.dup(sys.stdin.fileno()))
@@ -142,9 +191,13 @@ def main():
 	finally:
 		fd.close()
 
+	# get results from engine
 	patterns = pd_engine.get_patterns()
 
-	output_patterns(columns, patterns)
+	# otuput results
+	output_stats(columns, patterns)
+	if args.pattern_distribution_output_dir is not None:
+		output_pattern_distribution(columns, patterns, args.pattern_distribution_output_dir)
 
 
 if __name__ == "__main__":
@@ -174,5 +227,7 @@ dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 ./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 32 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
 
 #[pattern-detection]
-./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv $wbs_dir/$wb/$table.sample.csv
+pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
+mkdir -p $pattern_distr_out_dir
+./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir $wbs_dir/$wb/$table.sample.csv
 """
