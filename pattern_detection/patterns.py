@@ -35,6 +35,56 @@ class PatternDetector(object):
 		return attr == self.null_value
 
 
+class NullPatternDetector(PatternDetector):
+	def __init__(self, columns, null_value):
+		PatternDetector.__init__(self, columns, null_value)
+		self.columns = {}
+		for idx, col in enumerate(columns):
+			if col.datatype.rstrip().lower().endswith("not null"):
+				continue
+			self.columns[idx] = {
+				"info": deepcopy(col),
+				"patterns": {
+					"default": {"rows": [], "details": {}},
+					# NOTE: pattern detectors with only one pattern should use the "default" pattern;
+					# multi-pattern detectors should add a new entry for each pattern;
+					# "default" can be used if there is a main pattern or it can be left empty
+				}
+			}
+
+	def handle_attr(self, attr, idx):
+		'''Handles an attribute
+
+		Returns:
+			handled: boolean value indicating whether the attr was handled by this function or not
+		'''
+		if self.is_null(attr):
+			self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count)
+		return True
+
+	def feed_tuple(self, tpl):
+		PatternDetector.feed_tuple(self, tpl)
+		for idx in self.columns.keys():
+			attr = tpl[idx]
+			self.handle_attr(attr, idx)
+
+	def evaluate(self):
+		res = dict()
+		for idx, col in self.columns.items():
+			if len(col["patterns"]["default"]["rows"]) == 0:
+				continue
+			score = 0 if self.row_count == 0 else len(col["patterns"]["default"]["rows"]) / self.row_count
+			p_item = {
+				"p_id": "{}:default".format(self.name),
+				"score": score,
+				"rows": col["patterns"]["default"]["rows"],
+				"details": dict(),
+			}
+			patterns = [p_item]
+			res[col["info"].col_id] = patterns
+		return res
+
+
 class StringPatternDetector(PatternDetector):
 	def __init__(self, columns, null_value):
 		PatternDetector.__init__(self, columns, null_value)
@@ -47,7 +97,7 @@ class StringPatternDetector(PatternDetector):
 				"nulls": [],
 				"patterns": {
 					"default": {"rows": [], "details": {}},
-					#  NOTE: pattern detectors with only one pattern should use the "default" pattern;
+					# NOTE: pattern detectors with only one pattern should use the "default" pattern;
 					# multi-pattern detectors should add a new entry for each pattern;
 					# "default" can be used if there is a main pattern or it can be left empty
 				}
@@ -161,10 +211,6 @@ class CharSetSplit(StringPatternDetector):
 		if handled:
 			return True
 		col = self.columns[idx]
-
-		# NOTE: drop leading and trailing whitespace
-		# TODO: IMPORTANT: it may be fine to strip whitespace for the original columns; but on subcolumns resulted after a SPLIT operation (or other operations) stripping; take this into consideration
-		attr = attr.strip()
 
 		ps = self.get_pattern_string(attr)
 		if ps not in col["patterns"]:

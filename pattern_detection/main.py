@@ -60,7 +60,7 @@ class FileDriver(object):
 			self.done = True
 			return None
 
-		return l.strip()
+		return l.rstrip('\r\n')
 
 
 def driver_loop(driver, pd_engine, fdelim):
@@ -170,6 +170,7 @@ def main():
 		columns.append(Column(col_id, col_name, datatypes[col_id]))
 
 	pattern_detectors = [
+		NullPatternDetector(columns, args.null),
 		NumberAsString(columns, args.null),
 		# StringCommonPrefix(columns, args.null),
 		CharSetSplit(columns, args.null, default_placeholder="?", char_sets=[
