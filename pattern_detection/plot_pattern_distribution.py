@@ -2,11 +2,10 @@
 
 import os, sys
 import argparse
-import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot(header, rows, out_file=None, out_file_format="svg"):
+def plot(plt, header, rows, out_file=None, out_file_format="svg"):
 	arr = np.array(rows)
 
 	plt.figure(figsize=(8, 8), dpi=100)
@@ -49,8 +48,15 @@ def main():
 	args = parse_args()
 	print(args)
 
+	# NOTE: this is needed when running on remote server through ssh
+	# see: https://stackoverflow.com/questions/4706451/how-to-save-a-figure-remotely-with-pylab
+	if args.out_file is not None:
+		import matplotlib
+		matplotlib.use('Agg')
+	import matplotlib.pyplot as plt
+
 	header, rows = read_data(args.file)
-	plot(header, rows, out_file=args.out_file, out_file_format=args.out_file_format)
+	plot(plt, header, rows, out_file=args.out_file, out_file_format=args.out_file_format)
 
 
 if __name__ == "__main__":
