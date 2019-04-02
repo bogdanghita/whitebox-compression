@@ -7,6 +7,7 @@ import json
 import string
 from lib.util import *
 from patterns import *
+import plot_pattern_distribution as plot
 
 
 RET_ERR = 15
@@ -75,17 +76,15 @@ def driver_loop(driver, pd_engine, fdelim):
 
 def output_stats(columns, patterns):
 	# print(json.dumps(patterns, indent=2))
-	# TODO: also output percentage of NULLs on each columns
 	for pd in patterns.values():
 		print("*** {} ***".format(pd["name"]))
-		print("# TODO: also output percentage of NULLs on each column")
 		for col_id, col_p_list in pd["columns"].items():
 			print("{}".format(columns[col_id]))
 			for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
 				print("{:.2f}\t{}".format(p["score"], p["p_id"]))
 
 
-def output_pattern_distribution(columns, patterns, pattern_distribution_output_dir, fdelim=","):
+def output_pattern_distribution(columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
 	# group patterns by columns
 	column_patterns = {}
 	for c in columns:
@@ -129,6 +128,9 @@ def output_pattern_distribution(columns, patterns, pattern_distribution_output_d
 					break
 				fd.write(fdelim.join(current_row)); fd.write("\n")
 				row_count += 1
+
+		plot_file="{}/col_{}.{}".format(pattern_distribution_output_dir, col_id, plot_file_format)
+		plot.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 
 def parse_args():
@@ -232,4 +234,7 @@ dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 mkdir -p $pattern_distr_out_dir
 ./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir $wbs_dir/$wb/$table.sample.csv
+
+#[scp-pattern-detection-results]
+scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/CommonGovernment/CommonGovernment_1.patterns pattern_detection/output/
 """

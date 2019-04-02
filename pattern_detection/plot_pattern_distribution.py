@@ -10,7 +10,7 @@ def plot(plt, header, rows, out_file=None, out_file_format="svg"):
 
 	plt.figure(figsize=(8, 8), dpi=100)
 	plt.imshow(arr, aspect='auto')
-	plt.xticks(range(len(header)), header, rotation=128)
+	plt.xticks(range(len(header)), header, rotation=270)
 	plt.xlabel("pattern")
 	plt.ylabel("row")
 	plt.tight_layout()
@@ -19,6 +19,8 @@ def plot(plt, header, rows, out_file=None, out_file_format="svg"):
 		plt.savefig(out_file, format=out_file_format)
 	else:
 		plt.show()
+
+	plt.close()
 
 
 def read_data(input_file):
@@ -44,23 +46,23 @@ def parse_args():
 	return parser.parse_args()
 
 
-def main():
-	args = parse_args()
-	print(args)
-
+def main(in_file, out_file, out_file_format):
 	# NOTE: this is needed when running on remote server through ssh
 	# see: https://stackoverflow.com/questions/4706451/how-to-save-a-figure-remotely-with-pylab
-	if args.out_file is not None:
+	if out_file is not None:
 		import matplotlib
 		matplotlib.use('Agg')
 	import matplotlib.pyplot as plt
 
-	header, rows = read_data(args.file)
-	plot(plt, header, rows, out_file=args.out_file, out_file_format=args.out_file_format)
+	header, rows = read_data(in_file)
+	plot(plt, header, rows, out_file=out_file, out_file_format=out_file_format)
 
 
 if __name__ == "__main__":
-	main()
+	args = parse_args()
+	print(args)
+
+	main(args.file, args.out_file, args.out_file_format)
 
 
 """
