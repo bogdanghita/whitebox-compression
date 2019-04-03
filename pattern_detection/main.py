@@ -172,14 +172,15 @@ def main():
 		columns.append(Column(col_id, col_name, datatypes[col_id]))
 
 	pattern_detectors = [
-		NullPatternDetector(columns, args.null),
-		NumberAsString(columns, args.null),
-		# StringCommonPrefix(columns, args.null),
-		CharSetSplit(columns, args.null, default_placeholder="?", char_sets=[
-			{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
-			# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
-			# TODO: play around with the char sets here
-		]),
+		# NullPatternDetector(columns, args.null),
+		# NumberAsString(columns, args.null),
+		# # StringCommonPrefix(columns, args.null),
+		# CharSetSplit(columns, args.null, default_placeholder="?", char_sets=[
+		# 	{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
+		# 	# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
+		# 	# TODO: play around with the char sets here
+		# ]),
+		NGramFreqSplit(columns, args.null, n=3)
 		# TODO: add new pattern detectors here
 	]
 	pd_engine = PatternDetectionEngine(columns, pattern_detectors)

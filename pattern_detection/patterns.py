@@ -3,6 +3,7 @@ import sys
 from copy import deepcopy
 from lib.util import *
 from lib.prefix_tree import PrefixTree
+from statistics import mean, median
 
 
 class PatternDetector(object):
@@ -236,5 +237,70 @@ class CharSetSplit(StringPatternDetector):
 				}
 				patterns.append(p_item)
 			res[col["info"].col_id] = patterns
+
+		return res
+
+
+class NGramFreqSplit(StringPatternDetector):
+	def __init__(self, columns, null_value, n):
+		StringPatternDetector.__init__(self, columns, null_value)
+		self.n = n
+		for col in self.columns.values():
+			col["ngrams"] = {
+				"freqs": {},
+				"avg_freq": 0,
+				"median_freq": 0
+			}
+			col["attrs"] = []
+
+	def get_ngrams(self, attr):
+		for i in range(len(attr) - self.n + 1):
+			ng = attr[i:i + self.n]
+			yield ng
+
+	def get_ngram_freq_mask(self, attr, ngrams, delim="-"):
+		ngfm = []
+
+		for i in range(len(attr) - self.n + 1):
+			ng = attr[i:i + self.n]
+			ng_freq = 0 if ng not in ngrams else ngrams[ng]
+			ngfm.append(str(ng_freq))
+
+		return delim.join(ngfm)
+
+	def handle_attr(self, attr, idx):
+		handled = StringPatternDetector.handle_attr(self, attr, idx)
+		if handled:
+			return True
+		col = self.columns[idx]
+
+		# update ngram frequencies
+		ngrams = self.get_ngrams(attr)
+		for ng in ngrams:
+			if ng not in col["ngrams"]["freqs"]:
+				col["ngrams"]["freqs"][ng] = 0
+			col["ngrams"]["freqs"][ng] += 1
+
+		# store the attributes for the evaluate() step
+		# TODO: store these values globally, i.e. only once, to avoid storing them twice if more pattern detectors need to do this
+		col["attrs"].append(attr)
+
+		return True
+
+	def evaluate(self):
+		res = dict()
+
+		# for col in self.columns.values():
+		# 	if len(col["ngrams"]["freqs"].keys()) == 0:
+		# 		# TODO: do something else here? check with the evaluate() output format
+		# 		continue
+		# 	print(col["info"], col["attrs"][:10])
+		# 	col["ngrams"]["avg_freq"] = mean(col["ngrams"]["freqs"].values())
+		# 	col["ngrams"]["median_freq"] = median(col["ngrams"]["freqs"].values())
+		# 	print(col["ngrams"]["avg_freq"], col["ngrams"]["median_freq"])
+		# 	print(sorted(col["ngrams"]["freqs"].values()))
+		# 	for attr in col["attrs"]:
+		# 		ngfm = self.get_ngram_freq_mask(attr, col["ngrams"]["freqs"])
+		# 		# print(attr, ngfm, col["ngrams"]["avg_freq"], col["ngrams"]["median_freq"])
 
 		return res
