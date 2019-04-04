@@ -280,7 +280,7 @@ class NGramFreqSplit(StringPatternDetector):
 			return True
 		col = self.columns[idx]
 
-		# debug
+		# TODO: debug
 		if col["info"].col_id != 28:
 			return True
 
