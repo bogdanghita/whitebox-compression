@@ -242,9 +242,10 @@ class CharSetSplit(StringPatternDetector):
 
 
 class NGramFreqSplit(StringPatternDetector):
-	def __init__(self, columns, null_value, n):
+	def __init__(self, columns, null_value, n, case_sensitive=False):
 		StringPatternDetector.__init__(self, columns, null_value)
 		self.n = n
+		self.case_sensitive = case_sensitive
 		for col in self.columns.values():
 			col["ngrams"] = {
 				"freqs": {},
@@ -254,11 +255,16 @@ class NGramFreqSplit(StringPatternDetector):
 			col["attrs"] = []
 
 	def get_ngrams(self, attr):
+		if not self.case_sensitive:
+			attr = attr.lower()
+
 		for i in range(len(attr) - self.n + 1):
 			ng = attr[i:i + self.n]
 			yield ng
 
 	def get_ngram_freq_mask(self, attr, ngrams, delim="-"):
+		if not self.case_sensitive:
+			attr = attr.lower()
 		ngfm = []
 
 		for i in range(len(attr) - self.n + 1):
@@ -273,6 +279,10 @@ class NGramFreqSplit(StringPatternDetector):
 		if handled:
 			return True
 		col = self.columns[idx]
+
+		# debug
+		if col["info"].col_id != 28:
+			return True
 
 		# update ngram frequencies
 		ngrams = self.get_ngrams(attr)
@@ -301,6 +311,17 @@ class NGramFreqSplit(StringPatternDetector):
 		# 	print(sorted(col["ngrams"]["freqs"].values()))
 		# 	for attr in col["attrs"]:
 		# 		ngfm = self.get_ngram_freq_mask(attr, col["ngrams"]["freqs"])
-		# 		# print(attr, ngfm, col["ngrams"]["avg_freq"], col["ngrams"]["median_freq"])
+		# 		print(attr, ngfm, col["ngrams"]["avg_freq"], col["ngrams"]["median_freq"])
 
+		return res
+
+	def get_ngram_freq_masks(self, delim=","):
+		res = {}
+		for col in self.columns.values():
+			if len(col["ngrams"]["freqs"].keys()) == 0:
+				continue
+			# NOTE-1: we want to return a generator, thus the usage of round brackets
+			# See: https://code-maven.com/list-comprehension-vs-generator-expression
+			# NOTE-2: we also want to create a closure for the col variable
+			res[col["info"].col_id] = (lambda col: (self.get_ngram_freq_mask(attr, col["ngrams"]["freqs"], delim=delim) for attr in col["attrs"]))(col)
 		return res

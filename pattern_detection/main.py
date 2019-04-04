@@ -7,7 +7,7 @@ import json
 import string
 from lib.util import *
 from patterns import *
-import plot_pattern_distribution as plot
+import plot_pattern_distribution
 
 
 RET_ERR = 15
@@ -103,7 +103,7 @@ def output_pattern_distribution(columns, patterns, pattern_distribution_output_d
 		with open(out_file, 'w') as fd:
 			# write header
 			header = sorted(col_p.keys())
-			fd.write(fdelim.join(header)); fd.write("\n")
+			fd.write(fdelim.join(header) + "\n")
 
 			# write one row at a time
 			# NOTE: we assume that col_p[p_id]["rows"] is sorted in increasing order
@@ -126,11 +126,19 @@ def output_pattern_distribution(columns, patterns, pattern_distribution_output_d
 						raise Exception("Rows are not sorted: col_id={}, p={}, row_count={}, rows[{}]={}".format(col_id, p, row_count, r_it, rows[r_it]))
 				if done_cnt == len(header):
 					break
-				fd.write(fdelim.join(current_row)); fd.write("\n")
+				fd.write(fdelim.join(current_row) + "\n")
 				row_count += 1
 
 		plot_file="{}/col_{}.{}".format(pattern_distribution_output_dir, col_id, plot_file_format)
-		plot.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
+		plot_pattern_distribution.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
+
+
+def output_ngram_freq_masks(ngram_freq_masks, ngram_freq_masks_output_dir, plot_file_format="svg"):
+	for col_id, values in ngram_freq_masks.items():
+		out_file = "{}/col_{}.csv".format(ngram_freq_masks_output_dir, col_id)
+		with open(out_file, 'w') as fd:
+			for v in values:
+				fd.write(v + "\n")
 
 
 def parse_args():
@@ -148,6 +156,8 @@ def parse_args():
 		required=True)
 	parser.add_argument('--pattern-distribution-output-dir', dest='pattern_distribution_output_dir', type=str,
 		help="Output file to write pattern distribution to")
+	parser.add_argument('--ngram-freq-masks-output-dir', dest='ngram_freq_masks_output_dir', type=str,
+		help="Output file to write ngram frequency masks to")
 	parser.add_argument("-F", "--fdelim", dest="fdelim",
 		help="Use <fdelim> as delimiter between fields", default="|")
 	parser.add_argument("--null", dest="null", type=str,
@@ -171,6 +181,7 @@ def main():
 	for col_id, col_name in enumerate(header):
 		columns.append(Column(col_id, col_name, datatypes[col_id]))
 
+	ngram_freq_split = NGramFreqSplit(columns, args.null, n=3)
 	pattern_detectors = [
 		# NullPatternDetector(columns, args.null),
 		# NumberAsString(columns, args.null),
@@ -180,7 +191,7 @@ def main():
 		# 	# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
 		# 	# TODO: play around with the char sets here
 		# ]),
-		NGramFreqSplit(columns, args.null, n=3)
+		ngram_freq_split
 		# TODO: add new pattern detectors here
 	]
 	pd_engine = PatternDetectionEngine(columns, pattern_detectors)
@@ -203,6 +214,9 @@ def main():
 	output_stats(columns, patterns)
 	if args.pattern_distribution_output_dir is not None:
 		output_pattern_distribution(columns, patterns, args.pattern_distribution_output_dir)
+	if args.ngram_freq_masks_output_dir is not None:
+		ngram_freq_masks = ngram_freq_split.get_ngram_freq_masks(delim=",")
+		output_ngram_freq_masks(ngram_freq_masks, args.ngram_freq_masks_output_dir)
 
 
 if __name__ == "__main__":
@@ -238,4 +252,23 @@ mkdir -p $pattern_distr_out_dir
 
 #[scp-pattern-detection-results]
 scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/CommonGovernment/CommonGovernment_1.patterns pattern_detection/output/
+
+================================================================================
+*** Eixo/Eixo_1 ***
+
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
+wb=Eixo
+table=Eixo_1
+
+#[sample]
+max_sample_size=$((1024*1024*10))
+dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
+./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
+
+#[pattern-detection]
+pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
+ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
+mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir
+./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir $wbs_dir/$wb/$table.sample.csv
 """
