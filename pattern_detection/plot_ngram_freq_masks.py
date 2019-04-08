@@ -9,6 +9,7 @@ MIN_INT = -sys.maxsize - 1
 
 
 def plot(plt, rows, out_file=None, out_file_format="svg"):
+	# pad rows with trailing values to get equal length; also adjust colorbar limits
 	max_row_length = MIN_INT
 	min_freq_value, max_freq_value = MAX_INT, MIN_INT
 	for r in rows:
@@ -21,16 +22,28 @@ def plot(plt, rows, out_file=None, out_file_format="svg"):
 		r_l = len(r)
 		if r_l > max_row_length:
 			max_row_length = r_l
-	padding_value = min_freq_value - ((max_freq_value - min_freq_value) * 0.25)
+
+	if min_freq_value == max_freq_value:
+		min_freq_value -= 1; max_freq_value += 1
+
+	padding_value = min_freq_value - ((max_freq_value - min_freq_value) * 0.3)
 	for r in rows:
 		r.extend([padding_value] * (max_row_length - len(r)))
-		print(r)
+		# print(r, len(r))
+
+	cbar_bounds = np.arange(min_freq_value, max_freq_value, 0.5)
+
+	# NOTE: necessary to avoid error thrown by pyplot; probably caused by colorbar boundaries
+	if max_row_length == 1:
+		for r in rows:
+			r.append(padding_value)
 
 	arr = np.array(rows)
 
+	# plot
 	plt.figure(figsize=(8, 8), dpi=100)
-	plt.imshow(arr, cmap='hot', interpolation='none', aspect='auto')
-	plt.colorbar(boundaries=range(int(min_freq_value), int(max_freq_value)), label="ngram frequency")
+	plt.imshow(arr, cmap='hot', interpolation=None, aspect='auto')
+	plt.colorbar(boundaries=cbar_bounds, label="ngram frequency")
 	plt.xlabel("ngram start index in string")
 	plt.ylabel("row")
 	plt.tight_layout()
@@ -54,6 +67,7 @@ def read_data(input_file):
 			else:
 				rows.append(list(map(int, line.split(","))))
 	return rows
+
 
 def parse_args():
 	parser = argparse.ArgumentParser(
@@ -90,9 +104,9 @@ if __name__ == "__main__":
 
 """
 # input_file=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/Eixo/Eixo_1.ngram_freq_masks/col_28.csv
-input_file=/ufs/bogdan/work/master-project/public_bi_benchmark-analysis/pattern_detection/output/col_28.csv
+input_file=/ufs/bogdan/work/master-project/whitebox-compression/pattern_detection/output/col_28.csv
 output_file_format=svg
-output_file=/ufs/bogdan/work/master-project/public_bi_benchmark-analysis/pattern_detection/output/col_28.$output_file_format
+output_file=/ufs/bogdan/work/master-project/whitebox-compression/pattern_detection/output/col_28.$output_file_format
 
 ./pattern_detection/plot_ngram_freq_masks.py $input_file --out-file $output_file --out-file-format $output_file_format
 """

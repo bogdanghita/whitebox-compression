@@ -67,9 +67,9 @@ if __name__ == "__main__":
 
 """
 # input_file=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/CommonGovernment/CommonGovernment_1.patterns/col_48.csv
-input_file=/ufs/bogdan/work/master-project/public_bi_benchmark-analysis/pattern_detection/output/col_48.csv
+input_file=/ufs/bogdan/work/master-project/whitebox-compression/pattern_detection/output/col_48.csv
 output_file_format=svg
-output_file=/ufs/bogdan/work/master-project/public_bi_benchmark-analysis/pattern_detection/output/col_48.$output_file_format
+output_file=/ufs/bogdan/work/master-project/whitebox-compression/pattern_detection/output/col_48.$output_file_format
 
 ./pattern_detection/plot_pattern_distribution.py $input_file --out-file $output_file --out-file-format $output_file_format
 """
