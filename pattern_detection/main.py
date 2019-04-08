@@ -7,7 +7,7 @@ import json
 import string
 from lib.util import *
 from patterns import *
-import plot_pattern_distribution
+import plot_pattern_distribution, plot_ngram_freq_masks
 
 
 RET_ERR = 15
@@ -140,6 +140,9 @@ def output_ngram_freq_masks(ngram_freq_masks, ngram_freq_masks_output_dir, plot_
 			for v in values:
 				fd.write(v + "\n")
 
+		plot_file="{}/col_{}.{}".format(ngram_freq_masks_output_dir, col_id, plot_file_format)
+		plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
+
 
 def parse_args():
 	parser = argparse.ArgumentParser(
@@ -271,4 +274,8 @@ pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
 mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir
 ./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir $wbs_dir/$wb/$table.sample.csv
+
+#[scp-pattern-detection-results]
+scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/Eixo/Eixo_1.patterns pattern_detection/output/
+scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/Eixo/Eixo_1.ngram_freq_masks pattern_detection/output/
 """

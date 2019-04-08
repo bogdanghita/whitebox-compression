@@ -281,8 +281,8 @@ class NGramFreqSplit(StringPatternDetector):
 		col = self.columns[idx]
 
 		# TODO: debug
-		if col["info"].col_id != 28:
-			return True
+		# if col["info"].col_id != 28:
+		# 	return True
 
 		# update ngram frequencies
 		ngrams = self.get_ngrams(attr)
