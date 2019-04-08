@@ -79,17 +79,25 @@ load_data() {
 process_results() {
 	echo "$(date) [process_results]"
 
-	echo "TODO"
+	# get table statistics with statdump
+	statdump $DB_NAME -r$TABLE_NAME > "$OUTPUT_DIR/stats-vectorwise/$TABLE_NAME.statdump.out" 2> "$OUTPUT_DIR/stats-vectorwise/$TABLE_NAME.statdump.err"
+	echo $ret > "$OUTPUT_DIR/stats-vectorwise/$TABLE_NAME.statdump.ret"
+	if [ "$ret" -ne 0 ]; then
+		echo "error: statdump"
+		exit $ret
+	fi
+
+	echo "TODO: extract stats from the *.statdump.* and *.compression-log.* files"
 }
 
-echo "$@"
 
+echo "$(date) [args] $@"
 check_db_connectivity
 create_table
 load_data
 process_results
+echo "$(date) [done]"
 
-echo "$(date) done"
 
 : <<'END_COMMENT'
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
