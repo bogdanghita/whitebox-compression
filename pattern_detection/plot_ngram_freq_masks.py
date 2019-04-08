@@ -10,24 +10,27 @@ MIN_INT = -sys.maxsize - 1
 
 def plot(plt, rows, out_file=None, out_file_format="svg"):
 	max_row_length = MIN_INT
-	min_freq_value = MAX_INT
+	min_freq_value, max_freq_value = MAX_INT, MIN_INT
 	for r in rows:
 		if len(r) > 0:
-			min_v = min(r)
+			min_v, max_v = min(r), max(r)
 			if min_v < min_freq_value:
 				min_freq_value = min_v
+			if max_v > max_freq_value:
+				max_freq_value = max_v
 		r_l = len(r)
 		if r_l > max_row_length:
 			max_row_length = r_l
+	padding_value = min_freq_value - ((max_freq_value - min_freq_value) * 0.25)
 	for r in rows:
-		r.extend([min_freq_value] * (max_row_length - len(r)))
+		r.extend([padding_value] * (max_row_length - len(r)))
 		print(r)
 
 	arr = np.array(rows)
 
 	plt.figure(figsize=(8, 8), dpi=100)
 	plt.imshow(arr, cmap='hot', interpolation='none', aspect='auto')
-	plt.colorbar()
+	plt.colorbar(boundaries=range(int(min_freq_value), int(max_freq_value)), label="ngram frequency")
 	plt.xlabel("ngram start index in string")
 	plt.ylabel("row")
 	plt.tight_layout()
