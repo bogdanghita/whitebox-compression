@@ -1,3 +1,3 @@
-# public_bi_benchmark-analysis
+# Whitebox Compression
 
 TODO
