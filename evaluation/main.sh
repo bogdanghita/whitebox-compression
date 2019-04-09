@@ -1,13 +1,14 @@
 #!/bin/bash
 
-SCRIPT_DIR=$(dirname "$(realpath "$0")")
-WORKING_DIR=$(pwd)
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+WORKING_DIR="$(pwd)"
 VW_LOG_FILE="/scratch/bogdan/vectorwise/ingres/files/vectorwise.log"
+VW_DATA_FILES_DIR="/scratch/bogdan/vectorwise/ingres/data/vectorwise/pbib/CBM/default"
 
 
 usage() {
 cat <<EOM
-Usage: $(basename $0) <vw-database-name> <input-file>
+Usage: "$(basename $0)" <vw-database-name> <input-file>
   vw-database-name    name of the VectorWise database
   input-file          CSV file to load data from
   schema-file         SQL file with schema
@@ -55,9 +56,6 @@ create_table() {
 load_data() {
 	echo "$(date) [load_data]"
 
-	mkdir -p "$OUTPUT_DIR/stats-vectorwise"
-	mkdir -p "$OUTPUT_DIR/load-vectorwise"
-
 	echo -n "" > $VW_LOG_FILE
 	sleep 2
 	echo "$(date) load start for table: $TABLE_NAME" >> $VW_LOG_FILE
@@ -77,6 +75,7 @@ load_data() {
 }
 
 process_results() {
+	load_start_t=$1; load_end_t=$2
 	echo "$(date) [process_results]"
 
 	# get table statistics with statdump
@@ -87,15 +86,29 @@ process_results() {
 		exit $ret
 	fi
 
-	echo "TODO: extract stats from the *.statdump.* and *.compression-log.* files"
+	# get list of data files
+	find $VW_DATA_FILES_DIR -type f -iname "*$TABLE_NAME*" -newermt "$load_start_t" -not -newermt "$load_end_t" > "$OUTPUT_DIR/load-vectorwise/$TABLE_NAME.data-files.out" 2> /dev/null
+
+	# process all results and get stats
+	$SCRIPT_DIR/get_stats.py --schema-file $SCHEMA_FILE --table-name $TABLE_NAME --output-dir $OUTPUT_DIR
 }
 
 
 echo "$(date) [args] $@"
+
+work_dirs="$OUTPUT_DIR/stats-vectorwise $OUTPUT_DIR/load-vectorwise"
+mkdir -p $work_dirs
+
 check_db_connectivity
+
 create_table
+
+load_start_t="$(date)"
 load_data
-process_results
+load_end_t="$(date)"
+
+process_results "$load_start_t" "$load_end_t"
+
 echo "$(date) [done]"
 
 
@@ -118,5 +131,12 @@ table_name=$table
 output_dir=$wbs_dir/$wb/$table.evaluation
 
 mkdir -p $output_dir && \
-./evaluation/main.sh $db_name $input_file $schema_file $table_name $output_dir
+time ./evaluation/main.sh $db_name $input_file $schema_file $table_name $output_dir
+
+time ./evaluation/get_stats.py --schema-file $schema_file --table-name $table_name --output-dir $output_dir
+
+cat $wbs_dir/$wb/$table.evaluation/stats-vectorwise/$table.statdump.out | less
+cat $wbs_dir/$wb/$table.evaluation/stats-vectorwise/$table.compression-log.out | less
+cat $wbs_dir/$wb/$table.evaluation/load-vectorwise/$table.data-files.out | less
+cat $wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json | less
 END_COMMENT
