@@ -133,6 +133,7 @@ output_dir=$wbs_dir/$wb/$table.evaluation
 mkdir -p $output_dir && \
 time ./evaluation/main.sh $db_name $input_file $schema_file $table_name $output_dir
 
+# for stats processing only:
 time ./evaluation/get_stats.py --schema-file $schema_file --table-name $table_name --output-dir $output_dir
 
 cat $wbs_dir/$wb/$table.evaluation/stats-vectorwise/$table.statdump.out | less
