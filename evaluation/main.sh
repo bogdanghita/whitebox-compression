@@ -27,6 +27,7 @@ INPUT_FILE="$2"
 SCHEMA_FILE="$3"
 TABLE_NAME="$4"
 OUTPUT_DIR="$5"
+NO_COMPRESSION=false
 if [ "$#" -eq 6 ]; then
 	if [ "$6" = "--no-compression" ]; then
 		NO_COMPRESSION=true
@@ -127,6 +128,7 @@ echo "$(date) [done]"
 
 
 : <<'END_COMMENT'
+db_name=pbib
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
 
@@ -144,7 +146,6 @@ wb=Physicians
 table=Physicians_1
 
 
-db_name=pbib
 input_file=$wbs_dir/$wb/$table.csv
 schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table.sql
 table_name=$table
@@ -162,4 +163,46 @@ cat $wbs_dir/$wb/$table.evaluation/stats-vectorwise/$table.statdump.out | less
 cat $wbs_dir/$wb/$table.evaluation/stats-vectorwise/$table.compression-log.out | less
 cat $wbs_dir/$wb/$table.evaluation/load-vectorwise/$table.data-files.out | less
 cat $wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json | less
+
+
+================================================================================
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
+db_name=pbib
+source ~/.ingVWsh
+
+# eval all workbooks
+for wb in $wbs_dir/*; do \
+  for table in $wb/*.csv; do \
+    if [[ "$table" == *.sample.csv ]]; then \
+      continue; \
+    fi; \
+    wb="$(basename $wb)"; \
+    table="$(basename $table)"; table="${table%.csv}"; \
+    echo $wb $table; \
+\
+    input_file=$wbs_dir/$wb/$table.csv; \
+    schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table.sql; \
+    table_name=$table; \
+\
+    output_dir=$wbs_dir/$wb/$table.evaluation; \
+    mkdir -p $output_dir && \
+    time ./evaluation/main.sh $db_name $input_file $schema_file $table_name $output_dir; \
+    echo "drop table $table\g" | sql $db_name; \
+\
+    output_dir=$wbs_dir/$wb/$table.evaluation-nocompression; \
+    mkdir -p $output_dir && \
+    time ./evaluation/main.sh $db_name $input_file $schema_file $table_name $output_dir --no-compression; \
+\
+    stats_file1=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json; \
+    stats_file2=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json; \
+    ./evaluation/compare_stats.py $stats_file1 $stats_file2 &> $wbs_dir/$wb/$table.evaluation.compare_stats.out; \
+    echo "drop table $table\g" | sql $db_name; \
+\
+  done; \
+done &> ./eval_all_workbooks.out
+
+watch tail -n 40 eval_all_workbooks.out
+cat $wbs_dir/*/*.evaluation.compare_stats.out | less
+
 END_COMMENT
