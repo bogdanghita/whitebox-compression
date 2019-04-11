@@ -8,16 +8,17 @@ VW_DATA_FILES_DIR="/scratch/bogdan/vectorwise/ingres/data/vectorwise/pbib/CBM/de
 
 usage() {
 cat <<EOM
-Usage: "$(basename $0)" <vw-database-name> <input-file>
+Usage: "$(basename $0)" <vw-database-name> <input-file> <schema-file> <table-name> <output-dir> [--no-compression]
   vw-database-name    name of the VectorWise database
   input-file          CSV file to load data from
   schema-file         SQL file with schema
   table-name          name of the table; must be the same with the one in the schema-file
   output-dir          directory to put output files in
+  --no-compression    disable VectorWise data compression; optional argument
 EOM
 }
 
-if [ "$#" -ne 5 ]; then
+if [ "$#" -lt 5 ]; then
 	usage
 	exit 1
 fi
@@ -26,6 +27,12 @@ INPUT_FILE="$2"
 SCHEMA_FILE="$3"
 TABLE_NAME="$4"
 OUTPUT_DIR="$5"
+if [ "$#" -eq 6 ] && [ "$6" = "--no-compression" ]; then
+	NO_COMPRESSION=true
+else
+	NO_COMPRESSION=false
+fi
+echo "NO_COMPRESSION=$NO_COMPRESSION"
 
 check_db_connectivity() {
 	echo "$(date) [check_db_connectivity]"
@@ -44,6 +51,10 @@ create_table() {
 	mkdir -p "$OUTPUT_DIR/load-vectorwise"
 
 	query="$(cat $SCHEMA_FILE)\g"
+	if [ "$NO_COMPRESSION" = true ]; then
+		# disable compression
+		query="SET TRACE POINT QE82; $query"
+	fi
 	echo $query | sql $DB_NAME > "$OUTPUT_DIR/load-vectorwise/$TABLE_NAME.create-table.out" 2> "$OUTPUT_DIR/load-vectorwise/$TABLE_NAME.create-table.err"
 	ret=$?
 	echo $ret > "$OUTPUT_DIR/load-vectorwise/$TABLE_NAME.create-table.ret"
@@ -138,6 +149,7 @@ output_dir=$wbs_dir/$wb/$table.evaluation
 
 mkdir -p $output_dir && \
 time ./evaluation/main.sh $db_name $input_file $schema_file $table_name $output_dir
+# to disable compression add --no-compression as last argument
 
 # for stats processing only:
 time ./evaluation/get_stats.py --schema-file $schema_file --table-name $table_name --output-dir $output_dir
