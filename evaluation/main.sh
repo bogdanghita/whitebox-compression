@@ -27,10 +27,13 @@ INPUT_FILE="$2"
 SCHEMA_FILE="$3"
 TABLE_NAME="$4"
 OUTPUT_DIR="$5"
-if [ "$#" -eq 6 ] && [ "$6" = "--no-compression" ]; then
-	NO_COMPRESSION=true
-else
-	NO_COMPRESSION=false
+if [ "$#" -eq 6 ]; then
+	if [ "$6" = "--no-compression" ]; then
+		NO_COMPRESSION=true
+	else
+		usage
+		exit 1
+	fi
 fi
 echo "NO_COMPRESSION=$NO_COMPRESSION"
 
@@ -146,6 +149,7 @@ input_file=$wbs_dir/$wb/$table.csv
 schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table.sql
 table_name=$table
 output_dir=$wbs_dir/$wb/$table.evaluation
+# output_dir=$wbs_dir/$wb/$table.evaluation-nocompression
 
 mkdir -p $output_dir && \
 time ./evaluation/main.sh $db_name $input_file $schema_file $table_name $output_dir
