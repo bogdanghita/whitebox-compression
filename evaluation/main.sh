@@ -123,10 +123,16 @@ table=Eixo_1
 wb=Arade
 table=Arade_1
 ================================================================================
+wb=IUBLibrary
+table=IUBLibrary_1
+================================================================================
+wb=Physicians
+table=Physicians_1
+
 
 db_name=pbib
 input_file=$wbs_dir/$wb/$table.csv
-schema_file=$repo_wbs_dir/$wb/tables/$table.table.sql
+schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table.sql
 table_name=$table
 output_dir=$wbs_dir/$wb/$table.evaluation
 

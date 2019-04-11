@@ -112,6 +112,7 @@ def match_data_files(schema, d_files):
 		else:
 			eprint("error: no reciprocal match for: f_column={}, b_col_id={}, b_f_column={}".format(f_column, b_col_id, b_f_column))
 			# TODO: think what to do in this case
+	nb_matches_best_reciprocal = len(res.keys())
 
 	# print("debug: unmatched_d_files={}".format(unmatched_d_files))
 	# print("debug: unmatched_cols={}".format(list(map(lambda c: (c, schema[c]["col_name"]), unmatched_cols))))
@@ -133,22 +134,25 @@ def match_data_files(schema, d_files):
 			score = regex_span - levenshtein_d
 			# print(f_column, m, levenshtein_d, score)
 			match_pairs.append((col_id, f_column, score))
-
 	# print(match_pairs)
 	# select pairs in decreasing oreder of the score
 	while len(match_pairs) > 0:
 		(col_id, f_column, score) = max(match_pairs, key=lambda p: p[2])
 		# add pair to res
 		res[col_id] = d_files_dict[f_column]
+		print("debug: fuzzy_regex_levenshtein_match: col_id={}, col_name={}, f_column={}, score={}".format(col_id, schema[col_id]["col_name"], f_column, score))
 		# update match_pairs, unmatched_d_files and unmatched_cols
 		unmatched_d_files.discard(f_column)
 		unmatched_cols.discard(col_id)
 		match_pairs = list(filter(lambda x: x[0] != col_id and x[1] != f_column, match_pairs))
+	nb_matches_fuzzy_regex_levenshtein = len(res.keys()) - nb_matches_best_reciprocal
 
 	if len(unmatched_d_files) > 0 or len(unmatched_cols):
 		eprint("error: still unmatched_d_files={}".format(unmatched_d_files))
 		eprint("error: still unmatched_cols={}".format(list(map(lambda c: (c, schema[c]["col_name"]), unmatched_cols))))
 		# TODO: think what to do in this case
+
+	print("debug: cols={}, data_files={}, total_matches={} (best_reciprocal_matches={}, fuzzy_regex_levenshtein_matches={})".format(len(schema.keys()), len(d_files), nb_matches_best_reciprocal + nb_matches_fuzzy_regex_levenshtein, nb_matches_best_reciprocal, nb_matches_fuzzy_regex_levenshtein))
 
 	return res
 
