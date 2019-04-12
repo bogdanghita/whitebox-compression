@@ -7,6 +7,16 @@ import Levenshtein
 from lib.util import sizeof_fmt, eprint
 
 
+"""
+NOTE: all the compex file->column matching logic was meant for the original file
+names; because of some exceptions, we renamed the columns to make the matching
+more precise; VectorWise keeps replacing some chars, but now in a deterministic
+way; although it's an overkill and not needed anymore, we kept the file->column
+matching algorithm; it covers for the current representation of the column name
+and might be helpful if some column names are formatted in a different way;
+"""
+
+
 def data_file_table_match(table_name, f_table):
 	return table_name.lower() == f_table.lower()
 
@@ -178,7 +188,7 @@ def process_data_files(schema, table_name, m_file):
 			f_column = m.group(2)
 			# table filter
 			if not data_file_table_match(table_name, f_table):
-				print("debug: table mismatch for file: {}".format(df))
+				eprint("error: table mismatch for file: {}".format(df))
 				continue
 			d_files.append({
 				"path": df,

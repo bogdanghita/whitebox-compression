@@ -25,7 +25,8 @@ def compare_stats(s_file1, s_file2):
 	for k,v in table_data_files[s_file2].items():
 		output += "{}: {}\n".format(k, v)
 	output += "\n[ratio]\n"
-	size_B_ratio = float(table_data_files[s_file1]["size_B"]) / table_data_files[s_file2]["size_B"]
+	size_B1, size_B2 = table_data_files[s_file1]["size_B"], table_data_files[s_file2]["size_B"]
+	size_B_ratio = float(size_B1) / size_B2 if size_B2 != 0 else float("inf")
 	output += "size_B(1) / size_B(2) = %.2f" % (size_B_ratio)
 
 	print(output)
