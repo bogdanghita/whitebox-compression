@@ -174,7 +174,7 @@ source ~/.ingVWsh
 # eval all workbooks
 for wb in $wbs_dir/*; do \
   for table in $wb/*.csv; do \
-    if [[ "$table" == *.sample.csv ]]; then \
+    if [[ "$table" == *.*.csv ]]; then \
       continue; \
     fi; \
     wb="$(basename $wb)"; \
@@ -182,7 +182,7 @@ for wb in $wbs_dir/*; do \
     echo $wb $table; \
 \
     input_file=$wbs_dir/$wb/$table.csv; \
-    schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table.sql; \
+    schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql; \
     table_name=$table; \
 \
     output_dir=$wbs_dir/$wb/$table.evaluation; \
