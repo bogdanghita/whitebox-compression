@@ -81,7 +81,7 @@ def output_stats(columns, patterns):
 		for col_id, col_p_list in pd["columns"].items():
 			print("{}".format(columns[col_id]))
 			for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
-				print("{:.2f}\t{}".format(p["score"], p["p_id"]))
+				print("{:.2f}\t{}\tdetails={}".format(p["score"], p["p_id"], p["details"]))
 
 
 def output_pattern_distribution(columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
@@ -184,18 +184,21 @@ def main():
 	for col_id, col_name in enumerate(header):
 		columns.append(Column(col_id, col_name, datatypes[col_id]))
 
+	# pattern detectors
+	char_set_split = CharSetSplit(columns, args.null, default_placeholder="?", char_sets=[
+		{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
+		# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
+		# TODO: play around with the char sets here
+	])
 	ngram_freq_split = NGramFreqSplit(columns, args.null, n=3)
 	pattern_detectors = [
 		# NullPatternDetector(columns, args.null),
-		# NumberAsString(columns, args.null),
-		# # StringCommonPrefix(columns, args.null),
-		# CharSetSplit(columns, args.null, default_placeholder="?", char_sets=[
-		# 	{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
-		# 	# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
-		# 	# TODO: play around with the char sets here
-		# ]),
-		ngram_freq_split
-		# TODO: add new pattern detectors here
+		# ConstantPatternDetector(columns, args.null),
+		NumberAsString(columns, args.null),
+		# StringCommonPrefix(columns, args.null),
+		# char_set_split,
+		# ngram_freq_split,
+		# NOTE: add new pattern detectors here
 	]
 	pd_engine = PatternDetectionEngine(columns, pattern_detectors)
 

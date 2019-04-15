@@ -1,9 +1,10 @@
 import os
 import sys
 from copy import deepcopy
+from statistics import mean, median
 from lib.util import *
 from lib.prefix_tree import PrefixTree
-from statistics import mean, median
+from lib.datatype_analyzer import NumericDatatypeAnalyzer
 
 
 class PatternDetector(object):
@@ -86,6 +87,47 @@ class NullPatternDetector(PatternDetector):
 		return res
 
 
+class ConstantPatternDetector(PatternDetector):
+	def __init__(self, columns, null_value):
+		PatternDetector.__init__(self, columns, null_value)
+		self.columns = {}
+		for idx, col in enumerate(columns):
+			if col.datatype.rstrip().lower().endswith("not null"):
+				continue
+			self.columns[idx] = {
+				"info": deepcopy(col),
+				"nulls": [],
+				"patterns": {
+					"default": {"rows": [], "details": {}},
+					# NOTE: pattern detectors with only one pattern should use the "default" pattern;
+					# multi-pattern detectors should add a new entry for each pattern;
+					# "default" can be used if there is a main pattern or it can be left empty
+				}
+			}
+
+	def handle_attr(self, attr, idx):
+		'''Handles an attribute
+
+		Returns:
+			handled: boolean value indicating whether the attr was handled by this function or not
+		'''
+		if self.is_null(attr):
+			self.columns[idx]["nulls"].append(self.row_count)
+			return True
+		# TODO
+		return True
+
+	def feed_tuple(self, tpl):
+		PatternDetector.feed_tuple(self, tpl)
+		for idx in self.columns.keys():
+			attr = tpl[idx]
+			self.handle_attr(attr, idx)
+
+	def evaluate(self):
+		return dict()
+		# TODO
+
+
 class StringPatternDetector(PatternDetector):
 	def __init__(self, columns, null_value):
 		PatternDetector.__init__(self, columns, null_value)
@@ -125,6 +167,8 @@ class StringPatternDetector(PatternDetector):
 class NumberAsString(StringPatternDetector):
 	def __init__(self, columns, null_value):
 		StringPatternDetector.__init__(self, columns, null_value)
+		for col in self.columns.values():
+			col["ndt_analyzer"] = NumericDatatypeAnalyzer()
 
 	def is_number(self, attr):
 		try:
@@ -140,6 +184,7 @@ class NumberAsString(StringPatternDetector):
 		if not self.is_number(attr):
 			return True
 		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count)
+		self.columns[idx]["ndt_analyzer"].feed_attr(attr)
 		return True
 
 	def evaluate(self):
@@ -149,11 +194,14 @@ class NumberAsString(StringPatternDetector):
 				continue
 			# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
 			score = 0 if self.row_count == 0 else (len(col["patterns"]["default"]["rows"]) + len(col["nulls"])) / self.row_count
+			datatype = col["ndt_analyzer"].get_datatype()
 			p_item = {
 				"p_id": "{}:default".format(self.name),
 				"score": score,
 				"rows": col["patterns"]["default"]["rows"],
-				"details": dict(),
+				"details": {
+					"datatype": datatype
+				},
 			}
 			patterns = [p_item]
 			res[col["info"].col_id] = patterns
