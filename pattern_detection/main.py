@@ -147,10 +147,11 @@ def output_ngram_freq_masks(ngram_freq_masks, ngram_freq_masks_output_dir, plot_
 		plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 
-def output_operators(operators, nb_rows):
-	print("nb_operators={}".format(len(operators)))
-	for op in operators:
-		print(op["p_id"], op["details"], float(len(op["rows"])/nb_rows), op["cols_in"], op["cols_out"])
+def output_expression_nodes(expression_nodes, nb_rows):
+	print("nb_expression_nodes={}".format(len(expression_nodes)))
+	for op in expression_nodes:
+		print(op.p_id, op.details, float(len(op.rows)/nb_rows), op.cols_in, op.cols_out)
+		# TODO: use op.serialize() and write to file
 
 	# TODO: serialize to file; also take care of the row_masks (store them efficiently; e.g. as bitmaps)
 
@@ -229,11 +230,11 @@ def main():
 
 	# select patterns for each column
 	pattern_selector = DummyPatternSelector
-	operators = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
+	expression_nodes = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
 
 	# otuput results
 	output_stats(columns, patterns)
-	output_operators(operators, valid_tuple_count)
+	output_expression_nodes(expression_nodes, valid_tuple_count)
 	if args.pattern_distribution_output_dir is not None:
 		output_pattern_distribution(columns, patterns, args.pattern_distribution_output_dir)
 	if args.ngram_freq_masks_output_dir is not None:

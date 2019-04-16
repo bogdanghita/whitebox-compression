@@ -1,5 +1,6 @@
 import os
 import sys
+from lib.util import ExpressionNode
 
 
 class PatternSelector(object):
@@ -8,7 +9,7 @@ class PatternSelector(object):
 		""" Selects the best (combination of) pattern(s) for the given columns
 
 		Returns:
-			operators: list(
+			expression_nodes: list(
 				dict(
 					p_id: # id of the pattern
 					rows: list() # rows where the pattern applies
@@ -18,11 +19,11 @@ class PatternSelector(object):
 				)
 			)
 
-		NOTE-1: a column can appear in multiple operators, each being applied only on a subset of its rows;
+		NOTE-1: a column can appear in multiple expression_nodes, each being applied only on a subset of its rows;
 				the key point here is that the subsets of rows will not overlap
 		TODO-1: take care to satisfy the above property
 
-		NOTE-2: some columns might not appear in any of the operators;
+		NOTE-2: some columns might not appear in any of the expression_nodes;
 				this means that they should not be processed with any of the given patterns
 		"""
 		raise Exception("Not implemented")
@@ -39,7 +40,7 @@ class DummyPatternSelector(PatternSelector):
 
 	@classmethod
 	def select_patterns(cls, patterns, columns, nb_rows):
-		operators = []
+		expression_nodes = []
 
 		for col in columns:
 			# TODO: get column nulls
@@ -62,16 +63,15 @@ class DummyPatternSelector(PatternSelector):
 				print("debug: no pattern selected for column={}".format(col))
 				# TODO: maybe do something here
 			else:
-				op_item = {
-					"p_id": best_p["p_id"],
-					"rows": best_p["rows"],
-					"cols_in": [col],
-					"cols_out": best_p["res_columns"],
-					"operator_info": best_p["operator_info"],
-					"details": {
+				exp_node = ExpressionNode(
+					p_id=best_p["p_id"],
+					rows=best_p["rows"],
+					cols_in=[col],
+					cols_out=best_p["res_columns"],
+					operator_info=best_p["operator_info"],
+					details={
 						"score": best_p["score"]
-					}
-				}
-				operators.append(op_item)
+					})
+				expression_nodes.append(exp_node)
 
-		return operators
+		return expression_nodes
