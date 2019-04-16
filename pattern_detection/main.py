@@ -6,6 +6,7 @@ import argparse
 import json
 import string
 from lib.util import *
+from lib.pattern_selectors import *
 from patterns import *
 import plot_pattern_distribution, plot_ngram_freq_masks
 
@@ -35,6 +36,8 @@ class PatternDetectionEngine(object):
 		for pd in self.pattern_detectors:
 			pd.feed_tuple(tpl)
 
+		return True
+
 	def get_patterns(self):
 		patterns = {}
 
@@ -44,7 +47,7 @@ class PatternDetectionEngine(object):
 				"columns": pd.evaluate()
 			}
 
-		return patterns
+		return (patterns, self.total_tuple_count, self.valid_tuple_count)
 
 
 class FileDriver(object):
@@ -144,6 +147,14 @@ def output_ngram_freq_masks(ngram_freq_masks, ngram_freq_masks_output_dir, plot_
 		plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 
+def output_operators(operators, nb_rows):
+	print("nb_operators={}".format(len(operators)))
+	for op in operators:
+		print(op["p_id"], op["details"], float(len(op["rows"])/nb_rows), op["cols_in"], op["cols_out"])
+
+	# TODO: serialize to file; also take care of the row_masks (store them efficiently; e.g. as bitmaps)
+
+
 def parse_args():
 	parser = argparse.ArgumentParser(
 		description="""Detect column patterns in CSV file."""
@@ -189,7 +200,7 @@ def main():
 		{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
 		# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
 		# TODO: play around with the char sets here
-	])
+	], drop_single_char_pattern=True)
 	ngram_freq_split = NGramFreqSplit(columns, args.null, n=3)
 	pattern_detectors = [
 		# NullPatternDetector(columns, args.null),
@@ -214,10 +225,15 @@ def main():
 		fd.close()
 
 	# get results from engine
-	patterns = pd_engine.get_patterns()
+	(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
+
+	# select patterns for each column
+	pattern_selector = DummyPatternSelector
+	operators = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
 
 	# otuput results
 	output_stats(columns, patterns)
+	output_operators(operators, valid_tuple_count)
 	if args.pattern_distribution_output_dir is not None:
 		output_pattern_distribution(columns, patterns, args.pattern_distribution_output_dir)
 	if args.ngram_freq_masks_output_dir is not None:

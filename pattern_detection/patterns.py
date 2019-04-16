@@ -241,11 +241,12 @@ class StringCommonPrefix(StringPatternDetector):
 
 
 class CharSetSplit(StringPatternDetector):
-	def __init__(self, columns, null_value, default_placeholder, char_sets, empty_string_pattern="<empty_string>"):
+	def __init__(self, columns, null_value, default_placeholder, char_sets, empty_string_pattern="<empty_string>", drop_single_char_pattern=True):
 		StringPatternDetector.__init__(self, columns, null_value)
 		self.default_placeholder = default_placeholder
 		self.char_sets = {c["placeholder"]:c for c in char_sets}
 		self.empty_string_pattern = empty_string_pattern
+		self.drop_single_char_pattern = drop_single_char_pattern
 		# print(char_sets)
 
 	def get_pattern_string(self, attr):
@@ -313,6 +314,8 @@ class CharSetSplit(StringPatternDetector):
 			patterns = []
 			for ps, ps_data in col["patterns"].items():
 				if len(ps_data["rows"]) == 0:
+					continue
+				if self.drop_single_char_pattern and (ps == self.empty_string_pattern or len(ps) == 1):
 					continue
 				p_item = self.build_pattern_data(col, ps, ps_data)
 				patterns.append(p_item)
