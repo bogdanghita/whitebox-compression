@@ -81,7 +81,7 @@ def output_stats(columns, patterns):
 		for col_id, col_p_list in pd["columns"].items():
 			print("{}".format(columns[col_id]))
 			for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
-				print("{:.2f}\t{}\tdetails={}".format(p["score"], p["p_id"], p["details"]))
+				print("{:.2f}\t{}, res_columns={}, operator_info={}".format(p["score"], p["p_id"], p["res_columns"], p["operator_info"]))
 
 
 def output_pattern_distribution(columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
@@ -152,7 +152,7 @@ def parse_args():
 	parser.add_argument('file', metavar='FILE', nargs='?',
 		help='CSV file to process. Stdin if none given')
 	parser.add_argument('--header-file', dest='header_file', type=str,
-		help="CSV file containing the header row (<workbook>/samples/<table>.header.csv)",
+		help="CSV file containing the header row (<workbook>/samples/<table>.header-renamed.csv)",
 		required=True)
 	parser.add_argument('--datatypes-file', dest='datatypes_file', type=str,
 		help="CSV file containing the datatypes row (<workbook>/samples/<table>.datatypes.csv)",
@@ -196,7 +196,7 @@ def main():
 		# ConstantPatternDetector(columns, args.null),
 		NumberAsString(columns, args.null),
 		# StringCommonPrefix(columns, args.null),
-		# char_set_split,
+		char_set_split,
 		# ngram_freq_split,
 		# NOTE: add new pattern detectors here
 	]
@@ -232,11 +232,11 @@ if __name__ == "__main__":
 """
 wbs_dir=/ufs/bogdan/work/master-project/public_bi_benchmark-master_project/benchmark
 
-./main.py --header-file $wbs_dir/Arade/samples/Arade_1.header.csv --datatypes-file $wbs_dir/Arade/samples/Arade_1.datatypes.csv $wbs_dir/Arade/samples/Arade_1.sample.csv
+./main.py --header-file $wbs_dir/Arade/samples/Arade_1.header-renamed.csv --datatypes-file $wbs_dir/Arade/samples/Arade_1.datatypes.csv $wbs_dir/Arade/samples/Arade_1.sample.csv
 
-./main.py --header-file $wbs_dir/CommonGovernment/samples/CommonGovernment_1.header.csv --datatypes-file $wbs_dir/CommonGovernment/samples/CommonGovernment_1.datatypes.csv $wbs_dir/CommonGovernment/samples/CommonGovernment_1.sample.csv
+./main.py --header-file $wbs_dir/CommonGovernment/samples/CommonGovernment_1.header-renamed.csv --datatypes-file $wbs_dir/CommonGovernment/samples/CommonGovernment_1.datatypes.csv $wbs_dir/CommonGovernment/samples/CommonGovernment_1.sample.csv
 
-./main.py --header-file $wbs_dir/Eixo/samples/Eixo_1.header.csv --datatypes-file $wbs_dir/Eixo/samples/Eixo_1.datatypes.csv $wbs_dir/Eixo/samples/Eixo_1.sample.csv
+./main.py --header-file $wbs_dir/Eixo/samples/Eixo_1.header-renamed.csv --datatypes-file $wbs_dir/Eixo/samples/Eixo_1.datatypes.csv $wbs_dir/Eixo/samples/Eixo_1.sample.csv
 
 ================================================================================
 *** CommonGovernment/CommonGovernment_1 ***
@@ -254,7 +254,7 @@ dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 #[pattern-detection]
 pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 mkdir -p $pattern_distr_out_dir
-./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir $wbs_dir/$wb/$table.sample.csv
+./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir $wbs_dir/$wb/$table.sample.csv
 
 #[scp-pattern-detection-results]
 scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/CommonGovernment/CommonGovernment_1.patterns pattern_detection/output/
@@ -276,7 +276,7 @@ dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
 mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir
-./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir $wbs_dir/$wb/$table.sample.csv
+./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir $wbs_dir/$wb/$table.sample.csv
 
 #[scp-pattern-detection-results]
 scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/Eixo/Eixo_1.patterns pattern_detection/output/

@@ -4,9 +4,11 @@ SCRIPT_DIR=$(dirname "$(realpath "$0")")
 WORKING_DIR=$(pwd)
 PBIB_REPO_DIR=$SCRIPT_DIR/../../public_bi_benchmark-master_project
 
-for table_f in $PBIB_REPO_DIR/benchmark/*/tables/*.sql
+for table_f in $PBIB_REPO_DIR/benchmark/*/tables/*.table.sql
+# for table_f in $PBIB_REPO_DIR/benchmark/*/tables/*.table-renamed.sql
 do
 	table=$(basename $table_f); table="${table%.table.sql}"
+	# table=$(basename $table_f); table="${table%.table-renamed.sql}"
 	echo $table_f $table
 	lines=$(head -n -1 $table_f | tail -n +2)
 
@@ -31,6 +33,7 @@ do
 
 	datatypes_out_f=$(dirname $table_f); datatypes_out_f="$datatypes_out_f/../samples/$table.datatypes.csv"
 	header_out_f=$(dirname $table_f); header_out_f="$header_out_f/../samples/$table.header.csv"
+	# header_out_f=$(dirname $table_f); header_out_f="$header_out_f/../samples/$table.header-renamed.csv"
 	echo $datatypes_row > $datatypes_out_f
 	echo $header_row > $header_out_f
 

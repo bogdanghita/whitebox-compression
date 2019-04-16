@@ -27,6 +27,8 @@ class PatternDetector(object):
 						p_id: # id of the pattern
 						score: float # number between 0 and 1 indicating how well the column fits this pattern
 						rows: [row_id: int, ...], # rows where the pattern applies
+						res_columns: [rcol_1, rcol_2, ...], # list of resulting columns; type: util.Column
+						operator_info: dict(), # operator parameters (used when applying the transformation)
 						details: dict() # pattern-specific info
 					)
 				)
@@ -80,6 +82,8 @@ class NullPatternDetector(PatternDetector):
 				"p_id": "{}:default".format(self.name),
 				"score": score,
 				"rows": col["patterns"]["default"]["rows"],
+				"res_columns": [], # TODO
+				"operator_info": dict(), # TODO
 				"details": dict(),
 			}
 			patterns = [p_item]
@@ -187,22 +191,33 @@ class NumberAsString(StringPatternDetector):
 		self.columns[idx]["ndt_analyzer"].feed_attr(attr)
 		return True
 
+	def build_pattern_data(self, col):
+		# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
+		score = 0 if self.row_count == 0 else (len(col["patterns"]["default"]["rows"]) + len(col["nulls"])) / self.row_count
+		# new column info
+		ncol_col_id = str(col["info"].col_id) + "_0"
+		ncol_name = str(col["info"].name) + "_0"
+		ncol_datatype = col["ndt_analyzer"].get_datatype()
+		ncol = Column(ncol_col_id, ncol_name, ncol_datatype)
+		# operator info
+		operator_info = dict(name="identity")
+		# pattern data
+		p_item = {
+			"p_id": "{}:default".format(self.name),
+			"score": score,
+			"rows": col["patterns"]["default"]["rows"],
+			"res_columns": [ncol],
+			"operator_info": operator_info,
+			"details": dict()
+		}
+		return p_item
+
 	def evaluate(self):
 		res = dict()
 		for idx, col in self.columns.items():
 			if len(col["patterns"]["default"]["rows"]) == 0:
 				continue
-			# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
-			score = 0 if self.row_count == 0 else (len(col["patterns"]["default"]["rows"]) + len(col["nulls"])) / self.row_count
-			datatype = col["ndt_analyzer"].get_datatype()
-			p_item = {
-				"p_id": "{}:default".format(self.name),
-				"score": score,
-				"rows": col["patterns"]["default"]["rows"],
-				"details": {
-					"datatype": datatype
-				},
-			}
+			p_item = self.build_pattern_data(col)
 			patterns = [p_item]
 			res[col["info"].col_id] = patterns
 		return res
@@ -229,7 +244,7 @@ class CharSetSplit(StringPatternDetector):
 	def __init__(self, columns, null_value, default_placeholder, char_sets, empty_string_pattern="<empty_string>"):
 		StringPatternDetector.__init__(self, columns, null_value)
 		self.default_placeholder = default_placeholder
-		self.char_sets = char_sets
+		self.char_sets = {c["placeholder"]:c for c in char_sets}
 		self.empty_string_pattern = empty_string_pattern
 		# print(char_sets)
 
@@ -238,10 +253,9 @@ class CharSetSplit(StringPatternDetector):
 
 		for c in attr:
 			# look for c in each char set
-			for c_set in self.char_sets:
+			for ph, c_set in self.char_sets.items():
 				if c not in c_set["char_set"]:
 					continue
-				ph = c_set["placeholder"]
 				break
 			# use the default placeholder if not match
 			else:
@@ -267,6 +281,31 @@ class CharSetSplit(StringPatternDetector):
 		col["patterns"][ps]["rows"].append(self.row_count)
 		return True
 
+	def build_pattern_data(self, col, pattern_s, pattern_s_data):
+		# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
+		score = 0 if self.row_count == 0 else (len(pattern_s_data["rows"]) + len(col["nulls"])) / self.row_count
+		res_columns = []
+		operator_info = dict(char_sets=deepcopy(self.char_sets), pattern_string=pattern_s)
+		operator_info["char_sets"][self.default_placeholder] = {"name": "default", "placeholder": self.default_placeholder, "char_set": dict()}
+		# new columns info
+		for idx, ph in enumerate(pattern_s):
+			ncol_col_id = str(col["info"].col_id) + "_" + str(idx)
+			ncol_name = str(col["info"].name) + "_" + str(idx)
+			# NOTE: here we keep the original column datatype (i.e. varchar(x))
+			# TODO: think of the possibility of giving a better datatype (e.g. varchar of shorter length, numeric datatype, etc.)
+			ncol_datatype = col["info"].datatype
+			ncol = Column(ncol_col_id, ncol_name, ncol_datatype)
+			res_columns.append(ncol)
+		p_item = {
+			"p_id": "{}:{}".format(self.name, pattern_s),
+			"score": score,
+			"rows": pattern_s_data["rows"],
+			"res_columns": res_columns,
+			"operator_info": operator_info,
+			"details": dict()
+		}
+		return p_item
+
 	def evaluate(self):
 		res = dict()
 
@@ -275,14 +314,7 @@ class CharSetSplit(StringPatternDetector):
 			for ps, ps_data in col["patterns"].items():
 				if len(ps_data["rows"]) == 0:
 					continue
-				# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
-				score = 0 if self.row_count == 0 else (len(ps_data["rows"]) + len(col["nulls"])) / self.row_count
-				p_item = {
-					"p_id": "{}:{}".format(self.name, ps),
-					"score": score,
-					"rows": ps_data["rows"],
-					"details": dict(),
-				}
+				p_item = self.build_pattern_data(col, ps, ps_data)
 				patterns.append(p_item)
 			res[col["info"].col_id] = patterns
 
