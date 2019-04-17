@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 
 
 class Column(object):
@@ -11,6 +12,26 @@ class Column(object):
 	def __repr__(self):
 		return "Column(col_id=%r,name=%r,datatype=%r)" % (self.col_id, self.name, self.datatype)
 
+	def to_dict(self):
+		return {
+			"col_id": self.col_id,
+			"name": self.name,
+			"datatype": self.datatype
+		}
+
+	@classmethod
+	def from_dict(cls, in_d):
+		return cls(**in_d)
+
+	def serialize(self):
+		res_d = self.to_dict()
+		return json.dumps(res_d, indent=2)
+
+	@classmethod
+	def deserialize(cls, in_str):
+		res_d = json.loads(in_str)
+		return cls.from_dict(res_d)
+
 
 class ExpressionNode(object):
 	def __init__(self, p_id, cols_in, cols_out, operator_info, details):
@@ -20,14 +41,27 @@ class ExpressionNode(object):
 		self.operator_info = operator_info
 		self.details = details
 
-	def serialize(self):
-		# TODO
-		return "<not-implemented>"
+	def to_dict(self):
+		return {
+			"p_id": self.p_id,
+			"cols_in": [c.to_dict() for c in self.cols_in],
+			"cols_out": [c.to_dict() for c in self.cols_out],
+			"operator_info": self.operator_info,
+			"details": self.details
+		}
 
-	@staticmethod
-	def deserialize(expr_node):
-		# TODO
-		return "<not-implemented>"
+	@classmethod
+	def from_dict(cls, in_d):
+		return cls(**in_d)
+
+	def serialize(self):
+		res_d = self.to_dict()
+		return json.dumps(res_d, indent=2)
+
+	@classmethod
+	def deserialize(cls, in_str):
+		res_d = json.loads(in_str)
+		return cls.from_dict(res_d)
 
 
 def to_row_mask(selected_rows, nb_rows_total):

@@ -247,7 +247,6 @@ class CharSetSplit(StringPatternDetector):
 		self.char_sets = {c["placeholder"]:c for c in char_sets}
 		self.empty_string_pattern = empty_string_pattern
 		self.drop_single_char_pattern = drop_single_char_pattern
-		# print(char_sets)
 
 	def get_pattern_string(self, attr):
 		pattern_string = []
@@ -286,8 +285,12 @@ class CharSetSplit(StringPatternDetector):
 		# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
 		score = 0 if self.row_count == 0 else (len(pattern_s_data["rows"]) + len(col["nulls"])) / self.row_count
 		res_columns = []
-		operator_info = dict(char_sets=deepcopy(self.char_sets), pattern_string=pattern_s)
-		operator_info["char_sets"][self.default_placeholder] = {"name": "default", "placeholder": self.default_placeholder, "char_set": dict()}
+		operator_info = dict(char_sets=[], pattern_string=pattern_s)
+		for cs in self.char_sets.values():
+			new_cs = deepcopy(cs)
+			new_cs["char_set"] = list(new_cs["char_set"])
+			operator_info["char_sets"].append(new_cs)
+		operator_info["char_sets"].append({"name": "default", "placeholder": self.default_placeholder, "char_set": []})
 		# new columns info
 		for idx, ph in enumerate(pattern_s):
 			ncol_col_id = str(col["info"].col_id) + "_" + str(idx)

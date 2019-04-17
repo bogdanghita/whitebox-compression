@@ -147,11 +147,10 @@ def output_ngram_freq_masks(ngram_freq_masks, ngram_freq_masks_output_dir, plot_
 		plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 
-def output_expression_nodes(expression_nodes, nb_rows):
-	print("nb_expression_nodes={}".format(len(expression_nodes)))
-	for op in expression_nodes:
-		print(op.p_id, op.details, op.cols_in, op.cols_out)
-		# TODO: use op.serialize() and write to file
+def output_expression_nodes(expression_nodes, output_file):
+	expr_nodes_as_dict = [en.to_dict() for en in expression_nodes]
+	with open(output_file, 'w') as f:
+		json.dump(expr_nodes_as_dict, f, indent=2)
 
 
 def parse_args():
@@ -167,10 +166,13 @@ def parse_args():
 	parser.add_argument('--datatypes-file', dest='datatypes_file', type=str,
 		help="CSV file containing the datatypes row (<workbook>/samples/<table>.datatypes.csv)",
 		required=True)
+	parser.add_argument('--expr-nodes-output-file', dest='expr_nodes_output_file', type=str,
+		help="Output file to write expression nodes to",
+		required=True)
 	parser.add_argument('--pattern-distribution-output-dir', dest='pattern_distribution_output_dir', type=str,
-		help="Output file to write pattern distribution to")
+		help="Output dir to write pattern distribution to")
 	parser.add_argument('--ngram-freq-masks-output-dir', dest='ngram_freq_masks_output_dir', type=str,
-		help="Output file to write ngram frequency masks to")
+		help="Output dir to write ngram frequency masks to")
 	parser.add_argument("-F", "--fdelim", dest="fdelim",
 		help="Use <fdelim> as delimiter between fields", default="|")
 	parser.add_argument("--null", dest="null", type=str,
@@ -232,7 +234,7 @@ def main():
 
 	# otuput results
 	output_stats(columns, patterns)
-	output_expression_nodes(expression_nodes, valid_tuple_count)
+	output_expression_nodes(expression_nodes, args.expr_nodes_output_file)
 	if args.pattern_distribution_output_dir is not None:
 		output_pattern_distribution(columns, patterns, args.pattern_distribution_output_dir)
 	if args.ngram_freq_masks_output_dir is not None:
@@ -245,55 +247,34 @@ if __name__ == "__main__":
 
 
 """
-wbs_dir=/ufs/bogdan/work/master-project/public_bi_benchmark-master_project/benchmark
-
-./main.py --header-file $wbs_dir/Arade/samples/Arade_1.header-renamed.csv --datatypes-file $wbs_dir/Arade/samples/Arade_1.datatypes.csv $wbs_dir/Arade/samples/Arade_1.sample.csv
-
-./main.py --header-file $wbs_dir/CommonGovernment/samples/CommonGovernment_1.header-renamed.csv --datatypes-file $wbs_dir/CommonGovernment/samples/CommonGovernment_1.datatypes.csv $wbs_dir/CommonGovernment/samples/CommonGovernment_1.sample.csv
-
-./main.py --header-file $wbs_dir/Eixo/samples/Eixo_1.header-renamed.csv --datatypes-file $wbs_dir/Eixo/samples/Eixo_1.datatypes.csv $wbs_dir/Eixo/samples/Eixo_1.sample.csv
-
-================================================================================
-*** CommonGovernment/CommonGovernment_1 ***
-
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
+
+================================================================================
 wb=CommonGovernment
 table=CommonGovernment_1
-
-#[sample]
 max_sample_size=$((1024*1024*10))
 dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
-./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 32 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
-
-#[pattern-detection]
-pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
-mkdir -p $pattern_distr_out_dir
-./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir $wbs_dir/$wb/$table.sample.csv
-
-#[scp-pattern-detection-results]
-scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/CommonGovernment/CommonGovernment_1.patterns pattern_detection/output/
-
 ================================================================================
-*** Eixo/Eixo_1 ***
-
-wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
-repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
 wb=Eixo
 table=Eixo_1
-
-#[sample]
 max_sample_size=$((1024*1024*10))
 dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
+
+
+================================================================================
+#[sample]
 ./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
 
 #[pattern-detection]
 pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
-mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir
-./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir $wbs_dir/$wb/$table.sample.csv
+expr_nodes_output_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
+
+mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $(dirname $expr_nodes_output_file) && \
+./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir $wbs_dir/$wb/$table.sample.csv --expr-nodes-output-file $expr_nodes_output_file
 
 #[scp-pattern-detection-results]
-scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/Eixo/Eixo_1.patterns pattern_detection/output/
-scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/Eixo/Eixo_1.ngram_freq_masks pattern_detection/output/
+scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/$wb/$table.patterns pattern_detection/output/
+scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/$wb/$table.ngram_freq_masks pattern_detection/output/
 """

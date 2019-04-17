@@ -146,6 +146,7 @@ wb=Physicians
 table=Physicians_1
 
 
+================================================================================
 input_file=$wbs_dir/$wb/$table.csv
 schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql
 table_name=$table
