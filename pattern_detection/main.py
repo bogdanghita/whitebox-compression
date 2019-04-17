@@ -50,23 +50,6 @@ class PatternDetectionEngine(object):
 		return (patterns, self.total_tuple_count, self.valid_tuple_count)
 
 
-class FileDriver(object):
-	def __init__(self, fd, args):
-		self.fd = fd
-		self.done = False
-
-	def nextTuple(self):
-		if self.done:
-			return None
-
-		l = self.fd.readline()
-		if not l:
-			self.done = True
-			return None
-
-		return l.rstrip('\r\n')
-
-
 class OutputManager(object):
 	@staticmethod
 	def output_stats(columns, patterns):

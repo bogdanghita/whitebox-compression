@@ -3,6 +3,23 @@ import sys
 import json
 
 
+class FileDriver(object):
+	def __init__(self, fd, args):
+		self.fd = fd
+		self.done = False
+
+	def nextTuple(self):
+		if self.done:
+			return None
+
+		l = self.fd.readline()
+		if not l:
+			self.done = True
+			return None
+
+		return l.rstrip('\r\n')
+
+
 class Column(object):
 	def __init__(self, col_id, name, datatype):
 		self.col_id = col_id
@@ -52,7 +69,10 @@ class ExpressionNode(object):
 
 	@classmethod
 	def from_dict(cls, in_d):
-		return cls(**in_d)
+		res = cls(**in_d)
+		res.cols_in = [Column.from_dict(c) for c in res.cols_in]
+		res.cols_out = [Column.from_dict(c) for c in res.cols_out]
+		return res
 
 	def serialize(self):
 		res_d = self.to_dict()

@@ -8,6 +8,45 @@ from patterns import *
 from lib.util import *
 
 
+class ExpressionManager(object):
+	def __init__(self, columns, expr_nodes):
+		self.columns = columns
+		self.expr_nodes = expr_nodes
+
+	def is_valid_tuple(self, tpl):
+		if len(tpl) != len(self.columns):
+			return False
+		return True
+
+	def apply_expressions(self, tpl):
+		if not self.is_valid_tuple(tpl):
+			return None
+		# TODO
+		return ["Not", "implemented"]
+
+
+def driver_loop(driver, expr_manager, fdelim, fd_out):
+	total_tuple_count = 0
+	valid_tuple_count = 0
+
+	while True:
+		line = driver.nextTuple()
+		if line is None:
+			break
+		total_tuple_count += 1
+
+		tpl = line.split(fdelim)
+		tpl_new = expr_manager.apply_expressions(tpl)
+		if tpl_new is None:
+			continue
+		valid_tuple_count += 1
+
+		line_new = fdelim.join(tpl_new)
+		fd_out.write(line_new + "\n")
+
+	return (total_tuple_count, valid_tuple_count)
+
+
 def parse_args():
 	parser = argparse.ArgumentParser(
 		description="""Detect column patterns in CSV file."""
@@ -24,8 +63,8 @@ def parse_args():
 	parser.add_argument('--expr-nodes-file', dest='expr_nodes_file', type=str,
 		help="Input file containing expression nodes",
 		required=True)
-	parser.add_argument('--output-dir', dest='output_dir', type=str,
-		help="Output dir to write results to",
+	parser.add_argument('--output-file', dest='output_file', type=str,
+		help="Output file to write the new data to",
 		required=True)
 	parser.add_argument("-F", "--fdelim", dest="fdelim",
 		help="Use <fdelim> as delimiter between fields", default="|")
@@ -46,12 +85,34 @@ def main():
 	if len(header) != len(datatypes):
 		return RET_ERR
 
+	# build columns
 	columns = []
 	for col_id, col_name in enumerate(header):
 		columns.append(Column(col_id, col_name, datatypes[col_id]))
 
-	# TODO
-	print("[apply_expression] Not implemented")
+	# build expression nodes
+	with open(args.expr_nodes_file, 'r') as f:
+		expr_nodes = [ExpressionNode.from_dict(en) for en in json.load(f)]
+
+	# apply expression nodes and generate the new csv file
+	expr_manager = ExpressionManager(columns, expr_nodes)
+	try:
+		if args.file is None:
+			fd_in = os.fdopen(os.dup(sys.stdin.fileno()))
+		else:
+			fd_in = open(args.file, 'r')
+		fd_out = open(args.output_file, 'w')
+
+		driver = FileDriver(fd_in, args.fdelim)
+		(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager, args.fdelim, fd_out)
+	finally:
+		fd_in.close()
+		try:
+			fd_out.close()
+		except:
+			pass
+
+	print("total_tuple_count={}, valid_tuple_count={}".format(total_tuple_count, valid_tuple_count))
 
 
 if __name__ == "__main__":
@@ -68,13 +129,18 @@ table=CommonGovernment_1
 ================================================================================
 wb=Eixo
 table=Eixo_1
+================================================================================
+wb=Arade
+table=Arade_1
+
 
 ================================================================================
 input_file=$wbs_dir/$wb/$table.csv
 expr_nodes_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
 output_dir=$wbs_dir/$wb/$table.poc_1_out
+output_file=$output_dir/$table.csv
 
 mkdir -p $output_dir && \
-./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir $input_file
+./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-file $output_file $input_file
 
 """

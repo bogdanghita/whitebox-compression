@@ -39,7 +39,7 @@ generate_sample() {
 	max_sample_size=$((1024*1024*10))
 	dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 
-	SCRIPT_DIR/../sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $sample_file $wbs_dir/$wb/$table.csv
+	$SCRIPT_DIR/../sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $sample_file $wbs_dir/$wb/$table.csv
 }
 
 generate_expression() {
@@ -65,10 +65,11 @@ apply_expression() {
 	input_file=$wbs_dir/$wb/$table.csv
 	expr_nodes_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
 	output_dir=$wbs_dir/$wb/$table.poc_1_out
+	output_file=$output_dir/$table.csv
 
 	mkdir -p $output_dir
 
-	$SCRIPT_DIR/../pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir $input_file
+	$SCRIPT_DIR/../pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-file $output_file $input_file
 }
 
 
