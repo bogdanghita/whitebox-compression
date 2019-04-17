@@ -7,11 +7,29 @@ from lib.prefix_tree import PrefixTree
 from lib.datatype_analyzer import NumericDatatypeAnalyzer
 
 
+pattern_detectors = dict(
+	"NullPatternDetector".lower(): NullPatternDetector,
+	"ConstantPatternDetector".lower(): ConstantPatternDetector,
+	"NumberAsString".lower(): NumberAsString,
+	"CharSetSplit".lower(): CharSetSplit,
+	"NGramFreqSplit".lower(): NGramFreqSplit,
+	"StringCommonPrefix".lower(): StringCommonPrefix,
+)
+def get_pattern_detector(pattern_name):
+	pnl = pattern_name.lower()
+	if pnl in pattern_detectors:
+		return pattern_detectors[pnl]
+	raise Exception("Invalid pattern name")
+
+
 class PatternDetector(object):
 	def __init__(self, columns, null_value):
 		self.null_value = null_value
 		self.row_count = 0
 		self.name = self.__class__.__name__
+
+	def is_null(self, attr):
+		return attr == self.null_value
 
 	def feed_tuple(self, tpl):
 		self.row_count += 1
@@ -35,8 +53,19 @@ class PatternDetector(object):
 		'''
 		return dict()
 
-	def is_null(self, attr):
-		return attr == self.null_value
+	@classmethod
+	def get_operator(cls):
+		'''
+		Returns: a function with the following signature:
+				 params: attrs, cols_in, cols_out, operator_info
+				 returns: attrs_out
+				 raises: Exception if attrs are invalid (i.e. pattern and/or params are not applicable)
+				 properties:
+				 	len(attrs) = len(cols_in)
+					len(attrs_out) = len(cols_out)
+				 note-1: function assumes that the above properties are satisfied & does not check them
+		'''
+		raise Exception("Not implemented")
 
 
 class NullPatternDetector(PatternDetector):
@@ -222,6 +251,22 @@ class NumberAsString(StringPatternDetector):
 			res[col["info"].col_id] = patterns
 		return res
 
+	@classmethod
+	def get_operator(cls):
+		'''
+		NOTE: for now we use the identity operator; in the future we may want
+			  to actually perform a cast to a numeric type, based on the column
+			  datatype
+		'''
+		def operator(attrs, cols_in, cols_out, operator_info):
+			val = attrs[0]
+			if not cls.is_number(val):
+				raise Exception("[{}] value is not numeric".format(cls.__name__))
+			attrs_out = [val]
+			return attrs_out
+
+		return operator
+
 
 class StringCommonPrefix(StringPatternDetector):
 	def __init__(self, columns, null_value):
@@ -285,12 +330,12 @@ class CharSetSplit(StringPatternDetector):
 		# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
 		score = 0 if self.row_count == 0 else (len(pattern_s_data["rows"]) + len(col["nulls"])) / self.row_count
 		res_columns = []
-		operator_info = dict(char_sets=[], pattern_string=pattern_s)
-		for cs in self.char_sets.values():
+		operator_info = dict(char_sets={}, pattern_string=pattern_s)
+		for ph, cs in self.char_sets.items():
 			new_cs = deepcopy(cs)
 			new_cs["char_set"] = list(new_cs["char_set"])
-			operator_info["char_sets"].append(new_cs)
-		operator_info["char_sets"].append({"name": "default", "placeholder": self.default_placeholder, "char_set": []})
+			operator_info["char_sets"][ph] = new_cs
+		operator_info["char_sets"][self.default_placeholder] = {"name": "default", "placeholder": self.default_placeholder, "char_set": []}
 		# new columns info
 		for idx, ph in enumerate(pattern_s):
 			ncol_col_id = str(col["info"].col_id) + "_" + str(idx)
@@ -325,6 +370,48 @@ class CharSetSplit(StringPatternDetector):
 			res[col["info"].col_id] = patterns
 
 		return res
+
+	@classmethod
+	def split_attr(cls, attr, pattern_string, char_sets):
+		defult_exception = Exception("[{}] attr does not match pattern_string".format(cls.__name__))
+		# NOTE: for now, we don't support empty value
+		# NOTE: we assume len(pattern_string) > 0
+		''' NOTE: we assume that the (pattern_string, char_sets) pair is
+		valid, thus we don't check if ph is in char_sets '''
+
+		if len(attr) == 0:
+			raise defult_exception
+
+		''' TODO: c_set got serialized as a list; search is slow in list;
+		it is converted back to a set here; but this should be done only
+		one time, when it's deserialized; not for every attr like now;
+		handle this (maybe use a special method in this class and call it
+		when the expression nodes are deserialized; something like:
+		deserialize_operator_info) '''
+		char_sets = {ph: set(c_set) for ph, c_set in char_sets.items()}
+
+		# # NOTE: this ensures the empty value is not supported
+		# if attr[0] not in char_sets[pattern_string[0]] or attr[-1] not in char_sets[pattern_string[-1]]:
+		# 	raise defult_exception
+		#
+		# attr_idx = 0
+		# for ph in pattern_string:
+		# 	c_set = char_sets[ph]
+		# 	while True:
+		# 		attr_idx += 1
+
+		# TODO: implement this properly ^
+
+		return None
+
+	@classmethod
+	def get_operator(cls):
+		def operator(attrs, cols_in, cols_out, operator_info):
+			attrs_out = []
+
+			return attrs_out
+
+		return operator
 
 
 class NGramFreqSplit(StringPatternDetector):

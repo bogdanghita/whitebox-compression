@@ -9,6 +9,15 @@ from lib.util import *
 
 
 class ExpressionManager(object):
+	"""
+	NOTE-1: the same column can appear in multiple expression nodes; this is
+			because it has multiple patterns; in this case, check each attr
+			against all patterns the column appears in; if it matches:
+				- exactly one pattern: apply that one
+				- more than one pattern: choose one and apply it
+				- no pattern: add the attr to the exception column
+	"""
+
 	def __init__(self, columns, expr_nodes):
 		self.columns = columns
 		self.expr_nodes = expr_nodes
