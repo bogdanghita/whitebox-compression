@@ -111,7 +111,7 @@ def output_pattern_distribution(columns, patterns, pattern_distribution_output_d
 			# write one row at a time
 			# NOTE: we assume that col_p[p_id]["rows"] is sorted in increasing order
 			row_iterators = {p:0 for p in col_p.keys()}
-			row_count = 1
+			row_count = 0
 			while True:
 				current_row = []
 				done_cnt = 0
@@ -150,10 +150,8 @@ def output_ngram_freq_masks(ngram_freq_masks, ngram_freq_masks_output_dir, plot_
 def output_expression_nodes(expression_nodes, nb_rows):
 	print("nb_expression_nodes={}".format(len(expression_nodes)))
 	for op in expression_nodes:
-		print(op.p_id, op.details, float(len(op.rows)/nb_rows), op.cols_in, op.cols_out)
+		print(op.p_id, op.details, op.cols_in, op.cols_out)
 		# TODO: use op.serialize() and write to file
-
-	# TODO: serialize to file; also take care of the row_masks (store them efficiently; e.g. as bitmaps)
 
 
 def parse_args():

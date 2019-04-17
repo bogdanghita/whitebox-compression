@@ -26,7 +26,7 @@ class PatternDetector(object):
 					dict(
 						p_id: # id of the pattern
 						score: float # number between 0 and 1 indicating how well the column fits this pattern
-						rows: [row_id: int, ...], # rows where the pattern applies
+						rows: [row_id: int, ...], # rows where the pattern applies; indexed from 0
 						res_columns: [rcol_1, rcol_2, ...], # list of resulting columns; type: util.Column
 						operator_info: dict(), # operator parameters (used when applying the transformation)
 						details: dict() # pattern-specific info
@@ -63,7 +63,7 @@ class NullPatternDetector(PatternDetector):
 			handled: boolean value indicating whether the attr was handled by this function or not
 		'''
 		if self.is_null(attr):
-			self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count)
+			self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
 		return True
 
 	def feed_tuple(self, tpl):
@@ -116,7 +116,7 @@ class ConstantPatternDetector(PatternDetector):
 			handled: boolean value indicating whether the attr was handled by this function or not
 		'''
 		if self.is_null(attr):
-			self.columns[idx]["nulls"].append(self.row_count)
+			self.columns[idx]["nulls"].append(self.row_count-1)
 			return True
 		# TODO
 		return True
@@ -157,7 +157,7 @@ class StringPatternDetector(PatternDetector):
 			handled: boolean value indicating whether the attr was handled by this function or not
 		'''
 		if self.is_null(attr):
-			self.columns[idx]["nulls"].append(self.row_count)
+			self.columns[idx]["nulls"].append(self.row_count-1)
 			return True
 		return False
 
@@ -187,7 +187,7 @@ class NumberAsString(StringPatternDetector):
 			return True
 		if not self.is_number(attr):
 			return True
-		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count)
+		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
 		self.columns[idx]["ndt_analyzer"].feed_attr(attr)
 		return True
 
@@ -279,7 +279,7 @@ class CharSetSplit(StringPatternDetector):
 		ps = self.get_pattern_string(attr)
 		if ps not in col["patterns"]:
 			col["patterns"][ps] = {"rows": [], "details": {}}
-		col["patterns"][ps]["rows"].append(self.row_count)
+		col["patterns"][ps]["rows"].append(self.row_count-1)
 		return True
 
 	def build_pattern_data(self, col, pattern_s, pattern_s_data):

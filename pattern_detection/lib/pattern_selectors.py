@@ -12,10 +12,10 @@ class PatternSelector(object):
 			expression_nodes: list(
 				dict(
 					p_id: # id of the pattern
-					rows: list() # rows where the pattern applies
 					cols_in: list(col_id1, col_id2, ...) # list of input columns; type: util.Column
 					cols_out: [rcol_1, rcol_2, ...], # list of resulting columns; type: util.Column
 					operator_info: dict() # operator parameters (used when applying the transformation)
+					details: dict() # other details
 				)
 			)
 
@@ -65,7 +65,6 @@ class DummyPatternSelector(PatternSelector):
 			else:
 				exp_node = ExpressionNode(
 					p_id=best_p["p_id"],
-					rows=best_p["rows"],
 					cols_in=[col],
 					cols_out=best_p["res_columns"],
 					operator_info=best_p["operator_info"],

@@ -13,9 +13,8 @@ class Column(object):
 
 
 class ExpressionNode(object):
-	def __init__(self, p_id, rows, cols_in, cols_out, operator_info, details):
+	def __init__(self, p_id, cols_in, cols_out, operator_info, details):
 		self.p_id = p_id
-		self.rows = rows
 		self.cols_in = cols_in
 		self.cols_out = cols_out
 		self.operator_info = operator_info
@@ -29,3 +28,14 @@ class ExpressionNode(object):
 	def deserialize(expr_node):
 		# TODO
 		return "<not-implemented>"
+
+
+def to_row_mask(selected_rows, nb_rows_total):
+	row_mask = ['0'] * nb_rows_total
+	try:
+		for r in selected_rows:
+			row_mask[r] = '1'
+	except Exception as e:
+		print("r={}, nb_rows_total={}".format(r, nb_rows_total))
+		raise e
+	return "".join(row_mask)
