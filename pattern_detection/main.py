@@ -67,6 +67,84 @@ class FileDriver(object):
 		return l.rstrip('\r\n')
 
 
+class OutputManager(object):
+	@staticmethod
+	def output_stats(columns, patterns):
+		# print(json.dumps(patterns, indent=2))
+		for pd in patterns.values():
+			print("*** {} ***".format(pd["name"]))
+			for col_id, col_p_list in pd["columns"].items():
+				print("{}".format(columns[col_id]))
+				for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
+					print("{:.2f}\t{}, res_columns={}, operator_info={}".format(p["score"], p["p_id"], p["res_columns"], p["operator_info"]))
+
+	@staticmethod
+	def output_pattern_distribution(columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
+		# group patterns by columns
+		column_patterns = {}
+		for c in columns:
+			column_patterns[c.col_id] = {}
+		for pd in patterns.values():
+			for col_id, col_p_list in pd["columns"].items():
+				for p in col_p_list:
+					column_patterns[col_id][p["p_id"]] = p
+
+		# output pattern distributions
+		for col_id, col_p in column_patterns.items():
+			if len(col_p.keys()) == 0:
+				continue
+
+			out_file = "{}/col_{}.csv".format(pattern_distribution_output_dir, col_id)
+			with open(out_file, 'w') as fd:
+				# write header
+				header = sorted(col_p.keys())
+				fd.write(fdelim.join(header) + "\n")
+
+				# write one row at a time
+				# NOTE: we assume that col_p[p_id]["rows"] is sorted in increasing order
+				row_iterators = {p:0 for p in col_p.keys()}
+				row_count = 0
+				while True:
+					current_row = []
+					done_cnt = 0
+					for p in header:
+						rows, r_it = col_p[p]["rows"], row_iterators[p]
+						if r_it == len(rows):
+							current_row.append("0")
+							done_cnt += 1
+						elif row_count < rows[r_it]:
+							current_row.append("0")
+						elif row_count == rows[r_it]:
+							row_iterators[p] += 1
+							current_row.append("1")
+						else:
+							raise Exception("Rows are not sorted: col_id={}, p={}, row_count={}, rows[{}]={}".format(col_id, p, row_count, r_it, rows[r_it]))
+					if done_cnt == len(header):
+						break
+					fd.write(fdelim.join(current_row) + "\n")
+					row_count += 1
+
+			plot_file="{}/col_{}.{}".format(pattern_distribution_output_dir, col_id, plot_file_format)
+			plot_pattern_distribution.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
+
+	@staticmethod
+	def output_ngram_freq_masks(ngram_freq_masks, ngram_freq_masks_output_dir, plot_file_format="svg"):
+		for col_id, values in ngram_freq_masks.items():
+			out_file = "{}/col_{}.csv".format(ngram_freq_masks_output_dir, col_id)
+			with open(out_file, 'w') as fd:
+				for v in values:
+					fd.write(v + "\n")
+
+			plot_file="{}/col_{}.{}".format(ngram_freq_masks_output_dir, col_id, plot_file_format)
+			plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
+
+	@staticmethod
+	def output_expression_nodes(expression_nodes, output_file):
+		expr_nodes_as_dict = [en.to_dict() for en in expression_nodes]
+		with open(output_file, 'w') as f:
+			json.dump(expr_nodes_as_dict, f, indent=2)
+
+
 def driver_loop(driver, pd_engine, fdelim):
 	while True:
 		line = driver.nextTuple()
@@ -75,82 +153,6 @@ def driver_loop(driver, pd_engine, fdelim):
 
 		tpl = line.split(fdelim)
 		pd_engine.feed_tuple(tpl)
-
-
-def output_stats(columns, patterns):
-	# print(json.dumps(patterns, indent=2))
-	for pd in patterns.values():
-		print("*** {} ***".format(pd["name"]))
-		for col_id, col_p_list in pd["columns"].items():
-			print("{}".format(columns[col_id]))
-			for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
-				print("{:.2f}\t{}, res_columns={}, operator_info={}".format(p["score"], p["p_id"], p["res_columns"], p["operator_info"]))
-
-
-def output_pattern_distribution(columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
-	# group patterns by columns
-	column_patterns = {}
-	for c in columns:
-		column_patterns[c.col_id] = {}
-	for pd in patterns.values():
-		for col_id, col_p_list in pd["columns"].items():
-			for p in col_p_list:
-				column_patterns[col_id][p["p_id"]] = p
-
-	# output pattern distributions
-	for col_id, col_p in column_patterns.items():
-		if len(col_p.keys()) == 0:
-			continue
-
-		out_file = "{}/col_{}.csv".format(pattern_distribution_output_dir, col_id)
-		with open(out_file, 'w') as fd:
-			# write header
-			header = sorted(col_p.keys())
-			fd.write(fdelim.join(header) + "\n")
-
-			# write one row at a time
-			# NOTE: we assume that col_p[p_id]["rows"] is sorted in increasing order
-			row_iterators = {p:0 for p in col_p.keys()}
-			row_count = 0
-			while True:
-				current_row = []
-				done_cnt = 0
-				for p in header:
-					rows, r_it = col_p[p]["rows"], row_iterators[p]
-					if r_it == len(rows):
-						current_row.append("0")
-						done_cnt += 1
-					elif row_count < rows[r_it]:
-						current_row.append("0")
-					elif row_count == rows[r_it]:
-						row_iterators[p] += 1
-						current_row.append("1")
-					else:
-						raise Exception("Rows are not sorted: col_id={}, p={}, row_count={}, rows[{}]={}".format(col_id, p, row_count, r_it, rows[r_it]))
-				if done_cnt == len(header):
-					break
-				fd.write(fdelim.join(current_row) + "\n")
-				row_count += 1
-
-		plot_file="{}/col_{}.{}".format(pattern_distribution_output_dir, col_id, plot_file_format)
-		plot_pattern_distribution.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
-
-
-def output_ngram_freq_masks(ngram_freq_masks, ngram_freq_masks_output_dir, plot_file_format="svg"):
-	for col_id, values in ngram_freq_masks.items():
-		out_file = "{}/col_{}.csv".format(ngram_freq_masks_output_dir, col_id)
-		with open(out_file, 'w') as fd:
-			for v in values:
-				fd.write(v + "\n")
-
-		plot_file="{}/col_{}.{}".format(ngram_freq_masks_output_dir, col_id, plot_file_format)
-		plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
-
-
-def output_expression_nodes(expression_nodes, output_file):
-	expr_nodes_as_dict = [en.to_dict() for en in expression_nodes]
-	with open(output_file, 'w') as f:
-		json.dump(expr_nodes_as_dict, f, indent=2)
 
 
 def parse_args():
@@ -233,13 +235,13 @@ def main():
 	expression_nodes = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
 
 	# otuput results
-	output_stats(columns, patterns)
-	output_expression_nodes(expression_nodes, args.expr_nodes_output_file)
+	OutputManager.output_stats(columns, patterns)
+	OutputManager.output_expression_nodes(expression_nodes, args.expr_nodes_output_file)
 	if args.pattern_distribution_output_dir is not None:
-		output_pattern_distribution(columns, patterns, args.pattern_distribution_output_dir)
+		OutputManager.output_pattern_distribution(columns, patterns, args.pattern_distribution_output_dir)
 	if args.ngram_freq_masks_output_dir is not None:
 		ngram_freq_masks = ngram_freq_split.get_ngram_freq_masks(delim=",")
-		output_ngram_freq_masks(ngram_freq_masks, args.ngram_freq_masks_output_dir)
+		OutputManager.output_ngram_freq_masks(ngram_freq_masks, args.ngram_freq_masks_output_dir)
 
 
 if __name__ == "__main__":
@@ -272,7 +274,7 @@ ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
 expr_nodes_output_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
 
 mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $(dirname $expr_nodes_output_file) && \
-./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir $wbs_dir/$wb/$table.sample.csv --expr-nodes-output-file $expr_nodes_output_file
+./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir --expr-nodes-output-file $expr_nodes_output_file $wbs_dir/$wb/$table.sample.csv
 
 #[scp-pattern-detection-results]
 scp -r bogdan@bricks14:/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test/$wb/$table.patterns pattern_detection/output/
