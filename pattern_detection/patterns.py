@@ -7,29 +7,15 @@ from lib.prefix_tree import PrefixTree
 from lib.datatype_analyzer import NumericDatatypeAnalyzer
 
 
-pattern_detectors = dict(
-	"NullPatternDetector".lower(): NullPatternDetector,
-	"ConstantPatternDetector".lower(): ConstantPatternDetector,
-	"NumberAsString".lower(): NumberAsString,
-	"CharSetSplit".lower(): CharSetSplit,
-	"NGramFreqSplit".lower(): NGramFreqSplit,
-	"StringCommonPrefix".lower(): StringCommonPrefix,
-)
-def get_pattern_detector(pattern_name):
-	pnl = pattern_name.lower()
-	if pnl in pattern_detectors:
-		return pattern_detectors[pnl]
-	raise Exception("Invalid pattern name")
-
-
 class PatternDetector(object):
 	def __init__(self, columns, null_value):
 		self.null_value = null_value
 		self.row_count = 0
 		self.name = self.__class__.__name__
 
-	def is_null(self, attr):
-		return attr == self.null_value
+	@classmethod
+	def is_null(cls, attr, null_value):
+		return attr == null_value
 
 	def feed_tuple(self, tpl):
 		self.row_count += 1
@@ -54,7 +40,7 @@ class PatternDetector(object):
 		return dict()
 
 	@classmethod
-	def get_operator(cls):
+	def get_operator(cls, null_value):
 		'''
 		Returns: a function with the following signature:
 				 params: attrs, cols_in, cols_out, operator_info
@@ -91,7 +77,7 @@ class NullPatternDetector(PatternDetector):
 		Returns:
 			handled: boolean value indicating whether the attr was handled by this function or not
 		'''
-		if self.is_null(attr):
+		if self.is_null(attr, self.null_value):
 			self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
 		return True
 
@@ -144,7 +130,7 @@ class ConstantPatternDetector(PatternDetector):
 		Returns:
 			handled: boolean value indicating whether the attr was handled by this function or not
 		'''
-		if self.is_null(attr):
+		if self.is_null(attr, self.null_value):
 			self.columns[idx]["nulls"].append(self.row_count-1)
 			return True
 		# TODO
@@ -185,7 +171,7 @@ class StringPatternDetector(PatternDetector):
 		Returns:
 			handled: boolean value indicating whether the attr was handled by this function or not
 		'''
-		if self.is_null(attr):
+		if self.is_null(attr, self.null_value):
 			self.columns[idx]["nulls"].append(self.row_count-1)
 			return True
 		return False
@@ -252,7 +238,7 @@ class NumberAsString(StringPatternDetector):
 		return res
 
 	@classmethod
-	def get_operator(cls):
+	def get_operator(cls, null_value):
 		'''
 		NOTE: for now we use the identity operator; in the future we may want
 			  to actually perform a cast to a numeric type, based on the column
@@ -260,8 +246,12 @@ class NumberAsString(StringPatternDetector):
 		'''
 		def operator(attrs, cols_in, cols_out, operator_info):
 			val = attrs[0]
+			if not cls.is_null(val, null_value):
+				raise Exception("[{}] null value is not supported".format(cls.__name__))
 			if not cls.is_number(val):
 				raise Exception("[{}] value is not numeric".format(cls.__name__))
+			c_out = cols_out[0]
+			# TODO: check for the datatype of the output column & raise exception if it does not match; do this in datatype_analyzer
 			attrs_out = [val]
 			return attrs_out
 
@@ -373,14 +363,14 @@ class CharSetSplit(StringPatternDetector):
 
 	@classmethod
 	def split_attr(cls, attr, pattern_string, char_sets):
-		defult_exception = Exception("[{}] attr does not match pattern_string".format(cls.__name__))
+		default_exception = Exception("[{}] attr does not match pattern_string".format(cls.__name__))
 		# NOTE: for now, we don't support empty value
 		# NOTE: we assume len(pattern_string) > 0
 		''' NOTE: we assume that the (pattern_string, char_sets) pair is
 		valid, thus we don't check if ph is in char_sets '''
 
 		if len(attr) == 0:
-			raise defult_exception
+			raise default_exception
 
 		''' TODO: c_set got serialized as a list; search is slow in list;
 		it is converted back to a set here; but this should be done only
@@ -390,25 +380,29 @@ class CharSetSplit(StringPatternDetector):
 		deserialize_operator_info) '''
 		char_sets = {ph: set(c_set) for ph, c_set in char_sets.items()}
 
-		# # NOTE: this ensures the empty value is not supported
-		# if attr[0] not in char_sets[pattern_string[0]] or attr[-1] not in char_sets[pattern_string[-1]]:
-		# 	raise defult_exception
-		#
-		# attr_idx = 0
-		# for ph in pattern_string:
-		# 	c_set = char_sets[ph]
-		# 	while True:
-		# 		attr_idx += 1
+		attrs_out = []
 
-		# TODO: implement this properly ^
+		attr_idx = 0
+		for ph in pattern_string:
+			c_set = char_sets[ph]
+			cnt = 0
+			while attr_idx < len(attr) and attr[attr_idx] in c_set:
+				cnt += 1
+			if cnt == 0:
+				raise default_exception
+			res.append(attr[attr_idx-cnt:attr_idx])
+		if attr_idx < len(attr):
+			raise default_exception
 
-		return None
+		return attrs_out
 
 	@classmethod
-	def get_operator(cls):
+	def get_operator(cls, null_value):
 		def operator(attrs, cols_in, cols_out, operator_info):
-			attrs_out = []
-
+			val = attrs[0]
+			if not cls.is_null(val, null_value):
+				raise Exception("[{}] null value is not supported".format(cls.__name__))
+			attrs_out = cls.split_attr(val, operator_info["pattern_string"], operator_info["char_sets"])
 			return attrs_out
 
 		return operator
@@ -498,3 +492,27 @@ class NGramFreqSplit(StringPatternDetector):
 			# NOTE-2: we also want to create a closure for the col variable
 			res[col["info"].col_id] = (lambda col: (self.get_ngram_freq_mask(attr, col["ngrams"]["freqs"], delim=delim) for attr in col["attrs"]))(col)
 		return res
+
+'''
+================================================================================
+'''
+pattern_detectors = {
+	"NullPatternDetector".lower(): NullPatternDetector,
+	"ConstantPatternDetector".lower(): ConstantPatternDetector,
+	"NumberAsString".lower(): NumberAsString,
+	"CharSetSplit".lower(): CharSetSplit,
+	"NGramFreqSplit".lower(): NGramFreqSplit,
+	"StringCommonPrefix".lower(): StringCommonPrefix,
+}
+def get_pattern_detector(pattern_id):
+	default_exception = Exception("Invalid pattern id")
+	try:
+		pn = pattern_id.split(":")[0]
+	except Exception as e:
+		raise default_exception
+
+	pnl = pattern_name.lower()
+	if pnl in pattern_detectors:
+		return pattern_detectors[pnl]
+
+	raise default_exception
