@@ -511,7 +511,7 @@ def get_pattern_detector(pattern_id):
 	except Exception as e:
 		raise default_exception
 
-	pnl = pattern_name.lower()
+	pnl = pn.lower()
 	if pnl in pattern_detectors:
 		return pattern_detectors[pnl]
 

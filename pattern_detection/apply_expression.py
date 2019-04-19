@@ -24,31 +24,25 @@ class ExpressionManager(object):
 			exceptions column; TODO: handle them better in the future
 	"""
 
-	def ROW_MASK_CODE_EXCEPTION = -1
+	ROW_MASK_CODE_EXCEPTION = -1
 
 	def __init__(self, in_columns, expr_nodes, null_value):
 		self.expr_nodes = expr_nodes
 		self.null_value = null_value
 		self.in_columns, self.out_columns, self.in_columns_map, self.out_columns_map = [], [], {}, {}
 		# populate in_columns & save their indices
-		for in_col in in_columns:
+		for idx, in_col in enumerate(in_columns):
 			in_col_data = {
 				"col_info": in_col,
-				"expression_nodes": [],
 				"row_mask": [] # see NOTE-2 for values convention
 			}
-			for expr_n in expression_nodes:
-				for c_in in expr_n.cols_in:
-					if c_in.col_id == in_col.col_id:
-						col_data["expression_nodes"].append(expr_n)
-						break
-			self.in_columns.append(col_data)
+			self.in_columns.append(in_col_data)
 			self.in_columns_map[in_col.col_id] = idx
 		# populate out_columns with:
 		# 1) unused columns; 2) exception columns for each input column
 		for in_col in in_columns:
 			# add original column if not present as input in any expression node
-			used_columns = [c.col_id for c in expr_n["cols_in"] for expr_n in expression_nodes]
+			used_columns = [c.col_id for expr_n in expr_nodes for c in expr_n.cols_in]
 			if in_col.col_id not in used_columns:
 				self.out_columns.append(in_col)
 				# no need fo exception column if no transformation is made
@@ -61,11 +55,27 @@ class ExpressionManager(object):
 			)
 			self.out_columns.append(ex_col)
 		# 3) output columns from expression nodes
-		for expr_n in expression_nodes:
-			self.out_columns.extend(expr_n["cols_out"])
+		for expr_n in expr_nodes:
+			self.out_columns.extend(expr_n.cols_out)
 		# save output column indices
 		for idx, out_col in enumerate(self.out_columns):
 			self.out_columns_map[out_col.col_id] = idx
+
+		# TODO: debug
+		print("/n***in_columns***")
+		for c in self.in_columns:
+			print(c)
+		print("/n***in_columns_map***")
+		for k,c in self.in_columns_map.items():
+			print(k,c)
+		print("/n***out_columns***")
+		for c in self.out_columns:
+			print(c)
+		print("/n***out_columns_map***")
+		for k,c in self.out_columns_map.items():
+			print(k,c)
+		# TODO: end-debug
+
 
 	@classmethod
 	def get_exception_col_id(cls, col_id):
@@ -88,47 +98,46 @@ class ExpressionManager(object):
 			in_attrs = []
 			# mark in_col as referenced & get in_attrs
 			used = False
-			for in_col in expr_n["cols_in"]:
+			for in_col in expr_n.cols_in:
 				if in_col.col_id in in_columns_used:
 					print("debug: column already used with another expression node")
 					used = True
 					break
-				in_columns_referenced.add(in_col.col_id)
 				in_attr = in_tpl[self.in_columns_map[in_col.col_id]]
 				in_attrs.append(in_attr)
 			if used:
 				continue
 			# get pattern detector and apply operator
-			pd = get_pattern_detector(expr_n["p_id"])
+			pd = get_pattern_detector(expr_n.p_id)
 			operator = pd.get_operator(self.null_value)
 			try:
-				out_attrs = operator(in_attrs, expr_n["cols_in"], expr_n["cols_out"], expr_n["operator_info"])
+				out_attrs = operator(in_attrs, expr_n.cols_in, expr_n.cols_out, expr_n.operator_info)
 			except Exception as e:
 				# this operator cannot be applied, but other may be; in the worst case, attr is added to the exception column at the end
 				continue
+			# mark in_col as used
+			for in_col in expr_n.cols_in:
+				in_columns_used.add(in_col.col_id)
 			# use this expr_n
-			for in_col in expr_n["cols_in"]:
+			for in_col in expr_n.cols_in:
 				in_col["row_mask"].append(expr_n_idx)
 			# fill in out_tpl
 			for out_attr_idx, out_attr in enumerate(out_attrs):
-				out_col_idx = self.out_columns_map[expr_n["cols_out"][out_attr_idx].col_id]
+				out_col_idx = self.out_columns_map[expr_n.cols_out[out_attr_idx].col_id]
 				out_tpl[out_col_idx] = out_attr
-			# mark in_col as used
-			for in_col in expr_n["cols_in"]:
-				in_columns_used.add(in_col.col_id)
 
 		# handle unused attrs
 		for in_col in self.in_columns:
-			if in_col.col_id not in in_columns_used:
+			if in_col["col_info"].col_id not in in_columns_used:
 				# column not preset as input in any expression node
-				if in_col.col_id in self.out_columns_map:
-					out_col_idx = self.out_columns_map[in_col.col_id]
+				if in_col["col_info"].col_id in self.out_columns_map:
+					out_col_idx = self.out_columns_map[in_col["col_info"].col_id]
 					in_col["row_mask"].append(out_col_idx)
 				else: # exception
-					out_col_idx = self.out_columns_map[self.get_exception_col_id(in_col.col_id)]
+					out_col_idx = self.out_columns_map[self.get_exception_col_id(in_col["col_info"].col_id)]
 					in_col["row_mask"].append(self.ROW_MASK_CODE_EXCEPTION)
 				# append attr to out_tpl
-				out_tpl[out_col_idx] = in_tpl[self.in_columns_map[in_col.col_id]]
+				out_tpl[out_col_idx] = in_tpl[self.in_columns_map[in_col["col_info"].col_id]]
 
 		return out_tpl
 
@@ -203,7 +212,7 @@ def main():
 		expr_nodes = [ExpressionNode.from_dict(en) for en in json.load(f)]
 
 	# apply expression nodes and generate the new csv file
-	expr_manager = ExpressionManager(in_columns, expr_nodes)
+	expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
 	try:
 		if args.file is None:
 			fd_in = os.fdopen(os.dup(sys.stdin.fileno()))
