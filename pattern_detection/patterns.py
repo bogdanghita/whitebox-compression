@@ -7,6 +7,10 @@ from lib.prefix_tree import PrefixTree
 from lib.datatype_analyzer import NumericDatatypeAnalyzer
 
 
+class OperatorException(Exception):
+	pass
+
+
 class PatternDetector(object):
 	def __init__(self, columns, null_value):
 		self.null_value = null_value
@@ -40,16 +44,17 @@ class PatternDetector(object):
 		return dict()
 
 	@classmethod
-	def get_operator(cls, null_value):
+	def get_operator(cls, cols_in, cols_out, operator_info, null_value):
 		'''
 		Returns: a function with the following signature:
-				 params: attrs, cols_in, cols_out, operator_info
+				 params: attrs
 				 returns: attrs_out
 				 raises: Exception if attrs are invalid (i.e. pattern and/or params are not applicable)
 				 properties:
 				 	len(attrs) = len(cols_in)
 					len(attrs_out) = len(cols_out)
 				 note-1: function assumes that the above properties are satisfied & does not check them
+				 note-2: get_operator() function is meant to be called only in the initialization phase, not for every tuple; e.g. call get_operator once for each expression node and save the returned operator, then use it as many times as you want
 		'''
 		raise Exception("Not implemented")
 
@@ -238,18 +243,18 @@ class NumberAsString(StringPatternDetector):
 		return res
 
 	@classmethod
-	def get_operator(cls, null_value):
+	def get_operator(cls, cols_in, cols_out, operator_info, null_value):
 		'''
 		NOTE: for now we use the identity operator; in the future we may want
 			  to actually perform a cast to a numeric type, based on the column
 			  datatype
 		'''
-		def operator(attrs, cols_in, cols_out, operator_info):
+		def operator(attrs):
 			val = attrs[0]
 			if not cls.is_null(val, null_value):
-				raise Exception("[{}] null value is not supported".format(cls.__name__))
+				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
 			if not cls.is_number(val):
-				raise Exception("[{}] value is not numeric".format(cls.__name__))
+				raise OperatorException("[{}] value is not numeric".format(cls.__name__))
 			c_out = cols_out[0]
 			# TODO: check for the datatype of the output column & raise exception if it does not match; do this in datatype_analyzer
 			attrs_out = [val]
@@ -362,47 +367,58 @@ class CharSetSplit(StringPatternDetector):
 		return res
 
 	@classmethod
-	def split_attr(cls, attr, pattern_string, char_sets):
-		default_exception = Exception("[{}] attr does not match pattern_string".format(cls.__name__))
+	def split_attr(cls, attr, pattern_string, char_sets, default_placeholder, default_inv_charset):
+		default_exception = OperatorException("[{}] attr does not match pattern_string".format(cls.__name__))
 		# NOTE: for now, we don't support empty value
 		# NOTE: we assume len(pattern_string) > 0
 		''' NOTE: we assume that the (pattern_string, char_sets) pair is
 		valid, thus we don't check if ph is in char_sets '''
 
+		# print("[split_attr] {}, {}, {}".format(attr, pattern_string, char_sets))
+
 		if len(attr) == 0:
 			raise default_exception
-
-		''' TODO: c_set got serialized as a list; search is slow in list;
-		it is converted back to a set here; but this should be done only
-		one time, when it's deserialized; not for every attr like now;
-		handle this (maybe use a special method in this class and call it
-		when the expression nodes are deserialized; something like:
-		deserialize_operator_info) '''
-		char_sets = {ph: set(c_set) for ph, c_set in char_sets.items()}
 
 		attrs_out = []
 
 		attr_idx = 0
 		for ph in pattern_string:
-			c_set = char_sets[ph]
 			cnt = 0
-			while attr_idx < len(attr) and attr[attr_idx] in c_set:
-				cnt += 1
+			if ph == default_placeholder:
+				while attr_idx < len(attr) and attr[attr_idx] not in default_inv_charset:
+					cnt += 1
+					attr_idx += 1
+			else:
+				c_set = char_sets[ph]
+				while attr_idx < len(attr) and attr[attr_idx] in c_set["char_set"]:
+					cnt += 1
+					attr_idx += 1
 			if cnt == 0:
 				raise default_exception
-			res.append(attr[attr_idx-cnt:attr_idx])
+			attrs_out.append(attr[attr_idx-cnt:attr_idx])
 		if attr_idx < len(attr):
 			raise default_exception
 
 		return attrs_out
 
 	@classmethod
-	def get_operator(cls, null_value):
-		def operator(attrs, cols_in, cols_out, operator_info):
+	def get_operator(cls, cols_in, cols_out, operator_info, null_value):
+		''' NOTE: c_set["char_set"] got serialized as a list; search is slow in list;
+		it is converted back to a set here'''
+		default_placeholder = None
+		char_sets = {}
+		for c_set in operator_info["char_sets"]:
+			char_sets[c_set["placeholder"]] = deepcopy(c_set)
+			char_sets[c_set["placeholder"]]["char_set"] = set(char_sets[c_set["placeholder"]]["char_set"])
+			if c_set["name"] == "default":
+				default_placeholder = c_set["placeholder"]
+		default_inv_charset = {c for c_set in char_sets.values() for c in c_set["char_set"]}
+
+		def operator(attrs):
 			val = attrs[0]
-			if not cls.is_null(val, null_value):
+			if cls.is_null(val, null_value):
 				raise Exception("[{}] null value is not supported".format(cls.__name__))
-			attrs_out = cls.split_attr(val, operator_info["pattern_string"], operator_info["char_sets"])
+			attrs_out = cls.split_attr(val, operator_info["pattern_string"], char_sets, default_placeholder, default_inv_charset)
 			return attrs_out
 
 		return operator

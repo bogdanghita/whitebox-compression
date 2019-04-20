@@ -27,8 +27,16 @@ class ExpressionManager(object):
 	ROW_MASK_CODE_EXCEPTION = -1
 
 	def __init__(self, in_columns, expr_nodes, null_value):
-		self.expr_nodes = expr_nodes
 		self.null_value = null_value
+		self.expr_nodes = []
+		# populate expr_nodes
+		for expr_n in expr_nodes:
+			pd = get_pattern_detector(expr_n.p_id)
+			operator = pd.get_operator(expr_n.cols_in, expr_n.cols_out, expr_n.operator_info, self.null_value)
+			self.expr_nodes.append({
+				"expr_n": expr_n,
+				"operator": operator
+			})
 		self.in_columns, self.out_columns, self.in_columns_map, self.out_columns_map = [], [], {}, {}
 		# populate in_columns & save their indices
 		for idx, in_col in enumerate(in_columns):
@@ -45,7 +53,7 @@ class ExpressionManager(object):
 			used_columns = [c.col_id for expr_n in expr_nodes for c in expr_n.cols_in]
 			if in_col.col_id not in used_columns:
 				self.out_columns.append(in_col)
-				# no need fo exception column if no transformation is made
+				# no need for exception column if no transformation is made
 				continue
 			# add exception column
 			ex_col = Column(
@@ -62,6 +70,9 @@ class ExpressionManager(object):
 			self.out_columns_map[out_col.col_id] = idx
 
 		# TODO: debug
+		print("***expression_nodes***")
+		for expr_n in expr_nodes:
+			print(expr_n.p_id)
 		print("/n***in_columns***")
 		for c in self.in_columns:
 			print(c)
@@ -95,6 +106,7 @@ class ExpressionManager(object):
 		# fill out_tpl in for each expression node
 		in_columns_used = set()
 		for expr_n_idx, expr_n in enumerate(self.expr_nodes):
+			expr_n, operator = expr_n["expr_n"], expr_n["operator"]
 			in_attrs = []
 			# mark in_col as referenced & get in_attrs
 			used = False
@@ -107,20 +119,20 @@ class ExpressionManager(object):
 				in_attrs.append(in_attr)
 			if used:
 				continue
-			# get pattern detector and apply operator
-			pd = get_pattern_detector(expr_n.p_id)
-			operator = pd.get_operator(self.null_value)
+			# apply operator
 			try:
-				out_attrs = operator(in_attrs, expr_n.cols_in, expr_n.cols_out, expr_n.operator_info)
-			except Exception as e:
-				# this operator cannot be applied, but other may be; in the worst case, attr is added to the exception column at the end
+				out_attrs = operator(in_attrs)
+			except OperatorException as e:
+				# this operator cannot be applied, but others may be; in the worst case, attr is added to the exception column at the end
+				print("debug: OperatorException: {}".format(e))
 				continue
 			# mark in_col as used
 			for in_col in expr_n.cols_in:
 				in_columns_used.add(in_col.col_id)
 			# use this expr_n
 			for in_col in expr_n.cols_in:
-				in_col["row_mask"].append(expr_n_idx)
+				self_in_col = self.in_columns[self.in_columns_map[in_col.col_id]]
+				self_in_col["row_mask"].append(expr_n_idx)
 			# fill in out_tpl
 			for out_attr_idx, out_attr in enumerate(out_attrs):
 				out_col_idx = self.out_columns_map[expr_n.cols_out[out_attr_idx].col_id]
@@ -258,6 +270,6 @@ output_dir=$wbs_dir/$wb/$table.poc_1_out
 output_file=$output_dir/$table.csv
 
 mkdir -p $output_dir && \
-./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-file $output_file $input_file
+time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-file $output_file $input_file
 
 """
