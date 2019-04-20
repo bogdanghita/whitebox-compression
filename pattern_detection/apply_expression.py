@@ -17,6 +17,7 @@ class ExpressionManager(object):
 				- more than one pattern: choose one and apply it
 				- no pattern: add the attr to the exception column
 	NOTE-2: in_col_data["row_mask"] value convention:
+			-2:    not used in any expression node
 			-1:    exception (cannot be part of any expression node)
 			>= 0:  index of the expression node it will be part of
 	NOTE-3: it is the operator's responsibility to handle null values and raise
@@ -24,6 +25,7 @@ class ExpressionManager(object):
 			exceptions column; TODO: handle them better in the future
 	"""
 
+	ROW_MASK_CODE_NOT_USED = -2
 	ROW_MASK_CODE_EXCEPTION = -1
 
 	def __init__(self, in_columns, expr_nodes, null_value):
@@ -40,11 +42,7 @@ class ExpressionManager(object):
 		self.in_columns, self.out_columns, self.in_columns_map, self.out_columns_map = [], [], {}, {}
 		# populate in_columns & save their indices
 		for idx, in_col in enumerate(in_columns):
-			in_col_data = {
-				"col_info": in_col,
-				"row_mask": [] # see NOTE-2 for values convention
-			}
-			self.in_columns.append(in_col_data)
+			self.in_columns.append(in_col)
 			self.in_columns_map[in_col.col_id] = idx
 		# populate out_columns with:
 		# 1) unused columns; 2) exception columns for each input column
@@ -99,6 +97,7 @@ class ExpressionManager(object):
 
 	def apply_expressions(self, in_tpl):
 		out_tpl = [self.null_value] * len(self.out_columns)
+		p_mask = [str(self.ROW_MASK_CODE_NOT_USED)] * len(self.in_columns)
 
 		if not self.is_valid_tuple(in_tpl):
 			return None
@@ -131,30 +130,29 @@ class ExpressionManager(object):
 				in_columns_used.add(in_col.col_id)
 			# use this expr_n
 			for in_col in expr_n.cols_in:
-				self_in_col = self.in_columns[self.in_columns_map[in_col.col_id]]
-				self_in_col["row_mask"].append(expr_n_idx)
+				in_col_idx = self.in_columns_map[in_col.col_id]
+				p_mask[in_col_idx] = str(expr_n_idx)
 			# fill in out_tpl
 			for out_attr_idx, out_attr in enumerate(out_attrs):
 				out_col_idx = self.out_columns_map[expr_n.cols_out[out_attr_idx].col_id]
-				out_tpl[out_col_idx] = out_attr
+				out_tpl[out_col_idx] = str(out_attr)
 
 		# handle unused attrs
-		for in_col in self.in_columns:
-			if in_col["col_info"].col_id not in in_columns_used:
+		for in_col_idx, in_col in enumerate(self.in_columns):
+			if in_col.col_id not in in_columns_used:
 				# column not preset as input in any expression node
-				if in_col["col_info"].col_id in self.out_columns_map:
-					out_col_idx = self.out_columns_map[in_col["col_info"].col_id]
-					in_col["row_mask"].append(out_col_idx)
+				if in_col.col_id in self.out_columns_map:
+					out_col_idx = self.out_columns_map[in_col.col_id]
 				else: # exception
-					out_col_idx = self.out_columns_map[self.get_exception_col_id(in_col["col_info"].col_id)]
-					in_col["row_mask"].append(self.ROW_MASK_CODE_EXCEPTION)
+					out_col_idx = self.out_columns_map[self.get_exception_col_id(in_col.col_id)]
+					p_mask[in_col_idx] = str(self.ROW_MASK_CODE_EXCEPTION)
 				# append attr to out_tpl
-				out_tpl[out_col_idx] = in_tpl[self.in_columns_map[in_col["col_info"].col_id]]
+				out_tpl[out_col_idx] = str(in_tpl[in_col_idx])
 
-		return out_tpl
+		return out_tpl, p_mask
 
 
-def driver_loop(driver, expr_manager, fdelim, fd_out):
+def driver_loop(driver, expr_manager, fdelim, fd_out, fd_p_mask):
 	total_tuple_count = 0
 	valid_tuple_count = 0
 
@@ -165,13 +163,15 @@ def driver_loop(driver, expr_manager, fdelim, fd_out):
 		total_tuple_count += 1
 
 		tpl = line.split(fdelim)
-		tpl_new = expr_manager.apply_expressions(tpl)
+		tpl_new, p_mask = expr_manager.apply_expressions(tpl)
 		if tpl_new is None:
 			continue
 		valid_tuple_count += 1
 
 		line_new = fdelim.join(tpl_new)
 		fd_out.write(line_new + "\n")
+		line_new = fdelim.join(p_mask)
+		fd_p_mask.write(line_new + "\n")
 
 	return (total_tuple_count, valid_tuple_count)
 
@@ -192,8 +192,11 @@ def parse_args():
 	parser.add_argument('--expr-nodes-file', dest='expr_nodes_file', type=str,
 		help="Input file containing expression nodes",
 		required=True)
-	parser.add_argument('--output-file', dest='output_file', type=str,
-		help="Output file to write the new data to",
+	parser.add_argument('--output-dir', dest='output_dir', type=str,
+		help="Output dir to put output files in",
+		required=True)
+	parser.add_argument('--table-name', dest='table_name', type=str,
+		help="Name of the table",
 		required=True)
 	parser.add_argument("-F", "--fdelim", dest="fdelim",
 		help="Use <fdelim> as delimiter between fields", default="|")
@@ -225,19 +228,23 @@ def main():
 
 	# apply expression nodes and generate the new csv file
 	expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
+	output_file = os.path.join(args.output_dir, "{}.csv".format(args.table_name))
+	p_mask_file = os.path.join(args.output_dir, "{}.p_mask.csv".format(args.table_name))
 	try:
 		if args.file is None:
 			fd_in = os.fdopen(os.dup(sys.stdin.fileno()))
 		else:
 			fd_in = open(args.file, 'r')
-		fd_out = open(args.output_file, 'w')
+		fd_out = open(output_file, 'w')
+		fd_p_mask = open(p_mask_file, 'w')
 
 		driver = FileDriver(fd_in, args.fdelim)
-		(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager, args.fdelim, fd_out)
+		(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager, args.fdelim, fd_out, fd_p_mask)
 	finally:
 		fd_in.close()
 		try:
 			fd_out.close()
+			fd_p_mask.close()
 		except:
 			pass
 
@@ -267,9 +274,8 @@ table=Arade_1
 input_file=$wbs_dir/$wb/$table.csv
 expr_nodes_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
 output_dir=$wbs_dir/$wb/$table.poc_1_out
-output_file=$output_dir/$table.csv
 
 mkdir -p $output_dir && \
-time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-file $output_file $input_file
+time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --table-name $table $input_file
 
 """
