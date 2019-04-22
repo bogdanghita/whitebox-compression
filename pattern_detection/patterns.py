@@ -409,7 +409,7 @@ class CharSetSplit(StringPatternDetector):
 		it is converted back to a set here'''
 		default_placeholder = None
 		char_sets = {}
-		for c_set in operator_info["char_sets"]:
+		for ph, c_set in operator_info["char_sets"].items():
 			char_sets[c_set["placeholder"]] = deepcopy(c_set)
 			char_sets[c_set["placeholder"]]["char_set"] = set(char_sets[c_set["placeholder"]]["char_set"])
 			if c_set["name"] == "default":

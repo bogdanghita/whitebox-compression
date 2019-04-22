@@ -57,8 +57,9 @@ class ExpressionManager(object):
 			ex_col = Column(
 				col_id = self.get_exception_col_id(in_col.col_id),
 				name = str(in_col.name) + "_ex",
-				datatype = in_col.datatype
+				datatype = deepcopy(in_col.datatype)
 			)
+			ex_col.datatype.nullable = True
 			self.out_columns.append(ex_col)
 		# 3) output columns from expression nodes
 		for expr_n in expr_nodes:
@@ -85,6 +86,16 @@ class ExpressionManager(object):
 			print(k,c)
 		# TODO: end-debug
 
+	def dump_out_schema(self, fd, out_table_name):
+		line = "CREATE TABLE \"{}\"(".format(out_table_name)
+		fd.write(line + "\n")
+
+		for out_col in self.out_columns:
+			line = "  \"{}\" {},".format(out_col.name, out_col.datatype.to_sql_str())
+			fd.write(line + "\n")
+		
+		line = ");"
+		fd.write(line + "\n")
 
 	@classmethod
 	def get_exception_col_id(cls, col_id):
@@ -195,7 +206,7 @@ def parse_args():
 	parser.add_argument('--output-dir', dest='output_dir', type=str,
 		help="Output dir to put output files in",
 		required=True)
-	parser.add_argument('--table-name', dest='table_name', type=str,
+	parser.add_argument('--out-table-name', dest='out_table_name', type=str,
 		help="Name of the table",
 		required=True)
 	parser.add_argument("-F", "--fdelim", dest="fdelim",
@@ -213,7 +224,7 @@ def main():
 	with open(args.header_file, 'r') as fd:
 		header = list(map(lambda x: x.strip(), fd.readline().split(args.fdelim)))
 	with open(args.datatypes_file, 'r') as fd:
-		datatypes = list(map(lambda x: x.strip(), fd.readline().split(args.fdelim)))
+		datatypes = list(map(lambda x: DataType.from_sql_str(x.strip()), fd.readline().split(args.fdelim)))
 	if len(header) != len(datatypes):
 		return RET_ERR
 
@@ -226,10 +237,17 @@ def main():
 	with open(args.expr_nodes_file, 'r') as f:
 		expr_nodes = [ExpressionNode.from_dict(en) for en in json.load(f)]
 
-	# apply expression nodes and generate the new csv file
+	# init expression manager
 	expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
-	output_file = os.path.join(args.output_dir, "{}.csv".format(args.table_name))
-	p_mask_file = os.path.join(args.output_dir, "{}.p_mask.csv".format(args.table_name))
+
+	# TODO: generate new schema file with output columns
+	schema_file = os.path.join(args.output_dir, "{}.table.sql".format(args.out_table_name))
+	with open(schema_file, 'w') as fd_s:
+		expr_manager.dump_out_schema(fd_s, args.out_table_name)
+
+	# apply expression nodes and generate the new csv file
+	output_file = os.path.join(args.output_dir, "{}.csv".format(args.out_table_name))
+	p_mask_file = os.path.join(args.output_dir, "{}.p_mask.csv".format(args.out_table_name))
 	try:
 		if args.file is None:
 			fd_in = os.fdopen(os.dup(sys.stdin.fileno()))
@@ -274,8 +292,9 @@ table=Arade_1
 input_file=$wbs_dir/$wb/$table.csv
 expr_nodes_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
 output_dir=$wbs_dir/$wb/$table.poc_1_out
+out_table="${table}_out"
 
 mkdir -p $output_dir && \
-time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --table-name $table $input_file
+time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
 
 """
