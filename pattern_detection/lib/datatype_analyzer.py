@@ -1,6 +1,7 @@
 import os
 import sys
 from decimal import *
+from lib.util import *
 
 
 MAX_DECIMAL_PRECISION = 18
@@ -87,6 +88,6 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 		scale = decdigits_after_dmax
 
 		if precision > MAX_DECIMAL_PRECISION:
-			return "double"
+			return DataType(name="double")
 		else:
-			return "decimal({}, {})".format(precision, scale)
+			return DataType(name="decimal", params=[precision, scale])

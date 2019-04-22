@@ -173,7 +173,7 @@ def main():
 	with open(args.header_file, 'r') as fd:
 		header = list(map(lambda x: x.strip(), fd.readline().split(args.fdelim)))
 	with open(args.datatypes_file, 'r') as fd:
-		datatypes = list(map(lambda x: x.strip(), fd.readline().split(args.fdelim)))
+		datatypes = list(map(lambda x: DataType.from_sql_str(x.strip()), fd.readline().split(args.fdelim)))
 	if len(header) != len(datatypes):
 		return RET_ERR
 
@@ -243,6 +243,11 @@ dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 ================================================================================
 wb=Eixo
 table=Eixo_1
+max_sample_size=$((1024*1024*10))
+dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
+================================================================================
+wb=Arade
+table=Arade_1
 max_sample_size=$((1024*1024*10))
 dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 

@@ -64,7 +64,7 @@ class NullPatternDetector(PatternDetector):
 		PatternDetector.__init__(self, columns, null_value)
 		self.columns = {}
 		for idx, col in enumerate(columns):
-			if col.datatype.rstrip().lower().endswith("not null"):
+			if not col.datatype.nullable:
 				continue
 			self.columns[idx] = {
 				"info": deepcopy(col),
@@ -116,7 +116,7 @@ class ConstantPatternDetector(PatternDetector):
 		PatternDetector.__init__(self, columns, null_value)
 		self.columns = {}
 		for idx, col in enumerate(columns):
-			if col.datatype.rstrip().lower().endswith("not null"):
+			if not col.datatype.nullable:
 				continue
 			self.columns[idx] = {
 				"info": deepcopy(col),
@@ -157,7 +157,7 @@ class StringPatternDetector(PatternDetector):
 		PatternDetector.__init__(self, columns, null_value)
 		self.columns = {}
 		for idx, col in enumerate(columns):
-			if not col.datatype.startswith("varchar"):
+			if not col.datatype.name == "varchar":
 				continue
 			self.columns[idx] = {
 				"info": deepcopy(col),
@@ -218,6 +218,7 @@ class NumberAsString(StringPatternDetector):
 		ncol_col_id = str(col["info"].col_id) + "_0"
 		ncol_name = str(col["info"].name) + "_0"
 		ncol_datatype = col["ndt_analyzer"].get_datatype()
+		ncol_datatype.nullable = True
 		ncol = Column(ncol_col_id, ncol_name, ncol_datatype)
 		# operator info
 		operator_info = dict(name="identity")
@@ -337,7 +338,8 @@ class CharSetSplit(StringPatternDetector):
 			ncol_name = str(col["info"].name) + "_" + str(idx)
 			# NOTE: here we keep the original column datatype (i.e. varchar(x))
 			# TODO: think of the possibility of giving a better datatype (e.g. varchar of shorter length, numeric datatype, etc.)
-			ncol_datatype = col["info"].datatype
+			ncol_datatype = deepcopy(col["info"].datatype)
+			ncol_datatype.nullable = True
 			ncol = Column(ncol_col_id, ncol_name, ncol_datatype)
 			res_columns.append(ncol)
 		p_item = {
