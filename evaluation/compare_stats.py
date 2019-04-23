@@ -6,7 +6,8 @@ import argparse
 import json
 
 
-def compare_stats(s_file1, s_file2):
+def compare_stats(s_file1, s_file2, expr_nodes_file):
+	# TODO: if expr_nodes_file is not None: also do column-wise comparison
 
 	with open(s_file1, 'r') as f1, open(s_file2, 'r') as f2:
 		s_data1 = json.load(f1)
@@ -32,14 +33,26 @@ def compare_stats(s_file1, s_file2):
 	print(output)
 
 
-def main():
-	if len(sys.argv) != 3:
-		usage = """./compare_stats.py <stats-file-1> <stats-file-2>\n
-		stats-file example: $table.eval-vectorwise.json"""
-		print(usage)
-	s_file1, s_file2 = sys.argv[1], sys.argv[2]
+def parse_args():
+	parser = argparse.ArgumentParser(
+		description="""Compare stats"""
+	)
 
-	compare_stats(s_file1, s_file2)
+	parser.add_argument('baseline_f', type=str,
+		help="Path to baseline stats file")
+	parser.add_argument('target_f', type=str,
+		help="Path to target stats file")
+	parser.add_argument('--expr-nodes-file', dest='expr_nodes_file', type=str,
+		help="Path to expression nodes file used for transforming baseline into target. If provided, comparison is also done at column level")
+
+	return parser.parse_args()
+
+
+def main():
+	args = parse_args()
+	print(args)
+
+	compare_stats(args.baseline_f, args.target_f, args.expr_nodes_file)
 
 
 if __name__ == "__main__":

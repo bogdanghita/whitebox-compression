@@ -337,14 +337,15 @@ out_table="${table}_out"
 mkdir -p $output_dir && \
 time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
 
-
 [load & evaluation]
 n_input_file=$output_dir/$out_table.csv
 n_schema_file=$output_dir/$out_table.table.sql
+wv_n_schema_file=$output_dir/$out_table.table-vectorwise.sql
 db_name=pbib
 source ~/.ingVWsh
 
-time ./evaluation/main.sh $db_name $n_input_file $n_schema_file $out_table $output_dir
+./util/VectorWiseify-schema.sh $n_schema_file $wv_n_schema_file > /dev/null
+time ./evaluation/main.sh $db_name $n_input_file $wv_n_schema_file $out_table $output_dir
 
 cat $output_dir/stats-vectorwise/$out_table.statdump.out | less
 cat $output_dir/stats-vectorwise/$out_table.compression-log.out | less
