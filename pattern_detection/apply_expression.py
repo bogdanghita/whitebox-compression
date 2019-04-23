@@ -103,8 +103,10 @@ class ExpressionManager(object):
 		line = "CREATE TABLE \"{}\"(".format(out_table_name)
 		fd.write(line + "\n")
 
-		for out_col in self.out_columns:
-			line = "  \"{}\" {},".format(out_col.name, out_col.datatype.to_sql_str())
+		for idx, out_col in enumerate(self.out_columns):
+			line = "  \"{}\" {}".format(out_col.name, out_col.datatype.to_sql_str())
+			if idx < len(self.out_columns)-1:
+				line += ","
 			fd.write(line + "\n")
 
 		line = ");"
@@ -331,8 +333,23 @@ expr_nodes_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
 output_dir=$wbs_dir/$wb/$table.poc_1_out
 out_table="${table}_out"
 
+[apply-expression]
 mkdir -p $output_dir && \
 time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
+
+
+[load & evaluation]
+n_input_file=$output_dir/$out_table.csv
+n_schema_file=$output_dir/$out_table.table.sql
+db_name=pbib
+source ~/.ingVWsh
+
+time ./evaluation/main.sh $db_name $n_input_file $n_schema_file $out_table $output_dir
+
+cat $output_dir/stats-vectorwise/$out_table.statdump.out | less
+cat $output_dir/stats-vectorwise/$out_table.compression-log.out | less
+cat $output_dir/load-vectorwise/$out_table.data-files.out | less
+cat $output_dir/$out_table.eval-vectorwise.json | less
 
 
 ================================================================================
