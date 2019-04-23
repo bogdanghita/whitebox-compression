@@ -16,7 +16,7 @@ class ExpressionManager(object):
 				- exactly one pattern: apply that one
 				- more than one pattern: choose one and apply it
 				- no pattern: add the attr to the exception column
-	NOTE-2: in_col_data["row_mask"] value convention:
+	NOTE-2: p_mask value convention:
 			-2:    not used in any expression node
 			-1:    exception (cannot be part of any expression node)
 			>= 0:  index of the expression node it will be part of
@@ -31,6 +31,7 @@ class ExpressionManager(object):
 	def __init__(self, in_columns, expr_nodes, null_value):
 		self.null_value = null_value
 		self.expr_nodes = []
+
 		# populate expr_nodes
 		for expr_n in expr_nodes:
 			pd = get_pattern_detector(expr_n.p_id)
@@ -39,11 +40,14 @@ class ExpressionManager(object):
 				"expr_n": expr_n,
 				"operator": operator
 			})
+
 		self.in_columns, self.out_columns, self.in_columns_map, self.out_columns_map = [], [], {}, {}
+
 		# populate in_columns & save their indices
 		for idx, in_col in enumerate(in_columns):
 			self.in_columns.append(in_col)
 			self.in_columns_map[in_col.col_id] = idx
+
 		# populate out_columns with:
 		# 1) unused columns; 2) exception columns for each input column
 		for in_col in in_columns:
@@ -68,23 +72,32 @@ class ExpressionManager(object):
 		for idx, out_col in enumerate(self.out_columns):
 			self.out_columns_map[out_col.col_id] = idx
 
-		# TODO: debug
-		print("***expression_nodes***")
-		for expr_n in expr_nodes:
-			print(expr_n.p_id)
-		print("/n***in_columns***")
-		for c in self.in_columns:
-			print(c)
-		print("/n***in_columns_map***")
-		for k,c in self.in_columns_map.items():
-			print(k,c)
-		print("/n***out_columns***")
-		for c in self.out_columns:
-			print(c)
-		print("/n***out_columns_map***")
-		for k,c in self.out_columns_map.items():
-			print(k,c)
-		# TODO: end-debug
+		# create stats columns
+		self.in_columns_stats = []
+		for idx, in_col in enumerate(in_columns):
+			in_col_stats = {
+				"col_id": in_col.col_id,
+				"exception_count": 0
+			}
+			self.in_columns_stats.append(in_col_stats)
+
+		# # TODO: debug
+		# print("***expression_nodes***")
+		# for expr_n in expr_nodes:
+		# 	print(expr_n.p_id)
+		# print("/n***in_columns***")
+		# for c in self.in_columns:
+		# 	print(c)
+		# print("/n***in_columns_map***")
+		# for k,c in self.in_columns_map.items():
+		# 	print(k,c)
+		# print("/n***out_columns***")
+		# for c in self.out_columns:
+		# 	print(c)
+		# print("/n***out_columns_map***")
+		# for k,c in self.out_columns_map.items():
+		# 	print(k,c)
+		# # TODO: end-debug
 
 	def dump_out_schema(self, fd, out_table_name):
 		line = "CREATE TABLE \"{}\"(".format(out_table_name)
@@ -93,9 +106,22 @@ class ExpressionManager(object):
 		for out_col in self.out_columns:
 			line = "  \"{}\" {},".format(out_col.name, out_col.datatype.to_sql_str())
 			fd.write(line + "\n")
-		
+
 		line = ");"
 		fd.write(line + "\n")
+
+	def get_stats(self, valid_tuple_count, total_tuple_count):
+		in_col_stats = deepcopy(self.in_columns_stats)
+		for in_col_s in in_col_stats:
+			in_col_s["exception_ratio"] = float(in_col_s["exception_count"]) / valid_tuple_count if valid_tuple_count > 0 else float("inf")
+		valid_tuple_ratio = float(valid_tuple_count) / total_tuple_count if total_tuple_count > 0 else float("inf")
+		stats = {
+			"total_tuple_count": total_tuple_count,
+			"valid_tuple_count": valid_tuple_count,
+			"valid_tuple_ratio": valid_tuple_ratio,
+			"in_col_stats": in_col_stats
+		}
+		return stats
 
 	@classmethod
 	def get_exception_col_id(cls, col_id):
@@ -134,7 +160,10 @@ class ExpressionManager(object):
 				out_attrs = operator(in_attrs)
 			except OperatorException as e:
 				# this operator cannot be applied, but others may be; in the worst case, attr is added to the exception column at the end
-				print("debug: OperatorException: {}".format(e))
+				# print("debug: OperatorException: {}".format(e))
+				for in_col in expr_n.cols_in:
+					in_col_idx = self.in_columns_map[in_col.col_id]
+					self.in_columns_stats[in_col_idx]["exception_count"] += 1
 				continue
 			# mark in_col as used
 			for in_col in expr_n.cols_in:
@@ -160,7 +189,7 @@ class ExpressionManager(object):
 				# append attr to out_tpl
 				out_tpl[out_col_idx] = str(in_tpl[in_col_idx])
 
-		return out_tpl, p_mask
+		return (out_tpl, p_mask)
 
 
 def driver_loop(driver, expr_manager, fdelim, fd_out, fd_p_mask):
@@ -174,10 +203,12 @@ def driver_loop(driver, expr_manager, fdelim, fd_out, fd_p_mask):
 		total_tuple_count += 1
 
 		tpl = line.split(fdelim)
-		tpl_new, p_mask = expr_manager.apply_expressions(tpl)
-		if tpl_new is None:
+		res = expr_manager.apply_expressions(tpl)
+		if res is None:
 			continue
 		valid_tuple_count += 1
+
+		(tpl_new, p_mask) = res
 
 		line_new = fdelim.join(tpl_new)
 		fd_out.write(line_new + "\n")
@@ -240,7 +271,7 @@ def main():
 	# init expression manager
 	expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
 
-	# TODO: generate new schema file with output columns
+	# generate new schema file with output columns
 	schema_file = os.path.join(args.output_dir, "{}.table.sql".format(args.out_table_name))
 	with open(schema_file, 'w') as fd_s:
 		expr_manager.dump_out_schema(fd_s, args.out_table_name)
@@ -265,6 +296,12 @@ def main():
 			fd_p_mask.close()
 		except:
 			pass
+
+	# output stats
+	stats = expr_manager.get_stats(valid_tuple_count, total_tuple_count)
+	stats_file = os.path.join(args.output_dir, "{}.stats.json".format(args.out_table_name))
+	with open(stats_file, 'w') as fd_s:
+		json.dump(stats, fd_s, indent=2)
 
 	print("total_tuple_count={}, valid_tuple_count={}".format(total_tuple_count, valid_tuple_count))
 
@@ -297,4 +334,10 @@ out_table="${table}_out"
 mkdir -p $output_dir && \
 time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
 
+
+================================================================================
+less $output_dir/$out_table.table.sql
+cat $output_dir/$out_table.csv | less -S
+awk -F "|" '{ print $2, " ", $57 }' $output_dir/$out_table.csv | less -S
+awk -F "|" '{ print $3, " ", $58, $59, $60, $61 }' $output_dir/$out_table.csv | less -S
 """
