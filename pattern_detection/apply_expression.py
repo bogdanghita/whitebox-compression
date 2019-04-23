@@ -351,6 +351,12 @@ cat $output_dir/stats-vectorwise/$out_table.compression-log.out | less
 cat $output_dir/load-vectorwise/$out_table.data-files.out | less
 cat $output_dir/$out_table.eval-vectorwise.json | less
 
+[compare]
+stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
+stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
+stats_file_wc=$output_dir/$out_table.eval-vectorwise.json
+./evaluation/compare_stats.py $stats_file_default $stats_file_wc
+
 
 ================================================================================
 less $output_dir/$out_table.table.sql
