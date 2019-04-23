@@ -251,13 +251,17 @@ class NumberAsString(StringPatternDetector):
 			  datatype
 		'''
 		def operator(attrs):
-			val = attrs[0]
-			if not cls.is_null(val, null_value):
+			val, c_out = attrs[0], cols_out[0]
+			if cls.is_null(val, null_value):
 				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
-			if not cls.is_number(val):
-				raise OperatorException("[{}] value is not numeric".format(cls.__name__))
-			c_out = cols_out[0]
-			# TODO: check for the datatype of the output column & raise exception if it does not match; do this in datatype_analyzer
+			# if not cls.is_number(val):
+			# 	raise OperatorException("[{}] value is not numeric".format(cls.__name__))
+			# check if value matches the the datatype of the output column; raise exception if not
+			try:
+				n_val = NumericDatatypeAnalyzer.cast(val, c_out.datatype)
+			except Exception as e:
+				raise OperatorException("[{}] value does not match datatype: value={}, datatype={}, err={}".format(cls.__name__, val, c_out.datatype, e))
+			# NOTE: [?] in the future maybe return n_val instead of val
 			attrs_out = [val]
 			return attrs_out
 
@@ -370,7 +374,7 @@ class CharSetSplit(StringPatternDetector):
 
 	@classmethod
 	def split_attr(cls, attr, pattern_string, char_sets, default_placeholder, default_inv_charset):
-		default_exception = OperatorException("[{}] attr does not match pattern_string".format(cls.__name__))
+		default_exception = OperatorException("[{}] attr does not match pattern_string: attr={}, pattern_string={}".format(cls.__name__, attr, pattern_string))
 		# NOTE: for now, we don't support empty value
 		# NOTE: we assume len(pattern_string) > 0
 		''' NOTE: we assume that the (pattern_string, char_sets) pair is
@@ -419,7 +423,7 @@ class CharSetSplit(StringPatternDetector):
 		def operator(attrs):
 			val = attrs[0]
 			if cls.is_null(val, null_value):
-				raise Exception("[{}] null value is not supported".format(cls.__name__))
+				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
 			attrs_out = cls.split_attr(val, operator_info["pattern_string"], char_sets, default_placeholder, default_inv_charset)
 			return attrs_out
 

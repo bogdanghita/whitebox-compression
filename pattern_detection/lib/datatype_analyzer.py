@@ -34,6 +34,35 @@ class MinMax(object):
 		self.push(other.dmax)
 
 
+class DatatypeCast(object):
+	pass
+
+
+class NumericDatatypeCast(DatatypeCast):
+
+	@staticmethod
+	def to_decimal(val, precision, scale):
+		precision, scale = int(precision), int(scale)
+		dec = Decimal(val)
+		dec_tpl = dec.as_tuple()
+		exp = abs(dec_tpl.exponent)
+		digits = len(dec_tpl.digits)
+		# print("debug: ===")
+		# print("val={}, p={}, s={}".format(val, precision, scale))
+		# print("val={}, d={}, e={}".format(val, digits, exp))
+		# print(val, dec_tpl)
+		# print("end-debug: ===")
+		if exp >= digits:
+			digits = exp + 1
+		if digits > precision or exp > scale:
+			raise Exception("[to_decimal] Value does not match precision and/or scale")
+		return dec
+
+	@staticmethod
+	def to_double(val):
+		return float(val)
+
+
 class DatatypeAnalyzer(object):
 	def __init__(self):
 		pass
@@ -51,6 +80,15 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 	TODO: add support for other numeric datatypes (e.g. tinyint, smallint, int, bigint, float)
 	"""
 
+	datatypes = {
+		"decimal": {
+			"cast": NumericDatatypeCast.to_decimal
+		},
+		"double": {
+			"cast": NumericDatatypeCast.to_double
+		}
+	}
+
 	def __init__(self):
 		DatatypeAnalyzer.__init__(self)
 		self.decdigits_before_minmax = MinMax()
@@ -63,8 +101,9 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 			return
 		try:
 			dec = Decimal(attr)
-			exp = abs(dec.as_tuple().exponent)
-			digits = len(dec.as_tuple().digits)
+			dec_tpl = dec.as_tuple()
+			exp = abs(dec_tpl.exponent)
+			digits = len(dec_tpl.digits)
 			if exp >= digits:
 				digits = exp + 1
 			self.decdigits_before_minmax.push(digits - exp)
@@ -90,4 +129,14 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 		if precision > MAX_DECIMAL_PRECISION:
 			return DataType(name="double")
 		else:
-			return DataType(name="decimal", params=[precision, scale])
+			return DataType(name="decimal", params=[str(precision), str(scale)])
+
+	@classmethod
+	def cast(cls, val, datatype):
+		'''
+		Raises: Exception() if the value does not match the datatype
+		'''
+		if datatype.name not in cls.datatypes:
+			raise Exception("[cast] Unsupported datatype: datatype={}".format(datatype))
+		n_val = cls.datatypes[datatype.name]["cast"](val, *datatype.params)
+		return n_val
