@@ -72,14 +72,36 @@ apply_expression() {
 	time $SCRIPT_DIR/../pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
 }
 
+evaluate() {
+	set -e
+	set -o pipefail
+	echo "$(date) [evaluate]"
+
+	output_dir=$wbs_dir/$wb/$table.poc_1_out
+	out_table="${table}_out"
+	n_input_file=$output_dir/$out_table.csv
+	n_schema_file=$output_dir/$out_table.table.sql
+	wv_n_schema_file=$output_dir/$out_table.table-vectorwise.sql
+	
+	db_name=pbib
+	source ~/.ingVWsh
+
+	echo "drop table $out_table\g" | sql $db_name
+	$SCRIPT_DIR/../util/VectorWiseify-schema.sh $n_schema_file $wv_n_schema_file > /dev/null
+	time $SCRIPT_DIR/../evaluation/main.sh $db_name $n_input_file $wv_n_schema_file $out_table $output_dir
+}
+
 
 generate_sample
 generate_expression
 apply_expression
+# NOTE: `evaluate` loads data to vectorwise and gathers logs; no other operations should be performed on vectorwise during this time
+evaluate
 
 
 : <<'END_COMMENT'
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+repo_wbs_dir=../public_bi_benchmark-master_project/benchmark
 
 ================================================================================
 wb=CommonGovernment
@@ -94,5 +116,20 @@ table=Arade_1
 
 ================================================================================
 ./poc_1/main.sh $wbs_dir $wb $table
+
+
+================================================================================
+# [evaluation-only]
+output_dir=$wbs_dir/$wb/$table.poc_1_out
+out_table="${table}_out"
+n_input_file=$output_dir/$out_table.csv
+n_schema_file=$output_dir/$out_table.table.sql
+wv_n_schema_file=$output_dir/$out_table.table-vectorwise.sql
+db_name=pbib
+source ~/.ingVWsh
+
+echo "drop table $out_table\g" | sql $db_name
+./util/VectorWiseify-schema.sh $n_schema_file $wv_n_schema_file > /dev/null
+time ./evaluation/main.sh $db_name $n_input_file $wv_n_schema_file $out_table $output_dir
 
 END_COMMENT

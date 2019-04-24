@@ -346,13 +346,13 @@ expr_nodes_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
 output_dir=$wbs_dir/$wb/$table.poc_1_out
 out_table="${table}_out"
 
-[apply-expression]
+# [apply-expression]
 mkdir -p $output_dir && \
 time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
 
 cat $output_dir/$out_table.stats.json | less
 
-[load & evaluation]
+# [load & evaluation]
 n_input_file=$output_dir/$out_table.csv
 n_schema_file=$output_dir/$out_table.table.sql
 wv_n_schema_file=$output_dir/$out_table.table-vectorwise.sql

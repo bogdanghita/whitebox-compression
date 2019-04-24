@@ -172,7 +172,7 @@ repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/b
 db_name=pbib
 source ~/.ingVWsh
 
-# eval all workbooks
+# eval all workbooks: baseline-nocompression, baseline-default
 for wb in $wbs_dir/*; do \
   for table in $wb/*.csv; do \
     if [[ "$table" == *.*.csv ]]; then \
@@ -181,6 +181,8 @@ for wb in $wbs_dir/*; do \
     wb="$(basename $wb)"; \
     table="$(basename $table)"; table="${table%.csv}"; \
     echo $wb $table; \
+\
+    echo "drop table $table\g" | sql $db_name; \
 \
     input_file=$wbs_dir/$wb/$table.csv; \
     schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql; \
