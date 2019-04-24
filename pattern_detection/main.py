@@ -57,7 +57,8 @@ class OutputManager(object):
 		for pd in patterns.values():
 			print("*** {} ***".format(pd["name"]))
 			for col_id, col_p_list in pd["columns"].items():
-				print("{}".format(columns[col_id]))
+				col = next(c for c in columns if c.col_id == col_id)
+				print("{}".format(col))
 				for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
 					print("{:.2f}\t{}, res_columns={}, operator_info={}".format(p["score"], p["p_id"], p["res_columns"], p["operator_info"]))
 
@@ -178,8 +179,9 @@ def main():
 		return RET_ERR
 
 	columns = []
-	for col_id, col_name in enumerate(header):
-		columns.append(Column(col_id, col_name, datatypes[col_id]))
+	for idx, col_name in enumerate(header):
+		col_id = str(idx)
+		columns.append(Column(col_id, col_name, datatypes[idx]))
 
 	# pattern detectors
 	char_set_split = CharSetSplit(columns, args.null, default_placeholder="?", char_sets=[

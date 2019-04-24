@@ -30,6 +30,7 @@ def parse_schema_file(schema_file):
 		cols = list(map(lambda c: c.strip(), f.readlines()[:-1]))
 
 	for col_id, c in enumerate(cols):
+		col_id = str(col_id)
 		m = regex_col.match(c)
 		if not m:
 			raise Exception("Unable to parse schema file")

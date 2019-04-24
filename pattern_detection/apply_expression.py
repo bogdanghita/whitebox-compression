@@ -275,8 +275,9 @@ def main():
 
 	# build in_columns
 	in_columns = []
-	for col_id, col_name in enumerate(header):
-		in_columns.append(Column(col_id, col_name, datatypes[col_id]))
+	for idx, col_name in enumerate(header):
+		col_id = str(idx)
+		in_columns.append(Column(col_id, col_name, datatypes[idx]))
 
 	# build expression nodes
 	with open(args.expr_nodes_file, 'r') as f:
