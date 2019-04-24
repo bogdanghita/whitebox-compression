@@ -96,7 +96,7 @@ generate_sample
 generate_expression
 apply_expression
 # NOTE: `evaluate` loads data to vectorwise and gathers logs; no other operations should be performed on vectorwise during this time
-evaluate
+# evaluate
 
 
 : <<'END_COMMENT'
@@ -131,5 +131,28 @@ source ~/.ingVWsh
 echo "drop table $out_table\g" | sql $db_name
 ./util/VectorWiseify-schema.sh $n_schema_file $wv_n_schema_file > /dev/null
 time ./evaluation/main.sh $db_name $n_input_file $wv_n_schema_file $out_table $output_dir
+
+
+================================================================================
+# [run-all]
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+repo_wbs_dir=../public_bi_benchmark-master_project/benchmark
+
+for wb in $wbs_dir/*; do \
+  for table in $wb/*.csv; do \
+    if [[ "$table" == *.*.csv ]]; then \
+      continue; \
+    fi; \
+    wb="$(basename $wb)"; \
+    table="$(basename $table)"; table="${table%.csv}"; \
+    echo $wb $table; \
+\
+    ./poc_1/main.sh $wbs_dir $wb $table &> $wbs_dir/$wb/$table.poc_1.out; \
+\
+  done; \
+done &> ./poc_1_all_workbooks.out
+
+watch tail -n 40 poc_1_all_workbooks.out
+cat $wbs_dir/*/*.poc_1.out | less
 
 END_COMMENT
