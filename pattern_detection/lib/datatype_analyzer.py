@@ -88,6 +88,7 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 			"cast": NumericDatatypeCast.to_double
 		}
 	}
+	illegal_chars = ['e', 'E']
 
 	def __init__(self):
 		DatatypeAnalyzer.__init__(self)
@@ -140,3 +141,17 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 			raise Exception("[cast] Unsupported datatype: datatype={}".format(datatype))
 		n_val = cls.datatypes[datatype.name]["cast"](val, *datatype.params)
 		return n_val
+
+	@classmethod
+	def is_number(cls, val):
+		''' Check if val is numeric
+		NOTE: values that look like numbers in scientific notation are not considered valid (for now)
+		'''
+		for c in val:
+			if c in cls.illegal_chars:
+				return False
+		try:
+			float(val)
+			return True
+		except ValueError as e:
+			return False

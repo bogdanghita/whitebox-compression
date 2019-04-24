@@ -113,21 +113,33 @@ class ExpressionManager(object):
 		fd.write(line + "\n")
 
 	def get_stats(self, valid_tuple_count, total_tuple_count):
-		in_col_stats = deepcopy(self.in_columns_stats)
-		for in_col_s in in_col_stats:
+		# exception stats
+		in_columns_stats = deepcopy(self.in_columns_stats)
+		ex_col_stats = []
+		for in_col_s in in_columns_stats:
 			in_col_s["exception_ratio"] = float(in_col_s["exception_count"]) / valid_tuple_count if valid_tuple_count > 0 else float("inf")
+			ex_col_id = self.get_exception_col_id(in_col_s["col_id"])
+			if ex_col_id in self.out_columns_map:
+				ex_col_stats.append(in_col_s)
+		# other stats
 		valid_tuple_ratio = float(valid_tuple_count) / total_tuple_count if total_tuple_count > 0 else float("inf")
 		stats = {
 			"total_tuple_count": total_tuple_count,
 			"valid_tuple_count": valid_tuple_count,
 			"valid_tuple_ratio": valid_tuple_ratio,
-			"in_col_stats": in_col_stats
+			"exceptions": ex_col_stats
 		}
 		return stats
 
 	@classmethod
-	def get_exception_col_id(cls, col_id):
-		return str(col_id) + "_ex"
+	def get_exception_col_id(cls, in_col_id):
+		return str(in_col_id) + "_ex"
+
+	@classmethod
+	def get_input_col_id(cls, ex_col_id):
+		if ex_col_id.endswith("_ex"):
+			return ex_col_id[:-len("_ex")]
+		return ex_col_id
 
 	def is_valid_tuple(self, tpl):
 		if len(tpl) != len(self.in_columns):
@@ -337,6 +349,8 @@ out_table="${table}_out"
 mkdir -p $output_dir && \
 time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
 
+cat $output_dir/$out_table.stats.json | less
+
 [load & evaluation]
 n_input_file=$output_dir/$out_table.csv
 n_schema_file=$output_dir/$out_table.table.sql
@@ -353,15 +367,17 @@ cat $output_dir/load-vectorwise/$out_table.data-files.out | less
 cat $output_dir/$out_table.eval-vectorwise.json | less
 
 [compare]
-stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
-stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
-stats_file_wc=$output_dir/$out_table.eval-vectorwise.json
-./evaluation/compare_stats.py $stats_file_default $stats_file_wc
+eval_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
+eval_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
+eval_file_wc=$output_dir/$out_table.eval-vectorwise.json
+./evaluation/compare_eval.py $eval_file_default $eval_file_wc
 
 
 ================================================================================
 less $output_dir/$out_table.table.sql
 cat $output_dir/$out_table.csv | less -S
 awk -F "|" '{ print $2, " ", $57 }' $output_dir/$out_table.csv | less -S
+awk -F "|" '{ print $20, " ", $82 }' $output_dir/$out_table.csv | less -S
+awk -F "|" '{ print $48, " ", $90 }' $output_dir/$out_table.csv | less -S
 awk -F "|" '{ print $3, " ", $58, $59, $60, $61 }' $output_dir/$out_table.csv | less -S
 """

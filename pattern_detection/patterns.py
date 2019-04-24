@@ -194,18 +194,11 @@ class NumberAsString(StringPatternDetector):
 		for col in self.columns.values():
 			col["ndt_analyzer"] = NumericDatatypeAnalyzer()
 
-	def is_number(self, attr):
-		try:
-			float(attr)
-			return True
-		except ValueError as e:
-			return False
-
 	def handle_attr(self, attr, idx):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
 		if handled:
 			return True
-		if not self.is_number(attr):
+		if not NumericDatatypeAnalyzer.is_number(attr):
 			return True
 		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
 		self.columns[idx]["ndt_analyzer"].feed_attr(attr)
@@ -254,8 +247,9 @@ class NumberAsString(StringPatternDetector):
 			val, c_out = attrs[0], cols_out[0]
 			if cls.is_null(val, null_value):
 				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
-			# if not cls.is_number(val):
-			# 	raise OperatorException("[{}] value is not numeric".format(cls.__name__))
+			# NOTE: this filters strings that look like numbers in scientific notation
+			if not NumericDatatypeAnalyzer.is_number(val):
+				raise OperatorException("[{}] value is not numeric".format(cls.__name__))
 			# check if value matches the the datatype of the output column; raise exception if not
 			try:
 				n_val = NumericDatatypeAnalyzer.cast(val, c_out.datatype)
