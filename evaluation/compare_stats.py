@@ -54,9 +54,9 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_e
 			exception_stats[in_col["col_id"]] = in_col
 		# print(json.dumps(apply_expr_stats, indent=2))
 
+	output = "\n*** data_files (column level) ***"
+	
 	if expr_nodes:
-		output = "\n*** data_files (column level) ***"
-
 		# TODO: adapt this code to work recursive expression nodes (i.e. expression trees)
 		for expr_n in expr_nodes:
 			output += "\n\n[{}][score={:.2f}]".format(expr_n["p_id"], expr_n["details"]["score"])
