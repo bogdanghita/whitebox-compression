@@ -69,8 +69,7 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_e
 				if exception_stats and col_id in exception_stats:
 					ex_ratio = exception_stats[col_id]["exception_ratio"]
 				if col_name not in column_data[s_file1]:
-					print("error: in_col_id={} not found in s_file1={}".format(col_id, s_file1))
-					continue
+					raise Exception("error: in_col_name={} not found in s_file1={}".format(col_name, s_file1))
 				col_size_B = column_data[s_file1][col_name]["data_files"]["data_file"]["size_B"]
 				in_size_B += col_size_B
 				output += "\ncol_id={}, col_name={}, ex_ratio={:.2f}, size={}, in_col={}".format(in_col["col_id"], col_name, ex_ratio, sizeof_fmt(col_size_B), in_col)
@@ -81,8 +80,7 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_e
 			for out_col in expr_n["cols_out"]:
 				col_id, col_name = out_col["col_id"], out_col["name"]
 				if col_name not in column_data[s_file2]:
-					print("error: out_col_id={} not found in s_file2={}".format(col_id, s_file2))
-					continue
+					raise Exception("out_col_name={} not found in s_file2={}".format(col_name, s_file2))
 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
 				out_size_B += col_size_B
 				output += "\ncol_id={}, col_name={}, size={}, out_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), out_col)
@@ -93,8 +91,7 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_e
 			for in_col in expr_n["cols_in"]:
 				col_name = get_exception_col_name(in_col["name"])
 				if col_name not in column_data[s_file2]:
-					print("error: col_name={} not found in s_file2={}".format(col_name, s_file2))
-					continue
+					raise Exception("col_name={} not found in s_file2={}".format(col_name, s_file2))
 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
 				ex_size_B += col_size_B
 				output += "\ncol_id={}, col_name={}, size={}, out_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), out_col)
@@ -121,12 +118,18 @@ def compare_stats(s_file1, s_file2, expr_nodes_file, apply_expr_stats_file):
 		s_data2 = json.load(f2)
 
 	# data_files
-	output_df = compare_data_files(s_file1, s_file2, s_data1, s_data2)
-	print(output_df)
+	try:
+		output_df = compare_data_files(s_file1, s_file2, s_data1, s_data2)
+		print(output_df)
+	except Exception as e:
+		print("error: unable to perform: compare_data_files; e={}".format(e))
 
 	# expression nodes: in/out column comparison
-	output_cols = compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_expr_stats_file)
-	print(output_cols)
+	try:
+		output_cols = compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_expr_stats_file)
+		print(output_cols)
+	except Exception as e:
+		print("error: unable to perform: compare_columns; e={}".format(e))
 
 
 def parse_args():
@@ -174,8 +177,8 @@ table=CommonGovernment_1
 wb=IUBLibrary
 table=IUBLibrary_1
 ================================================================================
-wb=Physicians
-table=Physicians_1
+wb=CMSprovider
+table=CMSprovider_1
 
 out_table="${table}_out"
 stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
