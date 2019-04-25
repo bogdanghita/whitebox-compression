@@ -82,7 +82,7 @@ evaluate() {
 	n_input_file=$output_dir/$out_table.csv
 	n_schema_file=$output_dir/$out_table.table.sql
 	wv_n_schema_file=$output_dir/$out_table.table-vectorwise.sql
-	
+
 	db_name=pbib
 	source ~/.ingVWsh
 
@@ -96,7 +96,7 @@ generate_sample
 generate_expression
 apply_expression
 # NOTE: `evaluate` loads data to vectorwise and gathers logs; no other operations should be performed on vectorwise during this time
-# evaluate
+evaluate
 
 
 : <<'END_COMMENT'
@@ -137,14 +137,11 @@ time ./evaluation/main.sh $db_name $n_input_file $wv_n_schema_file $out_table $o
 # [run-all]
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 repo_wbs_dir=../public_bi_benchmark-master_project/benchmark
+testset_dir=testsets/testset_unique_schema
 
-for wb in $wbs_dir/*; do \
-  for table in $wb/*.csv; do \
-    if [[ "$table" == *.*.csv ]]; then \
-      continue; \
-    fi; \
+for wb in $testset_dir/*; do \
+  for table in $(cat $wb); do \
     wb="$(basename $wb)"; \
-    table="$(basename $table)"; table="${table%.csv}"; \
     echo $wb $table; \
 \
     ./poc_1/main.sh $wbs_dir $wb $table &> $wbs_dir/$wb/$table.poc_1.out; \
