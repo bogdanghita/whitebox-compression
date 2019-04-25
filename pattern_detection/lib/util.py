@@ -5,7 +5,7 @@ import re
 
 
 class FileDriver(object):
-	def __init__(self, fd, args):
+	def __init__(self, fd):
 		self.fd = fd
 		self.done = False
 

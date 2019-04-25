@@ -5,9 +5,11 @@ import sys
 import argparse
 import json
 import string
+from copy import deepcopy
 from lib.util import *
 from lib.pattern_selectors import *
 from patterns import *
+from data_manager import *
 import plot_pattern_distribution, plot_ngram_freq_masks
 
 
@@ -129,14 +131,55 @@ class OutputManager(object):
 			json.dump(expr_nodes_as_dict, f, indent=2)
 
 
-def driver_loop(driver, pd_engine, fdelim):
+# def driver_loop(driver, pd_engine, fdelim):
+# 	while True:
+# 		line = driver.nextTuple()
+# 		if line is None:
+# 			break
+#
+# 		tpl = line.split(fdelim)
+# 		pd_engine.feed_tuple(tpl)
+
+
+def data_loop(data_manager, pd_engine, fdelim):
+	data_manager.set_mode_read()
+	data_manager.reset()
 	while True:
-		line = driver.nextTuple()
+		line = data_manager.nextTuple()
 		if line is None:
 			break
 
 		tpl = line.split(fdelim)
 		pd_engine.feed_tuple(tpl)
+
+
+def apply_expressions(expr_manager, in_data_manager, out_data_manager):
+	in_data_manager.set_mode_read()
+	in_data_manager.reset()
+	out_data_manager.set_mode_write()
+	out_data_manager.reset()
+
+	total_tuple_count = 0
+	valid_tuple_count = 0
+
+	while True:
+		tpl = in_data_manager.readTuple()
+		if tpl is None:
+			break
+		total_tuple_count += 1
+
+		res = expr_manager.apply_expressions(tpl)
+		if res is None:
+			continue
+		valid_tuple_count += 1
+
+		(tpl_new, p_mask) = res
+
+		out_data_manager.writeTuple(tpl_new)
+
+	out_columns = expr_manager.get_out_columns()
+
+	return out_columns
 
 
 def parse_args():
@@ -199,6 +242,14 @@ def main():
 		# ngram_freq_split,
 		# NOTE: add new pattern detectors here
 	]
+
+	pattern_selector = DummyPatternSelector
+
+	'''
+	*** TODO: DEBUG; START ***
+	'''
+
+'''
 	pd_engine = PatternDetectionEngine(columns, pattern_detectors)
 
 	# feed data to engine
@@ -207,7 +258,7 @@ def main():
 			fd = os.fdopen(os.dup(sys.stdin.fileno()))
 		else:
 			fd = open(args.file, 'r')
-		driver = FileDriver(fd, args.fdelim)
+		driver = FileDriver(fd)
 		driver_loop(driver, pd_engine, args.fdelim)
 	finally:
 		fd.close()
@@ -216,17 +267,66 @@ def main():
 	(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
 
 	# select patterns for each column
-	pattern_selector = DummyPatternSelector
 	expression_nodes = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
+'''
 
-	# otuput results
+	# TODO: make this a parameter to the script
+	MAX_TREE_DEPTH = 1000
+
+	in_columns = deepcopy(columns)
+	if args.file is None:
+		in_data_manager = StdinDataManager(args.fdelim)
+	else:
+		in_data_manager = FileDataManager(args.file, args.fdelim)
+
+	tree_nodes = []
+	for it in range(MAX_TREE_DEPTH):
+		print("\n\n=== ITERATION: it={} ===\n\n".format(it))
+
+		# init engine
+		pd_engine = PatternDetectionEngine(in_columns, pattern_detectors)
+		# feed data to engine
+		data_loop(in_data_manager, pd_engine, args.fdelim)
+		# get results from engine
+		(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
+		# select patterns for each column
+		expr_nodes = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
+
+		# save expr_nodes as a new level in the tree
+		tree_nodes.append(expr_nodes)
+
+		# apply expression nodes
+		out_data_manager = MemDataManager()
+		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null_value)
+
+		out_columns = apply_expressions(expr_manager, in_data_manager, out_data_manager)
+
+		# prepare next iteration
+		in_data_manager.close()
+		in_data_manager = out_data_manager
+		in_columns = out_columns
+
+	''' Results:
+		tree_nodes contains the expression nodes for each level of the tree
+	'''
+
+	in_data_manager.close()
+
+	'''
+	*** TODO: DEBUG; END ***
+	'''
+
+	# output results
+'''
 	OutputManager.output_stats(columns, patterns)
-	OutputManager.output_expression_nodes(expression_nodes, args.expr_nodes_output_file)
+	OutputManager.output_expression_nodes(expr_nodes, args.expr_nodes_output_file)
 	if args.pattern_distribution_output_dir is not None:
 		OutputManager.output_pattern_distribution(columns, patterns, args.pattern_distribution_output_dir)
-	if args.ngram_freq_masks_output_dir is not None:
-		ngram_freq_masks = ngram_freq_split.get_ngram_freq_masks(delim=",")
-		OutputManager.output_ngram_freq_masks(ngram_freq_masks, args.ngram_freq_masks_output_dir)
+		if args.ngram_freq_masks_output_dir is not None:
+			ngram_freq_masks = ngram_freq_split.get_ngram_freq_masks(delim=",")
+			OutputManager.output_ngram_freq_masks(ngram_freq_masks, args.ngram_freq_masks_output_dir)
+'''
+	# TODO: output results; maybe also at each level?
 
 
 if __name__ == "__main__":
@@ -234,35 +334,37 @@ if __name__ == "__main__":
 
 
 """
+#[remote]
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
+#[local]
+wbs_dir=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1
+repo_wbs_dir=/ufs/bogdan/work/master-project/public_bi_benchmark-master_project/benchmark
 
 ================================================================================
 wb=CommonGovernment
 table=CommonGovernment_1
 max_sample_size=$((1024*1024*10))
-dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 ================================================================================
 wb=Eixo
 table=Eixo_1
 max_sample_size=$((1024*1024*10))
-dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 ================================================================================
 wb=Arade
 table=Arade_1
 max_sample_size=$((1024*1024*10))
-dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 
 
 ================================================================================
-#[sample]
-./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
-
-#[pattern-detection]
+dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
 expr_nodes_output_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
 
+#[sample]
+./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
+
+#[pattern-detection]
 mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $(dirname $expr_nodes_output_file) && \
 ./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir --expr-nodes-output-file $expr_nodes_output_file $wbs_dir/$wb/$table.sample.csv
 
