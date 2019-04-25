@@ -18,7 +18,7 @@ def compare_data_files(s_file1, s_file2, s_data1, s_data2):
 	}
 
 	output = "*** data_files (table level) ***"
-	
+
 	output += "\n[stats_file(1)][{}]\n".format(s_file1)
 	for k,v in table_data_files[s_file1].items():
 		output += "{}: {}\n".format(k, v)
@@ -55,7 +55,7 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_e
 		# print(json.dumps(apply_expr_stats, indent=2))
 
 	output = "\n*** data_files (column level) ***"
-	
+
 	if expr_nodes:
 		# TODO: adapt this code to work recursive expression nodes (i.e. expression trees)
 		for expr_n in expr_nodes:
@@ -73,7 +73,7 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_e
 					continue
 				col_size_B = column_data[s_file1][col_name]["data_files"]["data_file"]["size_B"]
 				in_size_B += col_size_B
-				output += "\ncol_name={}, ex_ratio={:.2f}, size={}, in_col={}".format(col_name, ex_ratio, sizeof_fmt(col_size_B), in_col)
+				output += "\ncol_id={}, col_name={}, ex_ratio={:.2f}, size={}, in_col={}".format(in_col["col_id"], col_name, ex_ratio, sizeof_fmt(col_size_B), in_col)
 
 			# out_cols
 			out_size_B = 0
@@ -85,7 +85,7 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_e
 					continue
 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
 				out_size_B += col_size_B
-				output += "\ncol_name={}, size={}, out_col={}".format(col_name, sizeof_fmt(col_size_B), out_col)
+				output += "\ncol_id={}, col_name={}, size={}, out_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), out_col)
 
 			# exception columns
 			ex_size_B = 0
@@ -97,13 +97,14 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_e
 					continue
 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
 				ex_size_B += col_size_B
-				output += "\ncol_name={}, size={}, out_col={}".format(col_name, sizeof_fmt(col_size_B), out_col)
+				output += "\ncol_id={}, col_name={}, size={}, out_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), out_col)
 
 			# summary
 			total_out_size_B = out_size_B + ex_size_B
 			compression_ratio = float(in_size_B) / total_out_size_B if total_out_size_B > 0 else float("inf")
 			output += "\n[summary]"
-			output += "\ncompression_ratio={compression_ratio:.2f}, in_size_B={in_size}, total_out_size_B={total_out_size} (out_size={out_size}, ex_size={ex_size})".format(
+			output += "\np_id={p_id}, compression_ratio={compression_ratio:.2f}, in_size_B={in_size}, total_out_size_B={total_out_size} (out_size={out_size}, ex_size={ex_size})".format(
+					p_id=expr_n["p_id"],
 					compression_ratio=compression_ratio,
 					in_size=sizeof_fmt(in_size_B),
 					total_out_size=sizeof_fmt(total_out_size_B),
