@@ -177,8 +177,8 @@ table=CommonGovernment_1
 wb=IUBLibrary
 table=IUBLibrary_1
 ================================================================================
-wb=CMSprovider
-table=CMSprovider_1
+wb=Generico
+table=Generico_1
 
 out_table="${table}_out"
 stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
@@ -189,4 +189,41 @@ apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json
 
 ./evaluation/compare_stats.py $stats_file_nocompression $stats_file_default
 ./evaluation/compare_stats.py $stats_file_default $stats_file_wc --expr-nodes-file $expr_nodes_file --apply-expr-stats-file $apply_expr_stats_file
+
+
+================================================================================
+# [run-all]
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+repo_wbs_dir=../public_bi_benchmark-master_project/benchmark
+testset_dir=testsets/testset_unique_schema
+
+for wb in $testset_dir/*; do \
+  for table in $(cat $wb); do \
+    wb="$(basename $wb)"; \
+    echo $wb $table; \
+\
+    out_table="${table}_out"
+    stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json; \
+    stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json; \
+    stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json; \
+    expr_nodes_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json; \
+    apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json; \
+    output_dir=$wbs_dir/$wb/$table.poc_1_out/compare_stats; \
+\
+    if test -f "$stats_file_wc"; then \
+      mkdir -p $output_dir; \
+      ./evaluation/compare_stats.py $stats_file_nocompression $stats_file_default &> $output_dir/$table.compare_stats.nocompression-default.out; \
+      ./evaluation/compare_stats.py $stats_file_default $stats_file_wc --expr-nodes-file $expr_nodes_file --apply-expr-stats-file $apply_expr_stats_file &> $output_dir/$table.compare_stats.default-wc.out; \
+    fi; \
+\
+  done; \
+done
+
+# get results on local machine
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+dst_dir=./evaluation/output
+mkdir -p $dst_dir
+
+scp bogdan@bricks14:$wbs_dir/*/*.poc_1_out/compare_stats/*.compare_stats.*.out $dst_dir
+
 """
