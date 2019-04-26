@@ -21,6 +21,25 @@ class FileDriver(object):
 		return l.rstrip('\r\n')
 
 
+class DataManager(object):
+	def __init__(self):
+		self.tuples = []
+		self.read_seek_set()
+
+	def read_seek_set(self):
+		self.idx = 0
+
+	def read_tuple(self):
+		if self.idx == len(self.tuples):
+			return None
+		tpl = self.tuples[self.idx]
+		self.idx += 1
+		return tpl
+
+	def write_tuple(self, tpl):
+		self.tuples.append(tpl)
+
+
 class DataType(object):
 	regex_sql = re.compile(r'^(.*?)(\(.*?\))?( not null)?,?$')
 

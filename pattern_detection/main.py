@@ -9,7 +9,7 @@ from copy import deepcopy
 from lib.util import *
 from lib.pattern_selectors import *
 from patterns import *
-from data_manager import *
+from apply_expression import ExpressionManager
 import plot_pattern_distribution, plot_ngram_freq_masks
 
 
@@ -131,39 +131,31 @@ class OutputManager(object):
 			json.dump(expr_nodes_as_dict, f, indent=2)
 
 
-# def driver_loop(driver, pd_engine, fdelim):
-# 	while True:
-# 		line = driver.nextTuple()
-# 		if line is None:
-# 			break
-#
-# 		tpl = line.split(fdelim)
-# 		pd_engine.feed_tuple(tpl)
+def read_data(driver, data_manager, fdelim):
+	while True:
+		line = driver.nextTuple()
+		if line is None:
+			break
+		tpl = line.split(fdelim)
+		data_manager.write_tuple(tpl)
 
 
 def data_loop(data_manager, pd_engine, fdelim):
-	data_manager.set_mode_read()
-	data_manager.reset()
+	data_manager.read_seek_set()
 	while True:
-		line = data_manager.nextTuple()
-		if line is None:
+		tpl = data_manager.read_tuple()
+		if tpl is None:
 			break
-
-		tpl = line.split(fdelim)
 		pd_engine.feed_tuple(tpl)
 
 
 def apply_expressions(expr_manager, in_data_manager, out_data_manager):
-	in_data_manager.set_mode_read()
-	in_data_manager.reset()
-	out_data_manager.set_mode_write()
-	out_data_manager.reset()
-
 	total_tuple_count = 0
 	valid_tuple_count = 0
 
+	in_data_manager.read_seek_set()
 	while True:
-		tpl = in_data_manager.readTuple()
+		tpl = in_data_manager.read_tuple()
 		if tpl is None:
 			break
 		total_tuple_count += 1
@@ -175,7 +167,7 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager):
 
 		(tpl_new, p_mask) = res
 
-		out_data_manager.writeTuple(tpl_new)
+		out_data_manager.write_tuple(tpl_new)
 
 	out_columns = expr_manager.get_out_columns()
 
@@ -249,37 +241,45 @@ def main():
 	*** TODO: DEBUG; START ***
 	'''
 
-'''
-	pd_engine = PatternDetectionEngine(columns, pattern_detectors)
+	'''
+		pd_engine = PatternDetectionEngine(columns, pattern_detectors)
 
-	# feed data to engine
-	try:
-		if args.file is None:
-			fd = os.fdopen(os.dup(sys.stdin.fileno()))
-		else:
-			fd = open(args.file, 'r')
-		driver = FileDriver(fd)
-		driver_loop(driver, pd_engine, args.fdelim)
-	finally:
-		fd.close()
+		# feed data to engine
+		try:
+			if args.file is None:
+				fd = os.fdopen(os.dup(sys.stdin.fileno()))
+			else:
+				fd = open(args.file, 'r')
+			driver = FileDriver(fd)
+			driver_loop(driver, pd_engine, args.fdelim)
+		finally:
+			fd.close()
 
-	# get results from engine
-	(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
+		# get results from engine
+		(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
 
-	# select patterns for each column
-	expression_nodes = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
-'''
+		# select patterns for each column
+		expression_nodes = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
+	'''
 
 	# TODO: make this a parameter to the script
 	MAX_TREE_DEPTH = 1000
 
 	in_columns = deepcopy(columns)
-	if args.file is None:
-		in_data_manager = StdinDataManager(args.fdelim)
-	else:
-		in_data_manager = FileDataManager(args.file, args.fdelim)
+	in_data_manager = DataManager()
 
-	tree_nodes = []
+	# read data
+	try:
+		if args.file is None:
+			fd = os.fdopen(os.dup(sys.stdin.fileno()))
+		else:
+			fd = open(args.file, 'r')
+		f_driver = FileDriver(fd)
+		read_data(f_driver, in_data_manager, args.fdelim)
+	finally:
+		fd.close()
+
+	results = []
 	for it in range(MAX_TREE_DEPTH):
 		print("\n\n=== ITERATION: it={} ===\n\n".format(it))
 
@@ -292,25 +292,24 @@ def main():
 		# select patterns for each column
 		expr_nodes = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
 
-		# save expr_nodes as a new level in the tree
-		tree_nodes.append(expr_nodes)
-
 		# apply expression nodes
-		out_data_manager = MemDataManager()
-		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null_value)
-
+		out_data_manager = DataManager()
+		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
 		out_columns = apply_expressions(expr_manager, in_data_manager, out_data_manager)
 
+		# save output data of this iteration
+		results.append({
+			"out_columns": out_columns,
+			"expr_nodes": expr_nodes
+		})
+
 		# prepare next iteration
-		in_data_manager.close()
 		in_data_manager = out_data_manager
 		in_columns = out_columns
 
 	''' Results:
-		tree_nodes contains the expression nodes for each level of the tree
+		results contains the output data of each iteration
 	'''
-
-	in_data_manager.close()
 
 	'''
 	*** TODO: DEBUG; END ***

@@ -221,7 +221,7 @@ done
 
 # get results on local machine
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
-dst_dir=./evaluation/output
+dst_dir=./evaluation/output/poc_1/output_1
 mkdir -p $dst_dir
 
 scp bogdan@bricks14:$wbs_dir/*/*.poc_1_out/compare_stats/*.compare_stats.*.out $dst_dir

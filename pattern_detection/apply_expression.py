@@ -99,6 +99,9 @@ class ExpressionManager(object):
 		# 	print(k,c)
 		# # TODO: end-debug
 
+	def get_out_columns(self):
+		return self.out_columns
+
 	def dump_out_schema(self, fd, out_table_name):
 		line = "CREATE TABLE \"{}\"(".format(out_table_name)
 		fd.write(line + "\n")
