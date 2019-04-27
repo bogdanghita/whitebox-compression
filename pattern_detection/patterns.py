@@ -29,7 +29,7 @@ class PatternDetector(object):
 
 		Returns:
 			columns: dict(col_id, patterns) columns analyzed by the pattern detector, where:
-				col_id: int # id of the column
+				col_id: str # id of the column
 				patterns: list(
 					dict(
 						p_id: # id of the pattern
@@ -198,10 +198,13 @@ class NumberAsString(StringPatternDetector):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
 		if handled:
 			return True
-		if not NumericDatatypeAnalyzer.is_number(attr):
+		if not NumericDatatypeAnalyzer.is_supported_number(attr):
+			return True
+		try:
+			self.columns[idx]["ndt_analyzer"].feed_attr(attr)
+		except Exception as e:
 			return True
 		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
-		self.columns[idx]["ndt_analyzer"].feed_attr(attr)
 		return True
 
 	def build_pattern_data(self, col):
@@ -248,7 +251,7 @@ class NumberAsString(StringPatternDetector):
 			if cls.is_null(val, null_value):
 				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
 			# NOTE: this filters strings that look like numbers in scientific notation
-			if not NumericDatatypeAnalyzer.is_number(val):
+			if not NumericDatatypeAnalyzer.is_supported_number(val):
 				raise OperatorException("[{}] value is not numeric".format(cls.__name__))
 			# check if value matches the the datatype of the output column; raise exception if not
 			try:

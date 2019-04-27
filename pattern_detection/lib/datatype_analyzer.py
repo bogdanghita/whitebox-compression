@@ -7,14 +7,6 @@ from lib.util import *
 MAX_DECIMAL_PRECISION = 18
 
 
-def is_scientific_notation(attr):
-	# check if a number represented as string is in scientific notation
-	# TODO: implement a more reliable way of doing this
-	if attr.count('e') == 1:
-		return True
-	return False
-
-
 class MinMax(object):
 	def __init__(self):
 		self.dmin = None
@@ -89,6 +81,7 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 		}
 	}
 	illegal_chars = ['e', 'E']
+	unsupported_decimals = [Decimal("Infinity"), Decimal("-Infinity"), Decimal("NaN")]
 
 	def __init__(self):
 		DatatypeAnalyzer.__init__(self)
@@ -97,11 +90,13 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 		self.num_scientific_notation = 0
 
 	def feed_attr(self, attr):
-		if is_scientific_notation(attr):
+		if self.is_scientific_notation(attr):
 			self.num_scientific_notation += 1
 			return
 		try:
 			dec = Decimal(attr)
+			if dec in self.unsupported_decimals:
+				raise Exception("Unsupported decimal: {}".format(dec))
 			dec_tpl = dec.as_tuple()
 			exp = abs(dec_tpl.exponent)
 			digits = len(dec_tpl.digits)
@@ -143,7 +138,7 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 		return n_val
 
 	@classmethod
-	def is_number(cls, val):
+	def is_supported_number(cls, val):
 		''' Check if val is numeric
 		NOTE: values that look like numbers in scientific notation are not considered valid (for now)
 		'''
@@ -155,3 +150,11 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 			return True
 		except ValueError as e:
 			return False
+
+	@classmethod
+	def is_scientific_notation(cls, attr):
+		# check if a number represented as string is in scientific notation
+		# TODO: implement a more reliable way of doing this
+		if attr.lower().count('e') == 1:
+			return True
+		return False

@@ -134,6 +134,9 @@ class ExpressionNode(object):
 		self.operator_info = operator_info
 		self.details = details
 
+	def __repr__(self):
+		return "ExpressionNode(p_id=%r,cols_in=%r,cols_out=%r,operator_info=%r,details=%r)" % (self.p_id, self.cols_in, self.cols_out, self.operator_info, self.details)
+
 	def to_dict(self):
 		return {
 			"p_id": self.p_id,

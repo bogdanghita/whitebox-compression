@@ -55,6 +55,8 @@ class PatternDetectionEngine(object):
 class OutputManager(object):
 	@staticmethod
 	def output_stats(columns, patterns):
+		for c in columns:
+			print(c)
 		# print(json.dumps(patterns, indent=2))
 		for pd in patterns.values():
 			print("*** {} ***".format(pd["name"]))
@@ -174,6 +176,25 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager):
 	return out_columns
 
 
+def init_pattern_detectors(in_columns, null_value):
+	char_set_split = CharSetSplit(in_columns, null_value, default_placeholder="?", char_sets=[
+		{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
+		# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
+		# TODO: play around with the char sets here
+	], drop_single_char_pattern=True)
+	ngram_freq_split = NGramFreqSplit(in_columns, null_value, n=3)
+	pattern_detectors = [
+		# NullPatternDetector(in_columns, null_value),
+		# ConstantPatternDetector(in_columns, null_value),
+		NumberAsString(in_columns, null_value),
+		# StringCommonPrefix(in_columns, null_value),
+		char_set_split,
+		# ngram_freq_split,
+		# NOTE: add new pattern detectors here
+	]
+	return pattern_detectors
+
+
 def parse_args():
 	parser = argparse.ArgumentParser(
 		description="""Detect column patterns in CSV file."""
@@ -218,25 +239,6 @@ def main():
 		col_id = str(idx)
 		columns.append(Column(col_id, col_name, datatypes[idx]))
 
-	# pattern detectors
-	char_set_split = CharSetSplit(columns, args.null, default_placeholder="?", char_sets=[
-		{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
-		# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
-		# TODO: play around with the char sets here
-	], drop_single_char_pattern=True)
-	ngram_freq_split = NGramFreqSplit(columns, args.null, n=3)
-	pattern_detectors = [
-		# NullPatternDetector(columns, args.null),
-		# ConstantPatternDetector(columns, args.null),
-		NumberAsString(columns, args.null),
-		# StringCommonPrefix(columns, args.null),
-		char_set_split,
-		# ngram_freq_split,
-		# NOTE: add new pattern detectors here
-	]
-
-	pattern_selector = DummyPatternSelector
-
 	'''
 	*** TODO: DEBUG; START ***
 	'''
@@ -263,7 +265,7 @@ def main():
 	'''
 
 	# TODO: make this a parameter to the script
-	MAX_TREE_DEPTH = 1000
+	MAX_ITERATIONS = 1000
 
 	in_columns = deepcopy(columns)
 	in_data_manager = DataManager()
@@ -280,8 +282,12 @@ def main():
 		fd.close()
 
 	results = []
-	for it in range(MAX_TREE_DEPTH):
+	for it in range(MAX_ITERATIONS):
 		print("\n\n=== ITERATION: it={} ===\n\n".format(it))
+
+		# pattern detectors & selector
+		pattern_detectors = init_pattern_detectors(in_columns, args.null)
+		pattern_selector = DummyPatternSelector
 
 		# init engine
 		pd_engine = PatternDetectionEngine(in_columns, pattern_detectors)
@@ -289,13 +295,36 @@ def main():
 		data_loop(in_data_manager, pd_engine, args.fdelim)
 		# get results from engine
 		(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
+		
+		# debug
+		# for p in patterns.values():
+		# 	print("p[\"name\"]", p["name"])
+		# 	for c in p["columns"].values():
+		# 		for p in c:
+		# 			print(p["p_id"], p["res_columns"])
+		OutputManager.output_stats(in_columns, patterns)
+		# end-debug
+
 		# select patterns for each column
-		expr_nodes = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
+		expr_nodes = pattern_selector.select_patterns(patterns, in_columns, valid_tuple_count)
+
+		# debug
+		for en in expr_nodes: print(en)
+		# end-debug
+
+		# stop if no more patterns can be applied
+		if len(expr_nodes) == 0:
+			print("debug: stop iteration: no more patterns can be applied")
+			break
 
 		# apply expression nodes
 		out_data_manager = DataManager()
 		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
 		out_columns = apply_expressions(expr_manager, in_data_manager, out_data_manager)
+
+		# # debug
+		# for oc in out_columns: print(oc)
+		# # end-debug
 
 		# save output data of this iteration
 		results.append({
@@ -306,6 +335,8 @@ def main():
 		# prepare next iteration
 		in_data_manager = out_data_manager
 		in_columns = out_columns
+	else:
+		print("debug: MAX_ITERATIONS={} reached".format(MAX_ITERATIONS))
 
 	''' Results:
 		results contains the output data of each iteration
