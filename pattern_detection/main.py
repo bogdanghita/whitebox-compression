@@ -10,6 +10,7 @@ from lib.util import *
 from lib.pattern_selectors import *
 from patterns import *
 from apply_expression import ExpressionManager
+from lib.expression_tree import ExpressionTree
 import plot_pattern_distribution, plot_ngram_freq_masks
 
 
@@ -269,6 +270,7 @@ def main():
 
 	in_columns = deepcopy(columns)
 	in_data_manager = DataManager()
+	expression_tree = ExpressionTree(in_columns)
 
 	# read data
 	try:
@@ -295,7 +297,7 @@ def main():
 		data_loop(in_data_manager, pd_engine, args.fdelim)
 		# get results from engine
 		(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
-		
+
 		# debug
 		# for p in patterns.values():
 		# 	print("p[\"name\"]", p["name"])
@@ -316,6 +318,9 @@ def main():
 		if len(expr_nodes) == 0:
 			print("debug: stop iteration: no more patterns can be applied")
 			break
+
+		# add expression nodes as a new level in the expression tree
+		expression_tree.add_level(expr_nodes)
 
 		# apply expression nodes
 		out_data_manager = DataManager()
@@ -341,6 +346,17 @@ def main():
 	''' Results:
 		results contains the output data of each iteration
 	'''
+
+	print("[levels]")
+	for level in expression_tree.get_levels():
+		print(level)
+		print([expression_tree.get_node(node_id).p_id for node_id in level])
+	print("[in_columns]")
+	print(expression_tree.get_in_columns())
+	print("[out_columns]")
+	print(expression_tree.get_out_columns())
+	print("[unused_columns]")
+	print(expression_tree.get_unused_columns())
 
 	'''
 	*** TODO: DEBUG; END ***

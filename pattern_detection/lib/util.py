@@ -127,12 +127,13 @@ class Column(object):
 
 
 class ExpressionNode(object):
-	def __init__(self, p_id, cols_in, cols_out, operator_info, details):
+	def __init__(self, p_id, cols_in, cols_out, operator_info, details, children=[]):
 		self.p_id = p_id
 		self.cols_in = cols_in
 		self.cols_out = cols_out
 		self.operator_info = operator_info
 		self.details = details
+		self.children = children
 
 	def __repr__(self):
 		return "ExpressionNode(p_id=%r,cols_in=%r,cols_out=%r,operator_info=%r,details=%r)" % (self.p_id, self.cols_in, self.cols_out, self.operator_info, self.details)
