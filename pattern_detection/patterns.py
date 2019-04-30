@@ -12,10 +12,36 @@ class OperatorException(Exception):
 
 
 class PatternDetector(object):
-	def __init__(self, columns, null_value):
+	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
+		self.pattern_log = pattern_log
 		self.null_value = null_value
+		self.min_col_coverage = min_col_coverage
 		self.row_count = 0
 		self.name = self.__class__.__name__
+		self.columns = {}
+
+	def init_columns(self, columns):
+		for idx, col in enumerate(columns):
+			if self.select_column(col):
+				self.columns[idx] = self.empty_col_item(col)
+
+	def select_column(self, col):
+		return True
+
+	@classmethod
+	def empty_col_item(cls, col):
+		return {
+			"info": deepcopy(col),
+			"patterns": {
+				"default": {"rows": [], "details": {}},
+				# NOTE: pattern detectors with only one pattern should use the "default" pattern;
+				# multi-pattern detectors should add a new entry for each pattern;
+				# "default" can be used if there is a main pattern or it can be left empty
+			}
+		}
+
+	def get_signature(self):
+		return self.name
 
 	@classmethod
 	def is_null(cls, attr, null_value):
@@ -60,21 +86,16 @@ class PatternDetector(object):
 
 
 class NullPatternDetector(PatternDetector):
-	def __init__(self, columns, null_value):
-		PatternDetector.__init__(self, columns, null_value)
-		self.columns = {}
-		for idx, col in enumerate(columns):
-			if not col.datatype.nullable:
-				continue
-			self.columns[idx] = {
-				"info": deepcopy(col),
-				"patterns": {
-					"default": {"rows": [], "details": {}},
-					# NOTE: pattern detectors with only one pattern should use the "default" pattern;
-					# multi-pattern detectors should add a new entry for each pattern;
-					# "default" can be used if there is a main pattern or it can be left empty
-				}
-			}
+	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
+		PatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+		self.init_columns(columns)
+
+	def select_column(self, col):
+		return col.datatype.nullable
+
+	@classmethod
+	def empty_col_item(cls, col):
+		return PatternDetector.empty_col_item(col)
 
 	def handle_attr(self, attr, idx):
 		'''Handles an attribute
@@ -112,22 +133,22 @@ class NullPatternDetector(PatternDetector):
 
 
 class ConstantPatternDetector(PatternDetector):
-	def __init__(self, columns, null_value):
-		PatternDetector.__init__(self, columns, null_value)
-		self.columns = {}
-		for idx, col in enumerate(columns):
-			if not col.datatype.nullable:
-				continue
-			self.columns[idx] = {
-				"info": deepcopy(col),
-				"nulls": [],
-				"patterns": {
-					"default": {"rows": [], "details": {}},
-					# NOTE: pattern detectors with only one pattern should use the "default" pattern;
-					# multi-pattern detectors should add a new entry for each pattern;
-					# "default" can be used if there is a main pattern or it can be left empty
-				}
-			}
+	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
+		PatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+		self.init_columns(columns)
+
+	def select_column(self, col):
+		# do not try this pattern again
+		p_log = self.pattern_log.get_log(col.col_id)
+		if self.get_signature() in p_log:
+			return False
+		return True
+
+	@classmethod
+	def empty_col_item(cls, col):
+		res = PatternDetector.empty_col_item(col)
+		res["nulls"] = []
+		return res
 
 	def handle_attr(self, attr, idx):
 		'''Handles an attribute
@@ -153,22 +174,17 @@ class ConstantPatternDetector(PatternDetector):
 
 
 class StringPatternDetector(PatternDetector):
-	def __init__(self, columns, null_value):
-		PatternDetector.__init__(self, columns, null_value)
-		self.columns = {}
-		for idx, col in enumerate(columns):
-			if not col.datatype.name == "varchar":
-				continue
-			self.columns[idx] = {
-				"info": deepcopy(col),
-				"nulls": [],
-				"patterns": {
-					"default": {"rows": [], "details": {}},
-					# NOTE: pattern detectors with only one pattern should use the "default" pattern;
-					# multi-pattern detectors should add a new entry for each pattern;
-					# "default" can be used if there is a main pattern or it can be left empty
-				}
-			}
+	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
+		PatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+
+	def select_column(self, col):
+		return col.datatype.name == "varchar"
+
+	@classmethod
+	def empty_col_item(cls, col):
+		res = PatternDetector.empty_col_item(col)
+		res["nulls"] = []
+		return res
 
 	def handle_attr(self, attr, idx):
 		'''Handles an attribute
@@ -189,10 +205,24 @@ class StringPatternDetector(PatternDetector):
 
 
 class NumberAsString(StringPatternDetector):
-	def __init__(self, columns, null_value):
-		StringPatternDetector.__init__(self, columns, null_value)
-		for col in self.columns.values():
-			col["ndt_analyzer"] = NumericDatatypeAnalyzer()
+	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
+		StringPatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+		self.init_columns(columns)
+
+	def select_column(self, col):
+		if not StringPatternDetector.select_column(self, col):
+			return False
+		# do not try this pattern again
+		p_log = self.pattern_log.get_log(col.col_id)
+		if self.get_signature() in p_log:
+			return False
+		return True
+
+	@classmethod
+	def empty_col_item(cls, col):
+		res = StringPatternDetector.empty_col_item(col)
+		res["ndt_analyzer"] = NumericDatatypeAnalyzer()
+		return res
 
 	def handle_attr(self, attr, idx):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
@@ -207,9 +237,18 @@ class NumberAsString(StringPatternDetector):
 		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
 		return True
 
+	def compute_score(self, col):
+		null_cnt = len(col["nulls"])
+		valid_cnt = len(col["patterns"]["default"]["rows"])
+		total_cnt = self.row_count
+		if total_cnt == 0:
+			return 0
+		if float(valid_cnt) / total_cnt < self.min_col_coverage:
+			return 0
+		return float(valid_cnt) / (total_cnt - null_cnt)
+
 	def build_pattern_data(self, col):
-		# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
-		score = 0 if self.row_count == 0 else (len(col["patterns"]["default"]["rows"]) + len(col["nulls"])) / self.row_count
+		score = self.compute_score(col)
 		# new column info
 		ncol_col_id = str(col["info"].col_id) + "_0"
 		ncol_name = str(col["info"].name) + "_0"
@@ -266,9 +305,19 @@ class NumberAsString(StringPatternDetector):
 
 
 class StringCommonPrefix(StringPatternDetector):
-	def __init__(self, columns, null_value):
-		StringPatternDetector.__init__(self, columns, null_value)
+	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
+		StringPatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
 		self.prefix_tree = PrefixTree()
+		self.init_columns(columns)
+
+	def select_column(self, col):
+		if not StringPatternDetector.select_column(self, col):
+			return False
+		# do not try this pattern again
+		p_log = self.pattern_log.get_log(col.col_id)
+		if self.get_signature() in p_log:
+			return False
+		return True
 
 	def handle_attr(self, attr, idx):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
@@ -283,12 +332,32 @@ class StringCommonPrefix(StringPatternDetector):
 
 
 class CharSetSplit(StringPatternDetector):
-	def __init__(self, columns, null_value, default_placeholder, char_sets, empty_string_pattern="<empty_string>", drop_single_char_pattern=True):
-		StringPatternDetector.__init__(self, columns, null_value)
+	def __init__(self, columns, pattern_log, null_value, min_col_coverage, default_placeholder, char_sets, empty_string_pattern="<empty_string>", drop_single_char_pattern=True):
+		StringPatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
 		self.default_placeholder = default_placeholder
 		self.char_sets = {c["placeholder"]:c for c in char_sets}
 		self.empty_string_pattern = empty_string_pattern
 		self.drop_single_char_pattern = drop_single_char_pattern
+		self.init_columns(columns)
+
+	def select_column(self, col):
+		if not StringPatternDetector.select_column(self, col):
+			return False
+		# do not try this pattern again
+		p_log = self.pattern_log.get_log(col.col_id)
+		if self.get_signature() in p_log:
+			return False
+		return True
+
+	def get_signature(self):
+		char_sets_signature = ""
+		for char_set in self.char_sets.values():
+			c_set = char_set["char_set"]
+			char_sets_signature += "[" + ",".join(sorted(list(c_set))) + "]"
+		params_signature = "char_sets=[{}]".format(char_sets_signature)
+		res = "{}:{}".format(self.name, params_signature)
+		# print(res)
+		return res
 
 	def get_pattern_string(self, attr):
 		pattern_string = []
@@ -323,10 +392,19 @@ class CharSetSplit(StringPatternDetector):
 		col["patterns"][ps]["rows"].append(self.row_count-1)
 		return True
 
+	def compute_score(self, col, pattern_s, pattern_s_data):
+		null_cnt = len(col["nulls"])
+		valid_cnt = len(pattern_s_data["rows"])
+		total_cnt = self.row_count
+		if total_cnt == 0:
+			return 0
+		if float(valid_cnt) / total_cnt < self.min_col_coverage:
+			return 0
+		return float(valid_cnt) / (total_cnt - null_cnt)
+
 	def build_pattern_data(self, col, pattern_s, pattern_s_data):
-		# NOTE: treat nulls as valid attrs when computing the score (they will be handled separately)
-		score = 0 if self.row_count == 0 else (len(pattern_s_data["rows"]) + len(col["nulls"])) / self.row_count
 		res_columns = []
+		score = self.compute_score(col, pattern_s, pattern_s_data)
 		operator_info = dict(char_sets={}, pattern_string=pattern_s)
 		for ph, cs in self.char_sets.items():
 			new_cs = deepcopy(cs)
@@ -428,17 +506,24 @@ class CharSetSplit(StringPatternDetector):
 
 
 class NGramFreqSplit(StringPatternDetector):
-	def __init__(self, columns, null_value, n, case_sensitive=False):
-		StringPatternDetector.__init__(self, columns, null_value)
+	def __init__(self, columns, pattern_log, null_value, min_col_coverage, n, case_sensitive=False):
+		StringPatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
 		self.n = n
 		self.case_sensitive = case_sensitive
-		for col in self.columns.values():
-			col["ngrams"] = {
-				"freqs": {},
-				"avg_freq": 0,
-				"median_freq": 0
-			}
-			col["attrs"] = []
+
+	def select_column(self, col):
+		return StringPatternDetector.select_column(self, col)
+
+	@classmethod
+	def empty_col_item(cls, col):
+		res = StringPatternDetector.empty_col_item(col)
+		res["ngrams"] = {
+			"freqs": {},
+			"avg_freq": 0,
+			"median_freq": 0
+		}
+		res["attrs"] = []
+		return res
 
 	def get_ngrams(self, attr):
 		if not self.case_sensitive:

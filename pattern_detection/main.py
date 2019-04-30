@@ -177,18 +177,18 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager):
 	return out_columns
 
 
-def init_pattern_detectors(in_columns, null_value):
-	char_set_split = CharSetSplit(in_columns, null_value, default_placeholder="?", char_sets=[
+def init_pattern_detectors(in_columns, pattern_log, null_value, min_col_coverage):
+	char_set_split = CharSetSplit(in_columns, pattern_log, null_value, min_col_coverage, default_placeholder="?", char_sets=[
 		{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
 		# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
 		# TODO: play around with the char sets here
 	], drop_single_char_pattern=True)
-	ngram_freq_split = NGramFreqSplit(in_columns, null_value, n=3)
+	ngram_freq_split = NGramFreqSplit(in_columns, pattern_log, null_value, min_col_coverage, n=3)
 	pattern_detectors = [
-		# NullPatternDetector(in_columns, null_value),
-		# ConstantPatternDetector(in_columns, null_value),
-		NumberAsString(in_columns, null_value),
-		# StringCommonPrefix(in_columns, null_value),
+		# NullPatternDetector(in_columns, pattern_log, null_value, min_col_coverage),
+		# ConstantPatternDetector(in_columns, pattern_log, null_value, min_col_coverage),
+		NumberAsString(in_columns, pattern_log, null_value, min_col_coverage),
+		# StringCommonPrefix(in_columns, pattern_log, null_value, min_col_coverage),
 		char_set_split,
 		# ngram_freq_split,
 		# NOTE: add new pattern detectors here
@@ -265,12 +265,14 @@ def main():
 		expression_nodes = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
 	'''
 
-	# TODO: make this a parameter to the script
+	# TODO: make these a parameters to the script
 	MAX_ITERATIONS = 1000
+	MIN_COL_COVERAGE = 0.1
 
 	in_columns = deepcopy(columns)
 	in_data_manager = DataManager()
 	expression_tree = ExpressionTree(in_columns)
+	pattern_log = PatternLog()
 
 	# read data
 	try:
@@ -288,7 +290,7 @@ def main():
 		print("\n\n=== ITERATION: it={} ===\n\n".format(it))
 
 		# pattern detectors & selector
-		pattern_detectors = init_pattern_detectors(in_columns, args.null)
+		pattern_detectors = init_pattern_detectors(in_columns, pattern_log, args.null, MIN_COL_COVERAGE)
 		pattern_selector = DummyPatternSelector
 
 		# init engine
@@ -297,6 +299,8 @@ def main():
 		data_loop(in_data_manager, pd_engine, args.fdelim)
 		# get results from engine
 		(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
+		# update pattern log
+		pattern_log.update_log(patterns, pattern_detectors)
 
 		# debug
 		# for p in patterns.values():
@@ -347,8 +351,8 @@ def main():
 		results contains the output data of each iteration
 	'''
 
-	print("[levels]")
-	for level in expression_tree.get_levels():
+	print("\n[levels]")
+	for level in expression_tree.get_node_levels():
 		print(level)
 		print([expression_tree.get_node(node_id).p_id for node_id in level])
 	print("[in_columns]")

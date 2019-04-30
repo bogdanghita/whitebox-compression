@@ -36,7 +36,7 @@ class DummyPatternSelector(PatternSelector):
 	NOTE: this PatternSelector does not work with operators that take more than one column as input (e.g. correlated columns)
 	"""
 
-	MIN_SCORE = 0.4
+	MIN_SCORE = 0.2
 
 	@classmethod
 	def select_patterns(cls, patterns, columns, nb_rows):

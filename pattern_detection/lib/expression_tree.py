@@ -64,10 +64,35 @@ class ExpressionTree(object):
 			return None
 		return self.nodes[node_id]
 
+	def get_node_levels(self):
+		return self.levels
+
 	def get_column(self, col_id):
 		if col_id not in self.columns:
 			return None
 		return self.columns[col_id]
+
+	# def _get_column_parents(self, col_id):
+	# 	# NOTE: this method is not tested
+	# 	col = self.get_column(col_id)
+	# 	if col is None:
+	# 		raise Exception("Invalid column: col_id={}".format(col_id))
+	# 	parent_node = col["output_of"]
+	# 	if parent_node is None:
+	# 		return []
+	# 	return [c.col_id for c in parent_node.cols_in]
+	#
+	# def get_column_ancestors(self, col_id):
+	# 	# NOTE: this method is not tested
+	# 	ancestors = []
+	# 	q = [col_id]
+	# 	while len(q) > 0:
+	# 		col_id = q.pop(0)
+	# 		parents = self._get_column_parents(col_id)
+	# 		print("parents={}".format(parents))
+	# 		q.extend(parents)
+	# 		ancestors.extend(parents)
+	# 	return ancestors
 
 	def get_in_columns(self):
 		return sorted(list(filter(lambda col_id: self.columns[col_id]["output_of"] is None, self.columns.keys())))
@@ -77,6 +102,3 @@ class ExpressionTree(object):
 
 	def get_unused_columns(self):
 		return sorted(list(filter(lambda col_id: self.columns[col_id]["output_of"] is None and self.columns[col_id]["input_of"] is None, self.columns.keys())))
-
-	def get_levels(self):
-		return self.levels

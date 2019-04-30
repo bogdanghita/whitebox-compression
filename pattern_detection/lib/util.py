@@ -40,6 +40,33 @@ class DataManager(object):
 		self.tuples.append(tpl)
 
 
+class PatternLog(object):
+	"""
+	Keeps track of the result of applying patterns to every column
+	"""
+	def __init__(self):
+		self.columns = {}
+
+	def update_log(self, patterns, pattern_detectors):
+		pattern_detectors = {pd.name: pd for pd in pattern_detectors}
+		for pd in patterns.values():
+			pd_name = pd["name"]
+			if pd_name not in pattern_detectors:
+				raise Exception("Unknown pattern detector: pd_name={}".format(pd_name))
+			pd_obj = pattern_detectors[pd_name]
+			for col_id, col_p_list in pd["columns"].items():
+				if col_id not in self.columns:
+					self.columns[col_id] = set()
+				self.columns[col_id].add(pd_obj.get_signature())
+
+	def get_log(self, col_id=None):
+		if col_id is None:
+			return self.columns
+		if col_id not in self.columns:
+			return {}
+		return self.columns[col_id]
+
+
 class DataType(object):
 	regex_sql = re.compile(r'^(.*?)(\(.*?\))?( not null)?,?$')
 
