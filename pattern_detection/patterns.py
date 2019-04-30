@@ -12,8 +12,9 @@ class OperatorException(Exception):
 
 
 class PatternDetector(object):
-	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
+	def __init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage):
 		self.pattern_log = pattern_log
+		self.expr_tree = expr_tree
 		self.null_value = null_value
 		self.min_col_coverage = min_col_coverage
 		self.row_count = 0
@@ -63,7 +64,8 @@ class PatternDetector(object):
 						rows: [row_id: int, ...], # rows where the pattern applies; indexed from 0
 						res_columns: [rcol_1, rcol_2, ...], # list of resulting columns; type: util.Column
 						operator_info: dict(), # operator parameters (used when applying the transformation)
-						details: dict() # pattern-specific info
+						details: dict(), # pattern-specific info
+						pattern_signature: str # unique signature of the pattern (for comparison purposes)
 					)
 				)
 		'''
@@ -86,8 +88,8 @@ class PatternDetector(object):
 
 
 class NullPatternDetector(PatternDetector):
-	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
-		PatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+	def __init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage):
+		PatternDetector.__init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage)
 		self.init_columns(columns)
 
 	def select_column(self, col):
@@ -126,6 +128,7 @@ class NullPatternDetector(PatternDetector):
 				"res_columns": [], # TODO
 				"operator_info": dict(), # TODO
 				"details": dict(),
+				"pattern_signature": self.get_signature()
 			}
 			patterns = [p_item]
 			res[col["info"].col_id] = patterns
@@ -133,8 +136,8 @@ class NullPatternDetector(PatternDetector):
 
 
 class ConstantPatternDetector(PatternDetector):
-	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
-		PatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+	def __init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage):
+		PatternDetector.__init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage)
 		self.init_columns(columns)
 
 	def select_column(self, col):
@@ -174,8 +177,8 @@ class ConstantPatternDetector(PatternDetector):
 
 
 class StringPatternDetector(PatternDetector):
-	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
-		PatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+	def __init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage):
+		PatternDetector.__init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage)
 
 	def select_column(self, col):
 		return col.datatype.name == "varchar"
@@ -205,8 +208,8 @@ class StringPatternDetector(PatternDetector):
 
 
 class NumberAsString(StringPatternDetector):
-	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
-		StringPatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+	def __init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage):
+		StringPatternDetector.__init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage)
 		self.init_columns(columns)
 
 	def select_column(self, col):
@@ -214,9 +217,19 @@ class NumberAsString(StringPatternDetector):
 			return False
 		# do not try this pattern again
 		p_log = self.pattern_log.get_log(col.col_id)
-		if self.get_signature() in p_log:
+		pattern_signature = self.get_signature()
+		if pattern_signature in p_log:
+			return False
+		# do not try this pattern if col is and output column of this exact same pattern
+		et_col = self.expr_tree.get_column(col.col_id)
+		if et_col is None:
+			raise Exception("Column not present in the expression tree: col={}".format(col))
+		parent_expr_n = et_col["output_of"]
+		if parent_expr_n is not None and pattern_signature == parent_expr_n.pattern_signature:
 			return False
 		return True
+		# TODO: exception columns are not present in the expression tree; => the above check does not work for them
+		# TODO: solve this ^; see note as photo on phone
 
 	@classmethod
 	def empty_col_item(cls, col):
@@ -264,7 +277,8 @@ class NumberAsString(StringPatternDetector):
 			"rows": col["patterns"]["default"]["rows"],
 			"res_columns": [ncol],
 			"operator_info": operator_info,
-			"details": dict()
+			"details": dict(),
+			"pattern_signature": self.get_signature()
 		}
 		return p_item
 
@@ -305,8 +319,8 @@ class NumberAsString(StringPatternDetector):
 
 
 class StringCommonPrefix(StringPatternDetector):
-	def __init__(self, columns, pattern_log, null_value, min_col_coverage):
-		StringPatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+	def __init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage):
+		StringPatternDetector.__init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage)
 		self.prefix_tree = PrefixTree()
 		self.init_columns(columns)
 
@@ -332,8 +346,8 @@ class StringCommonPrefix(StringPatternDetector):
 
 
 class CharSetSplit(StringPatternDetector):
-	def __init__(self, columns, pattern_log, null_value, min_col_coverage, default_placeholder, char_sets, empty_string_pattern="<empty_string>", drop_single_char_pattern=True):
-		StringPatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+	def __init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage, default_placeholder, char_sets, empty_string_pattern="<empty_string>", drop_single_char_pattern=True):
+		StringPatternDetector.__init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage)
 		self.default_placeholder = default_placeholder
 		self.char_sets = {c["placeholder"]:c for c in char_sets}
 		self.empty_string_pattern = empty_string_pattern
@@ -427,7 +441,8 @@ class CharSetSplit(StringPatternDetector):
 			"rows": pattern_s_data["rows"],
 			"res_columns": res_columns,
 			"operator_info": operator_info,
-			"details": dict()
+			"details": dict(),
+			"pattern_signature": self.get_signature()
 		}
 		return p_item
 
@@ -506,8 +521,8 @@ class CharSetSplit(StringPatternDetector):
 
 
 class NGramFreqSplit(StringPatternDetector):
-	def __init__(self, columns, pattern_log, null_value, min_col_coverage, n, case_sensitive=False):
-		StringPatternDetector.__init__(self, columns, pattern_log, null_value, min_col_coverage)
+	def __init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage, n, case_sensitive=False):
+		StringPatternDetector.__init__(self, columns, pattern_log, expr_tree, null_value, min_col_coverage)
 		self.n = n
 		self.case_sensitive = case_sensitive
 

@@ -70,7 +70,8 @@ class DummyPatternSelector(PatternSelector):
 					operator_info=best_p["operator_info"],
 					details={
 						"score": best_p["score"]
-					})
+					},
+					pattern_signature=best_p["pattern_signature"])
 				expression_nodes.append(exp_node)
 
 		return expression_nodes

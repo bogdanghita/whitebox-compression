@@ -154,12 +154,13 @@ class Column(object):
 
 
 class ExpressionNode(object):
-	def __init__(self, p_id, cols_in, cols_out, operator_info, details, children=[]):
+	def __init__(self, p_id, cols_in, cols_out, operator_info, details, pattern_signature, children=[]):
 		self.p_id = p_id
 		self.cols_in = cols_in
 		self.cols_out = cols_out
 		self.operator_info = operator_info
 		self.details = details
+		self.pattern_signature = pattern_signature
 		self.children = children
 
 	def __repr__(self):
@@ -171,8 +172,10 @@ class ExpressionNode(object):
 			"cols_in": [c.to_dict() for c in self.cols_in],
 			"cols_out": [c.to_dict() for c in self.cols_out],
 			"operator_info": self.operator_info,
-			"details": self.details
+			"details": self.details,
+			"pattern_signature": self.pattern_signature
 		}
+		# TODO: [?] also add children here
 
 	@classmethod
 	def from_dict(cls, in_d):

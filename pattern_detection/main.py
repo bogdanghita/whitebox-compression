@@ -177,18 +177,18 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager):
 	return out_columns
 
 
-def init_pattern_detectors(in_columns, pattern_log, null_value, min_col_coverage):
-	char_set_split = CharSetSplit(in_columns, pattern_log, null_value, min_col_coverage, default_placeholder="?", char_sets=[
+def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value, min_col_coverage):
+	char_set_split = CharSetSplit(in_columns, pattern_log, expression_tree, null_value, min_col_coverage, default_placeholder="?", char_sets=[
 		{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
 		# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
 		# TODO: play around with the char sets here
 	], drop_single_char_pattern=True)
-	ngram_freq_split = NGramFreqSplit(in_columns, pattern_log, null_value, min_col_coverage, n=3)
+	ngram_freq_split = NGramFreqSplit(in_columns, pattern_log, expression_tree, null_value, min_col_coverage, n=3)
 	pattern_detectors = [
-		# NullPatternDetector(in_columns, pattern_log, null_value, min_col_coverage),
-		# ConstantPatternDetector(in_columns, pattern_log, null_value, min_col_coverage),
-		NumberAsString(in_columns, pattern_log, null_value, min_col_coverage),
-		# StringCommonPrefix(in_columns, pattern_log, null_value, min_col_coverage),
+		# NullPatternDetector(in_columns, pattern_log, expression_tree, null_value, min_col_coverage),
+		# ConstantPatternDetector(in_columns, pattern_log, expression_tree, null_value, min_col_coverage),
+		NumberAsString(in_columns, pattern_log, expression_tree, null_value, min_col_coverage),
+		# StringCommonPrefix(in_columns, pattern_log, expression_tree, null_value, min_col_coverage),
 		char_set_split,
 		# ngram_freq_split,
 		# NOTE: add new pattern detectors here
@@ -290,7 +290,7 @@ def main():
 		print("\n\n=== ITERATION: it={} ===\n\n".format(it))
 
 		# pattern detectors & selector
-		pattern_detectors = init_pattern_detectors(in_columns, pattern_log, args.null, MIN_COL_COVERAGE)
+		pattern_detectors = init_pattern_detectors(in_columns, pattern_log, expression_tree, args.null, MIN_COL_COVERAGE)
 		pattern_selector = DummyPatternSelector
 
 		# init engine
