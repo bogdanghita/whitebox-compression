@@ -212,18 +212,20 @@ def to_row_mask(selected_rows, nb_rows_total):
 
 class ExceptionColumnManager(object):
 	@classmethod
+	def get_output_col_id(cls, in_col_id, pd_id, p_id, out_col_idx):
+		return "{}__{}_{}_{}".format(in_col_id, pd_id, p_id, out_col_idx)
+
+	@classmethod
+	def get_output_col_name(cls, in_col_name, pd_id, p_id, out_col_idx):
+		return "{}__{}_{}_{}".format(in_col_name, pd_id, p_id, out_col_idx)
+
+	@classmethod
 	def get_exception_col_id(cls, in_col_id):
-		return str(in_col_id) + "_ex"
+		return str(in_col_id) + "__ex"
 
 	@classmethod
 	def get_exception_col_name(cls, in_col_name):
-		return str(in_col_name) + "_ex"
-
-	@classmethod
-	def get_input_col_id(cls, ex_col_id):
-		if ex_col_id.endswith("_ex"):
-			return ex_col_id[:-len("_ex")]
-		return ex_col_id
+		return str(in_col_name) + "__ex"
 
 	@classmethod
 	def get_exception_col(cls, in_col):

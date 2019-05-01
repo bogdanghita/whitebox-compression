@@ -178,20 +178,47 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager):
 
 
 def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value, min_col_coverage):
-	char_set_split = CharSetSplit(in_columns, pattern_log, expression_tree, null_value, min_col_coverage, default_placeholder="?", char_sets=[
+	pd_obj_id = 0
+	null_pattern_detector = NullPatternDetector(
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage
+		)
+	pd_obj_id += 1
+	constant_pattern_detector = ConstantPatternDetector(
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage
+		)
+	pd_obj_id += 1
+	number_as_string = NumberAsString(
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage
+		)
+	pd_obj_id += 1
+	string_common_prefix = StringCommonPrefix(
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage
+		)
+	pd_obj_id += 1
+	char_set_split = CharSetSplit(
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage, 
+		default_placeholder="?", 
+		char_sets=[
 		{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
 		# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
 		# TODO: play around with the char sets here
-	], drop_single_char_pattern=True)
-	ngram_freq_split = NGramFreqSplit(in_columns, pattern_log, expression_tree, null_value, min_col_coverage, n=3)
+		], 
+		drop_single_char_pattern=True
+		)
+	pd_obj_id += 1
+	ngram_freq_split = NGramFreqSplit(
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage, 
+		n=3
+		)
+	# NOTE: don't forget to increment pd_obj_id before adding a new pattern
+
 	pattern_detectors = [
-		# NullPatternDetector(in_columns, pattern_log, expression_tree, null_value, min_col_coverage),
-		# ConstantPatternDetector(in_columns, pattern_log, expression_tree, null_value, min_col_coverage),
-		NumberAsString(in_columns, pattern_log, expression_tree, null_value, min_col_coverage),
-		# StringCommonPrefix(in_columns, pattern_log, expression_tree, null_value, min_col_coverage),
+		# null_pattern_detector,
+		# constant_pattern_detector,
+		number_as_string,
+		# string_common_prefix,
 		char_set_split,
 		# ngram_freq_split,
-		# NOTE: add new pattern detectors here
 	]
 	return pattern_detectors
 
