@@ -380,8 +380,13 @@ def main():
 
 	print("\n[levels]")
 	for level in expression_tree.get_node_levels():
-		print(level)
-		print([expression_tree.get_node(node_id).p_id for node_id in level])
+		print("level={}".format(level))
+		for node_id in level:
+			node = expression_tree.get_node(node_id)
+			print("node_id={}, node={}".format(node_id, node))
+	print("[all_columns]")
+	for col_id in expression_tree.columns:
+		print(expression_tree.get_column(col_id))
 	print("[in_columns]")
 	print(expression_tree.get_in_columns())
 	print("[out_columns]")

@@ -35,20 +35,35 @@ class ExpressionTree(object):
 
 	def add_level(self, expr_nodes):
 		level = []
+
 		for idx, expr_n in enumerate(expr_nodes):
 			node_id = "{}_{}".format(len(self.levels), idx)
 			if node_id in self.nodes:
 				raise Exception("Duplicate expression node: node_id={}".format(node_id))
+
 			# add expression node
 			self.nodes[node_id] = expr_n
 			level.append(node_id)
-			# validate input columns & fill in "input_of"
+
+			# validate input columns; add parent & child nodes; fill in "input_of"
 			for in_col in expr_n.cols_in:
 				if in_col.col_id not in self.columns:
 					raise Exception("Invalid input column: in_col={}".format(in_col))
 				col_item = self.columns[in_col.col_id]
+				# fill in "input_of"
 				col_item["input_of"].append(node_id)
-			# add output columns & fill in "output_of"
+				# add parent & child nodes
+				for p_node_id in col_item["output_of"]:
+					# check if not already added
+					if p_node_id in expr_n.parents:
+						continue
+					if p_node_id not in self.nodes:
+						raise Exception("Inexistent parent node: p_node_id={}".format(p_node_id))
+					p_node = self.nodes[p_node_id]
+					expr_n.parents.add(p_node_id)
+					p_node.children.add(node_id)
+
+			# add output columns; fill in "output_of"
 			for out_col in expr_n.cols_out:
 				if out_col.col_id in self.columns:
 					raise Exception("Duplicate output column: out_col={}".format(out_col))
@@ -57,7 +72,8 @@ class ExpressionTree(object):
 					"output_of": [node_id],
 					"input_of": []
 				}
-			# add exception columns & append to "output_of"
+
+			# add exception columns; append to "output_of"
 			for ex_col in expr_n.cols_ex:
 				if ex_col.col_id not in self.columns:
 					self.columns[ex_col.col_id] = {

@@ -155,7 +155,7 @@ class Column(object):
 
 
 class ExpressionNode(object):
-	def __init__(self, p_id, cols_in, cols_out, cols_ex, operator_info, details, pattern_signature, parents=[], children=[]):
+	def __init__(self, p_id, cols_in, cols_out, cols_ex, operator_info, details, pattern_signature, parents=None, children=None):
 		self.p_id = p_id
 		self.cols_in = cols_in
 		self.cols_out = cols_out
@@ -163,11 +163,13 @@ class ExpressionNode(object):
 		self.operator_info = operator_info
 		self.details = details
 		self.pattern_signature = pattern_signature
-		self.parents = parents
-		self.children = children
+		# NOTE: None as default value instead of set() is needed because:
+		# https://stackoverflow.com/questions/4841782/python-constructor-and-default-value
+		self.parents = parents if parents is not None else set()
+		self.children = children if children is not None else set()
 
 	def __repr__(self):
-		return "ExpressionNode(p_id=%r,cols_in=%r,cols_out=%r,cols_ex=%r,operator_info=%r,details=%r)" % (self.p_id, self.cols_in, self.cols_out, self.cols_ex, self.operator_info, self.details)
+		return "ExpressionNode(p_id=%r,cols_in=%r,cols_out=%r,cols_ex=%r,operator_info=%r,details=%r,pattern_signature=%r,parents=%r,children=%r)" % (self.p_id, self.cols_in, self.cols_out, self.cols_ex, self.operator_info, self.details, self.pattern_signature, self.parents, self.children)
 
 	def to_dict(self):
 		return {
@@ -177,9 +179,10 @@ class ExpressionNode(object):
 			"cols_ex": [c.to_dict() for c in self.cols_ex],
 			"operator_info": self.operator_info,
 			"details": self.details,
-			"pattern_signature": self.pattern_signature
+			"pattern_signature": self.pattern_signature,
+			"parents": list(self.parents),
+			"children": list(self.children)
 		}
-		# TODO: [?] also add children here
 
 	@classmethod
 	def from_dict(cls, in_d):
@@ -187,6 +190,8 @@ class ExpressionNode(object):
 		res.cols_in = [Column.from_dict(c) for c in res.cols_in]
 		res.cols_out = [Column.from_dict(c) for c in res.cols_out]
 		res.cols_ex = [Column.from_dict(c) for c in res.cols_ex]
+		res.parents = set(res.parents)
+		res.children = set(res.children)
 		return res
 
 	def serialize(self):
