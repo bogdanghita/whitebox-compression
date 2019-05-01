@@ -8,10 +8,11 @@ class ExpressionTree(object):
 	"""
 	NOTES:
 	1) multiple expression nodes can have the same column as input; this is the case of multiple patterns on the same column
-	2) a column can only be the output column of a single expression node
-	3) column rules:
-		- "output_of" is None: it is an input column
-		- "input_of" is None: it is an output column
+	2) a non-exception column can only be the output column of a single expression node
+	3) an exception column can be the output columns of multiple expression nodes (those that took the in_col as input)
+	4) column rules:
+		- "output_of" is [] (empty): it is an input column
+		- "input_of" is [] (empty): it is an output column
 		- both "input_of" and "output_of" are None: not used in any expression node in the tree (both input and output column)
 	"""
 	def __init__(self, in_columns):
@@ -28,8 +29,8 @@ class ExpressionTree(object):
 		for in_col in in_columns:
 			self.columns[in_col.col_id] = {
 				"col_info": deepcopy(in_col),
-				"output_of": None,
-				"input_of": None
+				"output_of": [],
+				"input_of": []
 			}
 
 	def add_level(self, expr_nodes):
@@ -46,16 +47,26 @@ class ExpressionTree(object):
 				if in_col.col_id not in self.columns:
 					raise Exception("Invalid input column: in_col={}".format(in_col))
 				col_item = self.columns[in_col.col_id]
-				col_item["input_of"] = node_id
+				col_item["input_of"].append(node_id)
 			# add output columns & fill in "output_of"
 			for out_col in expr_n.cols_out:
 				if out_col.col_id in self.columns:
 					raise Exception("Duplicate output column: out_col={}".format(out_col))
 				self.columns[out_col.col_id] = {
 					"col_info": deepcopy(out_col),
-					"output_of": node_id,
-					"input_of": None
+					"output_of": [node_id],
+					"input_of": []
 				}
+			# add exception columns & append to "output_of"
+			for ex_col in expr_n.cols_ex:
+				if ex_col.col_id not in self.columns:
+					self.columns[ex_col.col_id] = {
+						"col_info": deepcopy(ex_col),
+						"output_of": [],
+						"input_of": []
+					}
+				self.columns[ex_col.col_id]["output_of"].append(node_id)
+
 		# add new level
 		self.levels.append(level)
 
@@ -77,6 +88,7 @@ class ExpressionTree(object):
 	# 	col = self.get_column(col_id)
 	# 	if col is None:
 	# 		raise Exception("Invalid column: col_id={}".format(col_id))
+	# 	# NOTE: the line below is not valid anymore, since output_of is a list (possible multiple parents for exception columns)
 	# 	parent_node = col["output_of"]
 	# 	if parent_node is None:
 	# 		return []
@@ -95,10 +107,10 @@ class ExpressionTree(object):
 	# 	return ancestors
 
 	def get_in_columns(self):
-		return sorted(list(filter(lambda col_id: self.columns[col_id]["output_of"] is None, self.columns.keys())))
+		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0, self.columns.keys())))
 
 	def get_out_columns(self):
-		return sorted(list(filter(lambda col_id: self.columns[col_id]["input_of"] is None, self.columns.keys())))
+		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
 
 	def get_unused_columns(self):
-		return sorted(list(filter(lambda col_id: self.columns[col_id]["output_of"] is None and self.columns[col_id]["input_of"] is None, self.columns.keys())))
+		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0 and len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))

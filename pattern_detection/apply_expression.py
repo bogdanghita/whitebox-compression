@@ -49,26 +49,21 @@ class ExpressionManager(object):
 			self.in_columns_map[in_col.col_id] = idx
 
 		# populate out_columns with:
-		# 1) unused columns; 2) exception columns for each input column
+		# 1) unused columns
 		for in_col in in_columns:
 			# add original column if not present as input in any expression node
 			used_columns = [c.col_id for expr_n in expr_nodes for c in expr_n.cols_in]
 			if in_col.col_id not in used_columns:
 				self.out_columns.append(in_col)
-				# no need for exception column if no transformation is made
 				continue
-			# add exception column
-			ex_col = Column(
-				col_id = self.get_exception_col_id(in_col.col_id),
-				name = str(in_col.name) + "_ex",
-				datatype = deepcopy(in_col.datatype)
-			)
-			ex_col.datatype.nullable = True
-			self.out_columns.append(ex_col)
-		# 3) output columns from expression nodes
+		# 2) output & exception columns from expression nodes
 		for expr_n in expr_nodes:
 			self.out_columns.extend(expr_n.cols_out)
-		# save output column indices
+			for ex_col in expr_n.cols_ex:
+				if ex_col.col_id not in [c.col_id for c in self.out_columns]:
+					self.out_columns.append(ex_col)
+
+		# save output & exception column indices
 		for idx, out_col in enumerate(self.out_columns):
 			self.out_columns_map[out_col.col_id] = idx
 
@@ -121,7 +116,8 @@ class ExpressionManager(object):
 		ex_col_stats = []
 		for in_col_s in in_columns_stats:
 			in_col_s["exception_ratio"] = float(in_col_s["exception_count"]) / valid_tuple_count if valid_tuple_count > 0 else float("inf")
-			ex_col_id = self.get_exception_col_id(in_col_s["col_id"])
+			ex_col_id = ExceptionColumnManager.get_exception_col_id(in_col_s["col_id"])
+			# NOTE: this check is necessary because not all input columns have an exception column
 			if ex_col_id in self.out_columns_map:
 				ex_col_stats.append(in_col_s)
 		# other stats
@@ -133,16 +129,6 @@ class ExpressionManager(object):
 			"exceptions": ex_col_stats
 		}
 		return stats
-
-	@classmethod
-	def get_exception_col_id(cls, in_col_id):
-		return str(in_col_id) + "_ex"
-
-	@classmethod
-	def get_input_col_id(cls, ex_col_id):
-		if ex_col_id.endswith("_ex"):
-			return ex_col_id[:-len("_ex")]
-		return ex_col_id
 
 	def is_valid_tuple(self, tpl):
 		if len(tpl) != len(self.in_columns):
@@ -201,7 +187,7 @@ class ExpressionManager(object):
 				if in_col.col_id in self.out_columns_map:
 					out_col_idx = self.out_columns_map[in_col.col_id]
 				else: # exception
-					out_col_idx = self.out_columns_map[self.get_exception_col_id(in_col.col_id)]
+					out_col_idx = self.out_columns_map[ExceptionColumnManager.get_exception_col_id(in_col.col_id)]
 					p_mask[in_col_idx] = str(self.ROW_MASK_CODE_EXCEPTION)
 				# append attr to out_tpl
 				out_tpl[out_col_idx] = str(in_tpl[in_col_idx])

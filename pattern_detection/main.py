@@ -65,7 +65,7 @@ class OutputManager(object):
 				col = next(c for c in columns if c.col_id == col_id)
 				print("{}".format(col))
 				for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
-					print("{:.2f}\t{}, res_columns={}, operator_info={}".format(p["score"], p["p_id"], p["res_columns"], p["operator_info"]))
+					print("{:.2f}\t{}, res_columns={}, ex_columns={}, operator_info={}".format(p["score"], p["p_id"], p["res_columns"], p["ex_columns"], p["operator_info"]))
 
 	@staticmethod
 	def output_pattern_distribution(columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
@@ -307,7 +307,7 @@ def main():
 		# 	print("p[\"name\"]", p["name"])
 		# 	for c in p["columns"].values():
 		# 		for p in c:
-		# 			print(p["p_id"], p["res_columns"])
+		# 			print(p["p_id"], p["res_columns"], p["ex_columns"])
 		OutputManager.output_stats(in_columns, patterns)
 		# end-debug
 

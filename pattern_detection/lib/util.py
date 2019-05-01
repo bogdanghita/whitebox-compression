@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import re
+from copy import deepcopy
 
 
 class FileDriver(object):
@@ -154,23 +155,26 @@ class Column(object):
 
 
 class ExpressionNode(object):
-	def __init__(self, p_id, cols_in, cols_out, operator_info, details, pattern_signature, children=[]):
+	def __init__(self, p_id, cols_in, cols_out, cols_ex, operator_info, details, pattern_signature, parents=[], children=[]):
 		self.p_id = p_id
 		self.cols_in = cols_in
 		self.cols_out = cols_out
+		self.cols_ex = cols_ex
 		self.operator_info = operator_info
 		self.details = details
 		self.pattern_signature = pattern_signature
+		self.parents = parents
 		self.children = children
 
 	def __repr__(self):
-		return "ExpressionNode(p_id=%r,cols_in=%r,cols_out=%r,operator_info=%r,details=%r)" % (self.p_id, self.cols_in, self.cols_out, self.operator_info, self.details)
+		return "ExpressionNode(p_id=%r,cols_in=%r,cols_out=%r,cols_ex=%r,operator_info=%r,details=%r)" % (self.p_id, self.cols_in, self.cols_out, self.cols_ex, self.operator_info, self.details)
 
 	def to_dict(self):
 		return {
 			"p_id": self.p_id,
 			"cols_in": [c.to_dict() for c in self.cols_in],
 			"cols_out": [c.to_dict() for c in self.cols_out],
+			"cols_ex": [c.to_dict() for c in self.cols_ex],
 			"operator_info": self.operator_info,
 			"details": self.details,
 			"pattern_signature": self.pattern_signature
@@ -182,6 +186,7 @@ class ExpressionNode(object):
 		res = cls(**in_d)
 		res.cols_in = [Column.from_dict(c) for c in res.cols_in]
 		res.cols_out = [Column.from_dict(c) for c in res.cols_out]
+		res.cols_ex = [Column.from_dict(c) for c in res.cols_ex]
 		return res
 
 	def serialize(self):
@@ -203,3 +208,27 @@ def to_row_mask(selected_rows, nb_rows_total):
 		print("r={}, nb_rows_total={}".format(r, nb_rows_total))
 		raise e
 	return "".join(row_mask)
+
+
+class ExceptionColumnManager(object):
+	@classmethod
+	def get_exception_col_id(cls, in_col_id):
+		return str(in_col_id) + "_ex"
+
+	@classmethod
+	def get_exception_col_name(cls, in_col_name):
+		return str(in_col_name) + "_ex"
+
+	@classmethod
+	def get_input_col_id(cls, ex_col_id):
+		if ex_col_id.endswith("_ex"):
+			return ex_col_id[:-len("_ex")]
+		return ex_col_id
+
+	@classmethod
+	def get_exception_col(cls, in_col):
+		ecol_col_id = cls.get_exception_col_id(in_col.col_id)
+		ecol_name = cls.get_exception_col_name(in_col.name)
+		ecol_datatype = deepcopy(in_col.datatype)
+		ecol_datatype.nullable = True
+		return Column(ecol_col_id, ecol_name, ecol_datatype)

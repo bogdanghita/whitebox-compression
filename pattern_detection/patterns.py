@@ -63,6 +63,7 @@ class PatternDetector(object):
 						score: float # number between 0 and 1 indicating how well the column fits this pattern
 						rows: [row_id: int, ...], # rows where the pattern applies; indexed from 0
 						res_columns: [rcol_1, rcol_2, ...], # list of resulting columns; type: util.Column
+						ex_columns: [ecol_1, ecol_2, ...], # list of exception columns; type: util.Column
 						operator_info: dict(), # operator parameters (used when applying the transformation)
 						details: dict(), # pattern-specific info
 						pattern_signature: str # unique signature of the pattern (for comparison purposes)
@@ -126,6 +127,7 @@ class NullPatternDetector(PatternDetector):
 				"score": score,
 				"rows": col["patterns"]["default"]["rows"],
 				"res_columns": [], # TODO
+				"ex_columns": [], # TODO
 				"operator_info": dict(), # TODO
 				"details": dict(),
 				"pattern_signature": self.get_signature()
@@ -220,16 +222,19 @@ class NumberAsString(StringPatternDetector):
 		pattern_signature = self.get_signature()
 		if pattern_signature in p_log:
 			return False
-		# do not try this pattern if col is and output column of this exact same pattern
+		# do not try this pattern if col is an output column of this exact same pattern
 		et_col = self.expr_tree.get_column(col.col_id)
 		if et_col is None:
 			raise Exception("Column not present in the expression tree: col={}".format(col))
-		parent_expr_n = et_col["output_of"]
-		if parent_expr_n is not None and pattern_signature == parent_expr_n.pattern_signature:
-			return False
+		# NOTE: exception columns can have multiple expr_n parents
+		parent_expr_n_id_list = et_col["output_of"]
+		if len(parent_expr_n_id_list) == 0:
+			return True
+		for parent_expr_n_id in parent_expr_n_id_list:
+			parent_expr_n = self.expr_tree.get_node(parent_expr_n_id)
+			if pattern_signature == parent_expr_n.pattern_signature:
+				return False
 		return True
-		# TODO: exception columns are not present in the expression tree; => the above check does not work for them
-		# TODO: solve this ^; see note as photo on phone
 
 	@classmethod
 	def empty_col_item(cls, col):
@@ -261,21 +266,31 @@ class NumberAsString(StringPatternDetector):
 		return float(valid_cnt) / (total_cnt - null_cnt)
 
 	def build_pattern_data(self, col):
+		res_columns, ex_columns = [], []
 		score = self.compute_score(col)
+
+		# operator info
+		operator_info = dict(name="identity")
+
 		# new column info
 		ncol_col_id = str(col["info"].col_id) + "_0"
 		ncol_name = str(col["info"].name) + "_0"
 		ncol_datatype = col["ndt_analyzer"].get_datatype()
 		ncol_datatype.nullable = True
 		ncol = Column(ncol_col_id, ncol_name, ncol_datatype)
-		# operator info
-		operator_info = dict(name="identity")
+		res_columns.append(ncol)
+
+		# exception column info
+		ecol = ExceptionColumnManager.get_exception_col(col["info"])
+		ex_columns.append(ecol)
+
 		# pattern data
 		p_item = {
 			"p_id": "{}:default".format(self.name),
 			"score": score,
 			"rows": col["patterns"]["default"]["rows"],
-			"res_columns": [ncol],
+			"res_columns": res_columns,
+			"ex_columns": ex_columns,
 			"operator_info": operator_info,
 			"details": dict(),
 			"pattern_signature": self.get_signature()
@@ -417,29 +432,40 @@ class CharSetSplit(StringPatternDetector):
 		return float(valid_cnt) / (total_cnt - null_cnt)
 
 	def build_pattern_data(self, col, pattern_s, pattern_s_data):
-		res_columns = []
+		res_columns, ex_columns = [], []
 		score = self.compute_score(col, pattern_s, pattern_s_data)
+
+		# operator info
 		operator_info = dict(char_sets={}, pattern_string=pattern_s)
 		for ph, cs in self.char_sets.items():
 			new_cs = deepcopy(cs)
 			new_cs["char_set"] = list(new_cs["char_set"])
 			operator_info["char_sets"][ph] = new_cs
 		operator_info["char_sets"][self.default_placeholder] = {"name": "default", "placeholder": self.default_placeholder, "char_set": []}
+
 		# new columns info
 		for idx, ph in enumerate(pattern_s):
 			ncol_col_id = str(col["info"].col_id) + "_" + str(idx)
 			ncol_name = str(col["info"].name) + "_" + str(idx)
 			# NOTE: here we keep the original column datatype (i.e. varchar(x))
 			# TODO: think of the possibility of giving a better datatype (e.g. varchar of shorter length, numeric datatype, etc.)
+			# UPDATE: no need for his; recursive approach handles the case
 			ncol_datatype = deepcopy(col["info"].datatype)
 			ncol_datatype.nullable = True
 			ncol = Column(ncol_col_id, ncol_name, ncol_datatype)
 			res_columns.append(ncol)
+
+		# exception column info
+		ecol = ExceptionColumnManager.get_exception_col(col["info"])
+		ex_columns.append(ecol)
+
+		# pattern data
 		p_item = {
 			"p_id": "{}:{}".format(self.name, pattern_s),
 			"score": score,
 			"rows": pattern_s_data["rows"],
 			"res_columns": res_columns,
+			"ex_columns": ex_columns,
 			"operator_info": operator_info,
 			"details": dict(),
 			"pattern_signature": self.get_signature()
