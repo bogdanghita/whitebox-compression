@@ -122,15 +122,15 @@ class NullPatternDetector(PatternDetector):
 		for idx, col in self.columns.items():
 			if len(col["patterns"]["default"]["rows"]) == 0:
 				continue
-			score = 0 if self.row_count == 0 else len(col["patterns"]["default"]["rows"]) / self.row_count
+			coverage = 0 if self.row_count == 0 else len(col["patterns"]["default"]["rows"]) / self.row_count
 			p_item = {
 				"p_id": "{}:default".format(self.name),
-				"score": score,
+				"coverage": coverage,
 				"rows": col["patterns"]["default"]["rows"],
 				"res_columns": [], # TODO
 				"ex_columns": [], # TODO
 				"operator_info": dict(), # TODO
-				"details": dict(),
+				"details": dict(null_coverage=coverage),
 				"pattern_signature": self.get_signature()
 			}
 			patterns = [p_item]
@@ -256,19 +256,18 @@ class NumberAsString(StringPatternDetector):
 		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
 		return True
 
-	def compute_score(self, col):
+	def compute_coverage(self, col):
 		null_cnt = len(col["nulls"])
 		valid_cnt = len(col["patterns"]["default"]["rows"])
 		total_cnt = self.row_count
 		if total_cnt == 0:
 			return 0
-		if float(valid_cnt) / total_cnt < self.min_col_coverage:
-			return 0
-		return float(valid_cnt) / (total_cnt - null_cnt)
+		return float(valid_cnt) / total_cnt
 
 	def build_pattern_data(self, col):
 		res_columns, ex_columns = [], []
-		score = self.compute_score(col)
+		coverage = self.compute_coverage(col)
+		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
 
 		# operator info
 		operator_info = dict(name="identity")
@@ -299,12 +298,12 @@ class NumberAsString(StringPatternDetector):
 		# pattern data
 		p_item = {
 			"p_id": "{}:default".format(self.name),
-			"score": score,
+			"coverage": coverage,
 			"rows": col["patterns"]["default"]["rows"],
 			"res_columns": res_columns,
 			"ex_columns": ex_columns,
 			"operator_info": operator_info,
-			"details": dict(),
+			"details": dict(null_coverage=null_coverage),
 			"pattern_signature": self.get_signature()
 		}
 		return p_item
@@ -433,19 +432,18 @@ class CharSetSplit(StringPatternDetector):
 		col["patterns"][ps]["rows"].append(self.row_count-1)
 		return True
 
-	def compute_score(self, col, pattern_s, pattern_s_data):
+	def compute_coverage(self, col, pattern_s, pattern_s_data):
 		null_cnt = len(col["nulls"])
 		valid_cnt = len(pattern_s_data["rows"])
 		total_cnt = self.row_count
 		if total_cnt == 0:
 			return 0
-		if float(valid_cnt) / total_cnt < self.min_col_coverage:
-			return 0
-		return float(valid_cnt) / (total_cnt - null_cnt)
+		return float(valid_cnt) / total_cnt
 
 	def build_pattern_data(self, col, p_idx, pattern_s, pattern_s_data):
 		res_columns, ex_columns = [], []
-		score = self.compute_score(col, pattern_s, pattern_s_data)
+		coverage = self.compute_coverage(col, pattern_s, pattern_s_data)
+		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
 
 		# operator info
 		operator_info = dict(char_sets={}, pattern_string=pattern_s)
@@ -484,12 +482,12 @@ class CharSetSplit(StringPatternDetector):
 		# pattern data
 		p_item = {
 			"p_id": "{}:{}".format(self.name, pattern_s),
-			"score": score,
+			"coverage": coverage,
 			"rows": pattern_s_data["rows"],
 			"res_columns": res_columns,
 			"ex_columns": ex_columns,
 			"operator_info": operator_info,
-			"details": dict(),
+			"details": dict(null_coverage=null_coverage),
 			"pattern_signature": self.get_signature()
 		}
 		return p_item

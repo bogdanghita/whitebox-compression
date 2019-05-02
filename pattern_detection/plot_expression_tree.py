@@ -13,16 +13,21 @@ COL_VERTEX_COLOR = {
 	"default": "#EEEEEE",
 	"exception": "#FFCDD2"
 }
-EXPR_NODE_VERTEX_COLOR = "#C5E1A5"
+EXPR_NODE_VERTEX_COLOR = "#BBDEFB"
 
 
 def get_col_vertex(col, col_type="default"):
-	content = "{}\n{}\n{}".format(col.col_id, col.name, col.datatype.to_sql_str())
-	return pydot.Node(content, style="filled", fillcolor=COL_VERTEX_COLOR[col_type])
+	content = "[{}]\n{}\n{}".format(col.col_id, col.name, col.datatype.to_sql_str())
+	return pydot.Node(content, shape="box", style="filled", fillcolor=COL_VERTEX_COLOR[col_type])
 
 def get_node_vertex(node_id, expr_node):
 	p_id = expr_node.p_id.replace(":", " ")
-	content = "{}\n{}\nscore={:.2f}".format(node_id, p_id, expr_node.details["score"])
+	content = "[{node_id}]\n{p_id}\ncoverage={coverage:.2f}\nexceptions={exceptions:.2f}\nnulls={nulls:.2f}".format(
+		node_id=node_id,
+		p_id=p_id,
+		coverage=expr_node.details["coverage"],
+		exceptions=(1 - expr_node.details["coverage"] - expr_node.details["null_coverage"]),
+		nulls=expr_node.details["null_coverage"])
 	return pydot.Node(content, style="filled", fillcolor=EXPR_NODE_VERTEX_COLOR)
 
 def plot_expression_tree(expr_tree, out_file):

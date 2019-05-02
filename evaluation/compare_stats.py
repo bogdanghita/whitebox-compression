@@ -56,7 +56,7 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_e
 		# TODO: adapt this code to work on recursive expression nodes (i.e. expression trees)
 		# TODO: in the current implementation: exception columns are counted for every expression node, even though they are shared between all expression nodes they are input of; TODO: find a smarter way to evaluate the performance in this case (e.g. take the exception ratio of each individual expr_n and multiply it with the size of the exception column; then also add the remaining size of the column which corresponds to the nulls)
 		for expr_n in expr_nodes:
-			output += "\n\n[{}][score={:.2f}]".format(expr_n["p_id"], expr_n["details"]["score"])
+			output += "\n\n[{}][coverage={:.2f}]".format(expr_n["p_id"], expr_n["details"]["coverage"])
 
 			# in_cols
 			in_size_B = 0

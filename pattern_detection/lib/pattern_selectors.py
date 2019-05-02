@@ -37,15 +37,14 @@ class DummyPatternSelector(PatternSelector):
 	NOTE: this PatternSelector does not work with operators that take more than one column as input (e.g. correlated columns)
 	"""
 
-	MIN_SCORE = 0.2
+	MIN_COVERAGE = 0.2
 
 	@classmethod
 	def select_patterns(cls, patterns, columns, nb_rows):
 		expression_nodes = []
 
 		for col in columns:
-			# TODO: get column nulls
-			# NOTE: each pattern detector also outputs nulls; however, there should be only one "nulls" per column
+			# NOTE: each pattern detector also outputs nulls; TODO: keep only one "nulls" per column
 
 			col_patterns = []
 			for p_name, p_columns in patterns.items():
@@ -53,13 +52,13 @@ class DummyPatternSelector(PatternSelector):
 					continue
 				col_patterns.extend(p_columns["columns"][col.col_id])
 
-			# choose the best pattern with score higher than MIN_SCORE
-			max_score, best_p = -1, None
+			# choose the best pattern with coverage higher than MIN_COVERAGE
+			max_coverage, best_p = -1, None
 			for col_p in col_patterns:
-				if col_p["score"] < cls.MIN_SCORE:
+				if col_p["coverage"] < cls.MIN_COVERAGE:
 					continue
-				if col_p["score"] > max_score:
-					max_score, best_p = col_p["score"], col_p
+				if col_p["coverage"] > max_coverage:
+					max_coverage, best_p = col_p["coverage"], col_p
 			if best_p is None:
 				print("debug: no pattern selected for column={}".format(col))
 				# TODO: maybe do something here
@@ -71,7 +70,8 @@ class DummyPatternSelector(PatternSelector):
 					cols_ex=best_p["ex_columns"],
 					operator_info=best_p["operator_info"],
 					details={
-						"score": best_p["score"]
+						"coverage": best_p["coverage"],
+						"null_coverage": best_p["details"]["null_coverage"]
 					},
 					pattern_signature=best_p["pattern_signature"])
 				expression_nodes.append(exp_node)

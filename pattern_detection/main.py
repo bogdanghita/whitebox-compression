@@ -65,8 +65,8 @@ class OutputManager(object):
 			for col_id, col_p_list in pd["columns"].items():
 				col = next(c for c in columns if c.col_id == col_id)
 				print("{}".format(col))
-				for p in sorted(col_p_list, key=lambda x: x["score"], reverse=True):
-					print("{:.2f}\t{}, res_columns={}, ex_columns={}, operator_info={}".format(p["score"], p["p_id"], p["res_columns"], p["ex_columns"], p["operator_info"]))
+				for p in sorted(col_p_list, key=lambda x: x["coverage"], reverse=True):
+					print("{:.2f}\t{}, res_columns={}, ex_columns={}, operator_info={}".format(p["coverage"], p["p_id"], p["res_columns"], p["ex_columns"], p["operator_info"]))
 
 	@staticmethod
 	def output_pattern_distribution(columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
