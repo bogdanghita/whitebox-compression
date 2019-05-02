@@ -8,30 +8,43 @@ import pydot
 from lib.expression_tree import ExpressionTree
 
 
-def get_col_vertex_repr(col):
-	return "[col]\n{}".format(col.col_id)
+COL_VERTEX_COLOR = "#EEEEEE"
+EXPR_NODE_VERTEX_COLOR = "#C5E1A5"
 
-def get_node_vertex_repr(node_id, expr_node):
-	return "[expr_node]\n{}".format(node_id)
 
+def get_col_vertex(col):
+	content = "[col]\n{}".format(col.col_id)
+	return pydot.Node(content, style="filled", fillcolor=COL_VERTEX_COLOR)
+
+def get_node_vertex(node_id, expr_node):
+	content = "[expr_node]\n{}".format(node_id)
+	return pydot.Node(content, style="filled", fillcolor=EXPR_NODE_VERTEX_COLOR)
 
 def plot_expression_tree(expr_tree, out_file):
-	graph = pydot.Dot(graph_type='graph')
+	graph = pydot.Dot(graph_type='digraph')
 
-	for col_id in expr_tree.columns:
-		col_item = expr_tree.get_column(col_id)
+	# create vertices
+	col_vertices = {}
+	for col_id, col_item in expr_tree.columns.items():
+		c_vertex = get_col_vertex(col_item["col_info"])
+		graph.add_node(c_vertex)
+		col_vertices[col_id] = c_vertex
+	expr_nodes_vertices = {}
+	for node_id, expr_n in expr_tree.nodes.items():
+		en_vertex = get_node_vertex(node_id, expr_n)
+		graph.add_node(en_vertex)
+		expr_nodes_vertices[node_id] = en_vertex
+
+	# add edges
+	for col_id, col_item in expr_tree.columns.items():
 		for node_id in col_item["input_of"]:
-			node = expr_tree.get_node(node_id)
-			src = get_col_vertex_repr(col_item["col_info"])
-			dst = get_node_vertex_repr(node_id, node)
-			print(src, dst)
+			src = col_vertices[col_id]
+			dst = expr_nodes_vertices[node_id]
 			edge = pydot.Edge(src, dst)
 			graph.add_edge(edge)
 		for node_id in col_item["output_of"]:
-			node = expr_tree.get_node(node_id)
-			src = get_node_vertex_repr(node_id, node)
-			dst = get_col_vertex_repr(col_item["col_info"])
-			print(src, dst)
+			src = expr_nodes_vertices[node_id]
+			dst = col_vertices[col_id]
 			edge = pydot.Edge(src, dst)
 			graph.add_edge(edge)
 
