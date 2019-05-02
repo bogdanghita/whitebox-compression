@@ -239,3 +239,7 @@ class ExceptionColumnManager(object):
 		ecol_datatype = deepcopy(in_col.datatype)
 		ecol_datatype.nullable = True
 		return Column(ecol_col_id, ecol_name, ecol_datatype)
+
+	@classmethod
+	def is_exception_col(cls, col):
+		return col.col_id.endswith("__ex")

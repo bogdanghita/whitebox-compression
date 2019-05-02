@@ -5,19 +5,24 @@ import sys
 import argparse
 import json
 import pydot
+from lib.util import *
 from lib.expression_tree import ExpressionTree
 
 
-COL_VERTEX_COLOR = "#EEEEEE"
+COL_VERTEX_COLOR = {
+	"default": "#EEEEEE",
+	"exception": "#FFCDD2"
+}
 EXPR_NODE_VERTEX_COLOR = "#C5E1A5"
 
 
-def get_col_vertex(col):
-	content = "[col]\n{}".format(col.col_id)
-	return pydot.Node(content, style="filled", fillcolor=COL_VERTEX_COLOR)
+def get_col_vertex(col, col_type="default"):
+	content = "{}\n{}\n{}".format(col.col_id, col.name, col.datatype.to_sql_str())
+	return pydot.Node(content, style="filled", fillcolor=COL_VERTEX_COLOR[col_type])
 
 def get_node_vertex(node_id, expr_node):
-	content = "[expr_node]\n{}".format(node_id)
+	p_id = expr_node.p_id.replace(":", " ")
+	content = "{}\n{}\nscore={:.2f}".format(node_id, p_id, expr_node.details["score"])
 	return pydot.Node(content, style="filled", fillcolor=EXPR_NODE_VERTEX_COLOR)
 
 def plot_expression_tree(expr_tree, out_file):
@@ -26,7 +31,8 @@ def plot_expression_tree(expr_tree, out_file):
 	# create vertices
 	col_vertices = {}
 	for col_id, col_item in expr_tree.columns.items():
-		c_vertex = get_col_vertex(col_item["col_info"])
+		col_type = "exception" if ExceptionColumnManager.is_exception_col(col_item["col_info"]) else "default"
+		c_vertex = get_col_vertex(col_item["col_info"], col_type)
 		graph.add_node(c_vertex)
 		col_vertices[col_id] = c_vertex
 	expr_nodes_vertices = {}
