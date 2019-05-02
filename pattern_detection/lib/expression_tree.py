@@ -1,7 +1,7 @@
 import os
 import sys
 from copy import deepcopy
-from lib.util import ExpressionNode
+from lib.util import *
 
 
 class ExpressionTree(object):
@@ -99,6 +99,15 @@ class ExpressionTree(object):
 			return None
 		return self.columns[col_id]
 
+	def get_in_columns(self):
+		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0, self.columns.keys())))
+
+	def get_out_columns(self):
+		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
+
+	def get_unused_columns(self):
+		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0 and len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
+
 	# def _get_column_parents(self, col_id):
 	# 	# NOTE: this method is not tested
 	# 	col = self.get_column(col_id)
@@ -122,11 +131,32 @@ class ExpressionTree(object):
 	# 		ancestors.extend(parents)
 	# 	return ancestors
 
-	def get_in_columns(self):
-		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0, self.columns.keys())))
+	def to_dict(self):
+		res = {
+			"levels": deepcopy(self.levels),
+			"nodes": {},
+			"columns": {},
+			"in_columns": self.get_in_columns()
+		}
+		for node_id, expr_n in self.nodes.items():
+			res["nodes"][node_id] = expr_n.to_dict()
+		for col_id, col_item in self.columns.items():
+			res["columns"][col_id] = {
+				"col_info": col_item["col_info"].to_dict(),
+				"output_of": col_item["output_of"],
+				"input_of": col_item["input_of"]
+			}
+		return res
 
-	def get_out_columns(self):
-		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
+	@classmethod
+	def from_dict(cls, expr_tree_dict):
+		json.dumps(expr_tree_dict, indent=2)
 
-	def get_unused_columns(self):
-		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0 and len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
+		in_columns = [Column.from_dict(expr_tree_dict["columns"][col_id]["col_info"]) for col_id in expr_tree_dict["in_columns"]]
+		expr_tree = cls(in_columns)
+
+		for level in expr_tree_dict["levels"]:
+			expr_nodes = [ExpressionNode.from_dict(expr_tree_dict["nodes"][node_id]) for node_id in level]
+			expr_tree.add_level(expr_nodes)
+
+		return expr_tree
