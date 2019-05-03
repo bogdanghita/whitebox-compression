@@ -83,7 +83,20 @@ class DummyPatternSelector(PatternSelector):
 
 class CoveragePatternSelector(PatternSelector):
 	"""
-	TODO: describe the strategy used by this PatternSelector
+	Selects the best combination of patterns for each column
+	- each combination has a score:
+		- combined coverage of all its patterns
+	- patterns are considered only if their coverage is higher than MIN_COVERAGE
+	- if number of considered patterns is:
+		< MAX_CANDIDATE_PATTERNS_exhaustive:
+		- exhaustive approach (brute force)
+		else:
+		- greedy approach
+
+	TODO-1: when computing the score also take into account:
+	- overlap (smaller is better)
+	TODO-2: create a new pattern selector the computes the score based on other metrics:
+	- see notes-week_13 on Drive
 
 	NOTE: this PatternSelector does not work with operators that take more than one column as input (e.g. correlated columns)
 	"""
