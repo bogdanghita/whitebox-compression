@@ -332,7 +332,8 @@ def main():
 
 		# pattern detectors & selector
 		pattern_detectors = init_pattern_detectors(in_columns, pattern_log, expression_tree, args.null, MIN_COL_COVERAGE)
-		pattern_selector = DummyPatternSelector
+		# pattern_selector = DummyPatternSelector
+		pattern_selector = CoveragePatternSelector
 
 		# init engine
 		pd_engine = PatternDetectionEngine(in_columns, pattern_detectors)
