@@ -17,10 +17,11 @@ class ExpressionManager(object):
 				- exactly one pattern: apply that one
 				- more than one pattern: choose one and apply it
 				- no pattern: add the attr to the exception column
-	NOTE-2: p_mask value convention:
-			-2:    not used in any expression node
-			-1:    exception (cannot be part of any expression node)
-			>= 0:  index of the expression node it will be part of
+	NOTE-2: p_mask[i] value convention:
+			-2:    in_tpl[i] is not used in any expression node
+			-1:    in_tpl[i] is an exception (cannot be part of any expression node)
+			>= 0:  index of the expression node in_tpl[i] will be part of
+			# TODO: explain here the nested structure (after you implement it)
 	NOTE-3: it is the operator's responsibility to handle null values and raise
 			exception if not supported; for now, they will be added to the
 			exceptions column; TODO: handle them better in the future
@@ -197,12 +198,23 @@ class ExpressionManager(object):
 
 
 def apply_expression_manager_list(tpl, expr_manager_list):
+	# print("[in_tpl]", len(tpl), tpl)
+
 	# apply all expression managers one after the other
 	for expr_manager in expr_manager_list:
+	# for idx, expr_manager in enumerate(expr_manager_list):
 		res = expr_manager.apply_expressions(tpl)
 		if res is None:
 			return None
 		tpl = res[0]
+
+		# print("level: ", idx)
+		# print([col.col_id for col in expr_manager.get_out_columns()])
+		# print(len(res[0]), res[0])
+		# print(len(res[1]), res[1])
+
+	# print("[out_tpl]", len(tpl), tpl)
+	# sys.exit(1)
 
 	return res
 
@@ -229,6 +241,13 @@ def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_p_mask):
 		fd_out.write(line_new + "\n")
 		line_new = fdelim.join(p_mask)
 		fd_p_mask.write(line_new + "\n")
+
+		# debug: print progress
+		if total_tuple_count % 100000 == 0:
+			print("[progress] total_tuple_count={}M, valid_tuple_count={}M".format(
+				float(total_tuple_count) / 1000000,
+				float(valid_tuple_count) / 1000000))
+		# end-debug
 
 	return (total_tuple_count, valid_tuple_count)
 
@@ -310,7 +329,7 @@ def main():
 			fd_in = os.fdopen(os.dup(sys.stdin.fileno()))
 		else:
 			fd_in = open(args.file, 'r')
-		driver = FileDriver(fd_in, args.fdelim)
+		driver = FileDriver(fd_in)
 		with open(output_file, 'w') as fd_out, open(p_mask_file, 'w') as fd_p_mask:
 			(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager_list, args.fdelim, fd_out, fd_p_mask)
 	finally:
