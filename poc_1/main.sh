@@ -50,11 +50,11 @@ generate_expression() {
 	sample_file=$wbs_dir/$wb/$table.sample.csv
 	pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 	ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
-	expr_nodes_output_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
+	expr_tree_output_dir=$wbs_dir/$wb/$table.expr_tree
 
-	mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $(dirname $expr_nodes_output_file)
+	mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $expr_tree_output_dir
 
-	$SCRIPT_DIR/../pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir --expr-nodes-output-file $expr_nodes_output_file $sample_file
+	$SCRIPT_DIR/../pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --pattern-distribution-output-dir $pattern_distr_out_dir --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir --expr-tree-output-dir $expr_tree_output_dir $sample_file
 }
 
 apply_expression() {

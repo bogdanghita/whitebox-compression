@@ -23,20 +23,17 @@ def plot(plt, rows, out_file=None, out_file_format="svg"):
 		if r_l > max_row_length:
 			max_row_length = r_l
 
+	# NOTE: necessary to avoid error thrown by pyplot; probably caused by colorbar boundaries
 	if min_freq_value == max_freq_value:
 		min_freq_value -= 1; max_freq_value += 1
+		max_row_length += 1
 
-	padding_value = min_freq_value - ((max_freq_value - min_freq_value) * 0.3)
+	padding_value = min_freq_value - int((max_freq_value - min_freq_value) * 0.3) - 1
 	for r in rows:
 		r.extend([padding_value] * (max_row_length - len(r)))
 		# print(r, len(r))
 
 	cbar_bounds = np.arange(min_freq_value, max_freq_value, 0.5)
-
-	# NOTE: necessary to avoid error thrown by pyplot; probably caused by colorbar boundaries
-	if max_row_length == 1:
-		for r in rows:
-			r.append(padding_value)
 
 	arr = np.array(rows)
 
@@ -91,6 +88,8 @@ def main(in_file, out_file, out_file_format):
 		matplotlib.use('Agg')
 	import matplotlib.pyplot as plt
 
+	# print("[plot_ngram_freq_masks] in_file={}, out_file={}".format(in_file, out_file))
+
 	rows = read_data(in_file)
 	plot(plt, rows, out_file=out_file, out_file_format=out_file_format)
 
@@ -107,6 +106,10 @@ if __name__ == "__main__":
 input_file=/ufs/bogdan/work/master-project/whitebox-compression/pattern_detection/output/col_28.csv
 output_file_format=svg
 output_file=/ufs/bogdan/work/master-project/whitebox-compression/pattern_detection/output/col_28.$output_file_format
+
+input_file=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1/CommonGovernment/CommonGovernment_1.ngram_freq_masks/l_1_col_34__ex.csv
+output_file_format=svg
+output_file=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1/CommonGovernment/CommonGovernment_1.ngram_freq_masks/l_1_col_34__ex.$output_file_format
 
 ./pattern_detection/plot_ngram_freq_masks.py $input_file --out-file $output_file --out-file-format $output_file_format
 """

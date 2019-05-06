@@ -6,8 +6,10 @@ from lib.util import ExpressionNode
 
 
 class PatternSelector(object):
-	@classmethod
-	def select_patterns(cls, patterns, columns, nb_rows):
+	def __init__(self):
+		pass
+
+	def select_patterns(self, patterns, columns, nb_rows):
 		""" Selects the best (combination of) pattern(s) for the given columns
 
 		Returns:
@@ -39,10 +41,11 @@ class DummyPatternSelector(PatternSelector):
 	NOTE: this PatternSelector does not work with operators that take more than one column as input (e.g. correlated columns)
 	"""
 
-	MIN_COVERAGE = 0.2
+	def __init__(self, min_col_coverage):
+		PatternSelector.__init__(self)
+		self.min_col_coverage = min_col_coverage
 
-	@classmethod
-	def select_patterns(cls, patterns, columns, nb_rows):
+	def select_patterns(self, patterns, columns, nb_rows):
 		expression_nodes = []
 
 		for col in columns:
@@ -57,7 +60,7 @@ class DummyPatternSelector(PatternSelector):
 			# choose the best pattern with coverage higher than MIN_COVERAGE
 			max_coverage, best_p = -1, None
 			for col_p in col_patterns:
-				if col_p["coverage"] < cls.MIN_COVERAGE:
+				if col_p["coverage"] < self.min_col_coverage:
 					continue
 				if col_p["coverage"] > max_coverage:
 					max_coverage, best_p = col_p["coverage"], col_p
@@ -88,7 +91,7 @@ class CoveragePatternSelector(PatternSelector):
 		- combined coverage of all its patterns
 	- patterns are considered only if their coverage is higher than MIN_COVERAGE
 	- if number of considered patterns is:
-		< MAX_CANDIDATE_PATTERNS_exhaustive:
+		< max_candidate_patterns_exhaustive:
 		- exhaustive approach (brute force)
 		else:
 		- greedy approach
@@ -101,11 +104,12 @@ class CoveragePatternSelector(PatternSelector):
 	NOTE: this PatternSelector does not work with operators that take more than one column as input (e.g. correlated columns)
 	"""
 
-	MIN_COVERAGE = 0.2
-	MAX_CANDIDATE_PATTERNS_exhaustive = 10
+	def __init__(self, min_col_coverage, max_candidate_patterns_exhaustive=10):
+		PatternSelector.__init__(self)
+		self.min_col_coverage = min_col_coverage
+		self.max_candidate_patterns_exhaustive = max_candidate_patterns_exhaustive
 
-	@classmethod
-	def _select_patterns_exhaustive(cls, candidate_patterns, nb_rows):
+	def _select_patterns_exhaustive(self, candidate_patterns, nb_rows):
 		candidate_patterns_idxs = [i for i in range(0, len(candidate_patterns))]
 		row_mask_list = []
 		for col_p in candidate_patterns:
@@ -128,13 +132,11 @@ class CoveragePatternSelector(PatternSelector):
 				best_res = [candidate_patterns[i] for i in res]
 		return best_res
 
-	@classmethod
-	def _select_patterns_greedy(cls, candidate_patterns, nb_rows):
+	def _select_patterns_greedy(self, candidate_patterns, nb_rows):
 		# TODO: implement a basic greedy approach
 		raise Exception("Not implemented")
 
-	@classmethod
-	def select_patterns(cls, patterns, columns, nb_rows):
+	def select_patterns(self, patterns, columns, nb_rows):
 		expression_nodes = []
 
 		for col in columns:
@@ -155,7 +157,7 @@ class CoveragePatternSelector(PatternSelector):
 			# select all patterns with coverage higher than MIN_COVERAGE as candidates
 			candidate_patterns = []
 			for col_p in col_patterns:
-				if col_p["coverage"] < cls.MIN_COVERAGE:
+				if col_p["coverage"] < self.min_col_coverage:
 					continue
 				candidate_patterns.append(col_p)
 			if len(candidate_patterns) == 0:
@@ -164,10 +166,10 @@ class CoveragePatternSelector(PatternSelector):
 				continue
 
 			# select the patterns that when put toghether give: best coverage, min_overlap
-			if len(candidate_patterns) < cls.MAX_CANDIDATE_PATTERNS_exhaustive:
-				selected_patterns = cls._select_patterns_exhaustive(candidate_patterns, nb_rows)
+			if len(candidate_patterns) < self.max_candidate_patterns_exhaustive:
+				selected_patterns = self._select_patterns_exhaustive(candidate_patterns, nb_rows)
 			else:
-				selected_patterns = cls._select_patterns_greedy(candidate_patterns, nb_rows)
+				selected_patterns = self._select_patterns_greedy(candidate_patterns, nb_rows)
 
 			for col_p in selected_patterns:
 				exp_node = ExpressionNode(

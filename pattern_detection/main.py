@@ -17,6 +17,10 @@ import plot_pattern_distribution, plot_ngram_freq_masks
 
 RET_ERR = 15
 
+# TODO: make these parameters of the script
+MAX_ITERATIONS = 100
+MIN_COL_COVERAGE = 0.2
+
 
 class PatternDetectionEngine(object):
 	def __init__(self, columns, pattern_detectors):
@@ -69,7 +73,7 @@ class OutputManager(object):
 					print("{:.2f}\t{}, res_columns={}, ex_columns={}, operator_info={}".format(p["coverage"], p["p_id"], p["res_columns"], p["ex_columns"], p["operator_info"]))
 
 	@staticmethod
-	def output_pattern_distribution(columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
+	def output_pattern_distribution(level, columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
 		# group patterns by columns
 		column_patterns = {}
 		for c in columns:
@@ -84,7 +88,7 @@ class OutputManager(object):
 			if len(col_p.keys()) == 0:
 				continue
 
-			out_file = "{}/col_{}.csv".format(pattern_distribution_output_dir, col_id)
+			out_file = "{}/l_{}_col_{}.csv".format(pattern_distribution_output_dir, level, col_id)
 			with open(out_file, 'w') as fd:
 				# write header
 				header = sorted(col_p.keys())
@@ -114,25 +118,19 @@ class OutputManager(object):
 					fd.write(fdelim.join(current_row) + "\n")
 					row_count += 1
 
-			plot_file="{}/col_{}.{}".format(pattern_distribution_output_dir, col_id, plot_file_format)
+			plot_file="{}/l_{}_col_{}.{}".format(pattern_distribution_output_dir, level, col_id, plot_file_format)
 			plot_pattern_distribution.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 	@staticmethod
-	def output_ngram_freq_masks(ngram_freq_masks, ngram_freq_masks_output_dir, plot_file_format="svg"):
+	def output_ngram_freq_masks(level, ngram_freq_masks, ngram_freq_masks_output_dir, plot_file_format="svg"):
 		for col_id, values in ngram_freq_masks.items():
-			out_file = "{}/col_{}.csv".format(ngram_freq_masks_output_dir, col_id)
+			out_file = "{}/l_{}_col_{}.csv".format(ngram_freq_masks_output_dir, level, col_id)
 			with open(out_file, 'w') as fd:
 				for v in values:
 					fd.write(v + "\n")
 
-			plot_file="{}/col_{}.{}".format(ngram_freq_masks_output_dir, col_id, plot_file_format)
+			plot_file="{}/l_{}_col_{}.{}".format(ngram_freq_masks_output_dir, level, col_id, plot_file_format)
 			plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
-
-	@staticmethod
-	def output_expression_nodes(expression_nodes, output_file):
-		expr_nodes_as_dict = [en.to_dict() for en in expression_nodes]
-		with open(output_file, 'w') as f:
-			json.dump(expr_nodes_as_dict, f, indent=2)
 
 	@staticmethod
 	def output_expression_tree(expression_tree, output_dir, plot=True):
@@ -142,6 +140,34 @@ class OutputManager(object):
 		if plot:
 			expr_tree_plot_file = os.path.join(output_dir, "expr_tree.svg")
 			plot_expression_tree(expression_tree, expr_tree_plot_file)
+
+
+def parse_args():
+	parser = argparse.ArgumentParser(
+		description="""Detect column patterns in CSV file."""
+	)
+
+	parser.add_argument('file', metavar='FILE', nargs='?',
+		help='CSV file to process. Stdin if none given')
+	parser.add_argument('--header-file', dest='header_file', type=str,
+		help="CSV file containing the header row (<workbook>/samples/<table>.header-renamed.csv)",
+		required=True)
+	parser.add_argument('--datatypes-file', dest='datatypes_file', type=str,
+		help="CSV file containing the datatypes row (<workbook>/samples/<table>.datatypes.csv)",
+		required=True)
+	parser.add_argument('--expr-tree-output-dir', dest='expr_tree_output_dir', type=str,
+		help="Output dir to write expression tree data to",
+		required=True)
+	parser.add_argument('--pattern-distribution-output-dir', dest='pattern_distribution_output_dir', type=str,
+		help="Output dir to write pattern distribution to")
+	parser.add_argument('--ngram-freq-masks-output-dir', dest='ngram_freq_masks_output_dir', type=str,
+		help="Output dir to write ngram frequency masks to")
+	parser.add_argument("-F", "--fdelim", dest="fdelim",
+		help="Use <fdelim> as delimiter between fields", default="|")
+	parser.add_argument("--null", dest="null", type=str,
+		help="Interprets <NULL> as NULLs", default="null")
+
+	return parser.parse_args()
 
 
 def read_data(driver, data_manager, fdelim):
@@ -187,37 +213,37 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager):
 	return out_columns
 
 
-def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value, min_col_coverage):
+def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value):
 	pd_obj_id = 0
 	null_pattern_detector = NullPatternDetector(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
 		)
 	pd_obj_id += 1
 	constant_pattern_detector = ConstantPatternDetector(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
 		)
 	pd_obj_id += 1
 	number_as_string = NumberAsString(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
 		)
 	pd_obj_id += 1
 	string_common_prefix = StringCommonPrefix(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
 		)
 	pd_obj_id += 1
 	char_set_split = CharSetSplit(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage,
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
 		default_placeholder="?",
 		char_sets=[
-		{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
-		# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
-		# TODO: play around with the char sets here
+			{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
+			# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
+			# TODO: play around with the char sets here
 		],
 		drop_single_char_pattern=True
 		)
 	pd_obj_id += 1
 	ngram_freq_split = NGramFreqSplit(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value, min_col_coverage,
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
 		n=3
 		)
 	# NOTE: don't forget to increment pd_obj_id before adding a new pattern
@@ -233,107 +259,18 @@ def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value,
 	return pattern_detectors
 
 
-def parse_args():
-	parser = argparse.ArgumentParser(
-		description="""Detect column patterns in CSV file."""
-	)
-
-	parser.add_argument('file', metavar='FILE', nargs='?',
-		help='CSV file to process. Stdin if none given')
-	parser.add_argument('--header-file', dest='header_file', type=str,
-		help="CSV file containing the header row (<workbook>/samples/<table>.header-renamed.csv)",
-		required=True)
-	parser.add_argument('--datatypes-file', dest='datatypes_file', type=str,
-		help="CSV file containing the datatypes row (<workbook>/samples/<table>.datatypes.csv)",
-		required=True)
-	parser.add_argument('--expr-tree-output-dir', dest='expr_tree_output_dir', type=str,
-		help="Output dir to write expression tree data to",
-		required=True)
-	parser.add_argument('--pattern-distribution-output-dir', dest='pattern_distribution_output_dir', type=str,
-		help="Output dir to write pattern distribution to")
-	parser.add_argument('--ngram-freq-masks-output-dir', dest='ngram_freq_masks_output_dir', type=str,
-		help="Output dir to write ngram frequency masks to")
-	parser.add_argument("-F", "--fdelim", dest="fdelim",
-		help="Use <fdelim> as delimiter between fields", default="|")
-	parser.add_argument("--null", dest="null", type=str,
-		help="Interprets <NULL> as NULLs", default="null")
-	# TODO: remove this after implementing apply_expression on the full expression tree
-	parser.add_argument('--expr-nodes-output-file', dest='expr_nodes_output_file', type=str,
-		help="Output file to write expression nodes to",
-		required=True)
-
-	return parser.parse_args()
-
-
-def main():
-	args = parse_args()
-	print(args)
-
-	with open(args.header_file, 'r') as fd:
-		header = list(map(lambda x: x.strip(), fd.readline().split(args.fdelim)))
-	with open(args.datatypes_file, 'r') as fd:
-		datatypes = list(map(lambda x: DataType.from_sql_str(x.strip()), fd.readline().split(args.fdelim)))
-	if len(header) != len(datatypes):
-		return RET_ERR
-
-	columns = []
-	for idx, col_name in enumerate(header):
-		col_id = str(idx)
-		columns.append(Column(col_id, col_name, datatypes[idx]))
-
-	'''
-	*** TODO: DEBUG; START ***
-	'''
-
-	'''
-		pd_engine = PatternDetectionEngine(columns, pattern_detectors)
-
-		# feed data to engine
-		try:
-			if args.file is None:
-				fd = os.fdopen(os.dup(sys.stdin.fileno()))
-			else:
-				fd = open(args.file, 'r')
-			driver = FileDriver(fd)
-			driver_loop(driver, pd_engine, args.fdelim)
-		finally:
-			fd.close()
-
-		# get results from engine
-		(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
-
-		# select patterns for each column
-		expression_nodes = pattern_selector.select_patterns(patterns, columns, valid_tuple_count)
-	'''
-
-	# TODO: make these a parameters to the script
-	MAX_ITERATIONS = 1000
-	MIN_COL_COVERAGE = 0.1
-
+def build_expression_tree(args, in_data_manager, columns):
 	in_columns = deepcopy(columns)
-	in_data_manager = DataManager()
 	expression_tree = ExpressionTree(in_columns)
 	pattern_log = PatternLog()
 
-	# read data
-	try:
-		if args.file is None:
-			fd = os.fdopen(os.dup(sys.stdin.fileno()))
-		else:
-			fd = open(args.file, 'r')
-		f_driver = FileDriver(fd)
-		read_data(f_driver, in_data_manager, args.fdelim)
-	finally:
-		fd.close()
-
-	results = []
 	for it in range(MAX_ITERATIONS):
 		print("\n\n=== ITERATION: it={} ===\n\n".format(it))
 
 		# pattern detectors & selector
-		pattern_detectors = init_pattern_detectors(in_columns, pattern_log, expression_tree, args.null, MIN_COL_COVERAGE)
-		# pattern_selector = DummyPatternSelector
-		pattern_selector = CoveragePatternSelector
+		pattern_detectors = init_pattern_detectors(in_columns, pattern_log, expression_tree, args.null)
+		# pattern_selector = DummyPatternSelector(MIN_COL_COVERAGE)
+		pattern_selector = CoveragePatternSelector(MIN_COL_COVERAGE)
 
 		# init engine
 		pd_engine = PatternDetectionEngine(in_columns, pattern_detectors)
@@ -345,11 +282,6 @@ def main():
 		pattern_log.update_log(patterns, pattern_detectors)
 
 		# debug
-		# for p in patterns.values():
-		# 	print("p[\"name\"]", p["name"])
-		# 	for c in p["columns"].values():
-		# 		for p in c:
-		# 			print(p["p_id"], p["res_columns"], p["ex_columns"])
 		OutputManager.output_stats(in_columns, patterns)
 		# end-debug
 
@@ -362,7 +294,7 @@ def main():
 
 		# stop if no more patterns can be applied
 		if len(expr_nodes) == 0:
-			print("debug: stop iteration: no more patterns can be applied")
+			print("stop iteration: no more patterns can be applied")
 			break
 
 		# add expression nodes as a new level in the expression tree
@@ -373,27 +305,70 @@ def main():
 		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
 		out_columns = apply_expressions(expr_manager, in_data_manager, out_data_manager)
 
-		# # debug
+		# debug
 		# for oc in out_columns: print(oc)
-		# # end-debug
+		# end-debug
 
-		# save output data of this iteration
-		results.append({
-			"out_columns": out_columns,
-			"expr_nodes": expr_nodes
-		})
+# '''
+		# output pattern distributions (for this level)
+		if args.pattern_distribution_output_dir is not None:
+			OutputManager.output_pattern_distribution(it, in_columns, patterns, args.pattern_distribution_output_dir)
+		# output ngram frequency masks (for this level)
+		if args.ngram_freq_masks_output_dir is not None:
+			ngram_freq_split_pds = [pd for pd in pattern_detectors if isinstance(pd, NGramFreqSplit)]
+			if len(ngram_freq_split_pds) > 0:
+				if len(ngram_freq_split_pds) != 1:
+					print("debug: more that one NGramFreqSplit pattern detector found; using the first one")
+				ngram_freq_split = ngram_freq_split_pds[0]
+				ngram_freq_masks = ngram_freq_split.get_ngram_freq_masks(delim=",")
+				OutputManager.output_ngram_freq_masks(it, ngram_freq_masks, args.ngram_freq_masks_output_dir)
+			else:
+				print("debug: no NGramFreqSplit pattern detector used")
+# '''
 
 		# prepare next iteration
 		in_data_manager = out_data_manager
 		in_columns = out_columns
 	else:
-		print("debug: MAX_ITERATIONS={} reached".format(MAX_ITERATIONS))
+		print("stop iteration: MAX_ITERATIONS={} reached".format(MAX_ITERATIONS))
 
-	''' Results:
-		results contains the output data of each iteration
-		# TODO: update this info with new results format and data structures
-	'''
+	return expression_tree
 
+
+def main():
+	args = parse_args()
+	print(args)
+
+	# read header and datatypes
+	with open(args.header_file, 'r') as fd:
+		header = list(map(lambda x: x.strip(), fd.readline().split(args.fdelim)))
+	with open(args.datatypes_file, 'r') as fd:
+		datatypes = list(map(lambda x: DataType.from_sql_str(x.strip()), fd.readline().split(args.fdelim)))
+	if len(header) != len(datatypes):
+		return RET_ERR
+
+	# init columns
+	columns = []
+	for idx, col_name in enumerate(header):
+		col_id = str(idx)
+		columns.append(Column(col_id, col_name, datatypes[idx]))
+
+	# read data
+	in_data_manager = DataManager()
+	try:
+		if args.file is None:
+			fd = os.fdopen(os.dup(sys.stdin.fileno()))
+		else:
+			fd = open(args.file, 'r')
+		f_driver = FileDriver(fd)
+		read_data(f_driver, in_data_manager, args.fdelim)
+	finally:
+		fd.close()
+
+	# build expression tree
+	expression_tree = build_expression_tree(args, in_data_manager, columns)
+
+	# debug
 	print("\n[levels]")
 	for level in expression_tree.get_node_levels():
 		print("level={}".format(level))
@@ -409,22 +384,10 @@ def main():
 	print(expression_tree.get_out_columns())
 	print("[unused_columns]")
 	print(expression_tree.get_unused_columns())
+	# end-debug
 
-	'''
-	*** TODO: DEBUG; END ***
-	'''
-
-	# output results
+	# output expression tree
 	OutputManager.output_expression_tree(expression_tree, args.expr_tree_output_dir, plot=True)
-'''
-	OutputManager.output_stats(columns, patterns)
-	OutputManager.output_expression_nodes(expr_nodes, args.expr_nodes_output_file)
-	if args.pattern_distribution_output_dir is not None:
-		OutputManager.output_pattern_distribution(columns, patterns, args.pattern_distribution_output_dir)
-		if args.ngram_freq_masks_output_dir is not None:
-			ngram_freq_masks = ngram_freq_split.get_ngram_freq_masks(delim=",")
-			OutputManager.output_ngram_freq_masks(ngram_freq_masks, args.ngram_freq_masks_output_dir)
-'''
 
 
 if __name__ == "__main__":
@@ -458,20 +421,17 @@ dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
 expr_tree_output_dir=$wbs_dir/$wb/$table.expr_tree
-# TODO: remove this after implementing apply_expression on the full expression tree; also remove it from the call below; and remove it from the other places where you use this script; and add the expr_tree_output_dir option there too
-expr_nodes_output_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
 
 #[sample]
 ./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
 
 #[pattern-detection]
-mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $expr_tree_output_dir $(dirname $expr_nodes_output_file) && \
+mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $expr_tree_output_dir && \
 ./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv \
 --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv \
 --pattern-distribution-output-dir $pattern_distr_out_dir \
 --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir \
 --expr-tree-output-dir $expr_tree_output_dir \
---expr-nodes-output-file $expr_nodes_output_file \
 $wbs_dir/$wb/$table.sample.csv
 
 #[plot-expr-tree]

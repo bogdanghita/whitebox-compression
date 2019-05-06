@@ -151,7 +151,7 @@ class ExpressionManager(object):
 			used = False
 			for in_col in expr_n.cols_in:
 				if in_col.col_id in in_columns_used:
-					print("debug: column already used with another expression node")
+					# print("debug: column already used with another expression node")
 					used = True
 					break
 				in_attr = in_tpl[self.in_columns_map[in_col.col_id]]

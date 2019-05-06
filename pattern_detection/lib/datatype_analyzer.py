@@ -105,7 +105,7 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 			self.decdigits_before_minmax.push(digits - exp)
 			self.decdigits_after_minmax.push(exp)
 		except Exception as e:
-			print("error: unable to process attr: {}".format(attr))
+			# print("error: unable to process attr: {}".format(attr))
 			raise e
 
 	def get_datatype(self):
