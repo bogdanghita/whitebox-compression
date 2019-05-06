@@ -202,15 +202,10 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager):
 		res = expr_manager.apply_expressions(tpl)
 		if res is None:
 			continue
+		(tpl_new, p_mask) = res
 		valid_tuple_count += 1
 
-		(tpl_new, p_mask) = res
-
 		out_data_manager.write_tuple(tpl_new)
-
-	out_columns = expr_manager.get_out_columns()
-
-	return out_columns
 
 
 def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value):
@@ -303,10 +298,13 @@ def build_expression_tree(args, in_data_manager, columns):
 		# apply expression nodes
 		out_data_manager = DataManager()
 		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
-		out_columns = apply_expressions(expr_manager, in_data_manager, out_data_manager)
+		out_columns = expr_manager.get_out_columns()
+
+		apply_expressions(expr_manager, in_data_manager, out_data_manager)
 
 		# debug
-		# for oc in out_columns: print(oc)
+		# for oc in out_columns: print(oc.col_id)
+		# for oc in expression_tree.get_out_columns(): print(oc)
 		# end-debug
 
 # '''
@@ -427,7 +425,7 @@ expr_tree_output_dir=$wbs_dir/$wb/$table.expr_tree
 
 #[pattern-detection]
 mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $expr_tree_output_dir && \
-./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv \
+time ./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv \
 --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv \
 --pattern-distribution-output-dir $pattern_distr_out_dir \
 --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir \

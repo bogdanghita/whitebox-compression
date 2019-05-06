@@ -99,10 +99,10 @@ class ExpressionTree(object):
 			return None
 		return self.columns[col_id]
 
-	def get_in_columns(self):
+	def get_in_columns(self, level=None):
 		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0, self.columns.keys())))
 
-	def get_out_columns(self):
+	def get_out_columns(self, level=None):
 		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
 
 	def get_unused_columns(self):

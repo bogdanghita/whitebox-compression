@@ -4,6 +4,7 @@ import os
 import sys
 import argparse
 import json
+from lib.expression_tree import ExpressionTree
 from patterns import *
 from lib.util import *
 
@@ -195,7 +196,18 @@ class ExpressionManager(object):
 		return (out_tpl, p_mask)
 
 
-def driver_loop(driver, expr_manager, fdelim, fd_out, fd_p_mask):
+def apply_expression_manager_list(tpl, expr_manager_list):
+	# apply all expression managers one after the other
+	for expr_manager in expr_manager_list:
+		res = expr_manager.apply_expressions(tpl)
+		if res is None:
+			return None
+		tpl = res[0]
+
+	return res
+
+
+def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_p_mask):
 	total_tuple_count = 0
 	valid_tuple_count = 0
 
@@ -205,15 +217,15 @@ def driver_loop(driver, expr_manager, fdelim, fd_out, fd_p_mask):
 			break
 		total_tuple_count += 1
 
-		tpl = line.split(fdelim)
-		res = expr_manager.apply_expressions(tpl)
+		in_tpl = line.split(fdelim)
+
+		res = apply_expression_manager_list(in_tpl, expr_manager_list)
 		if res is None:
 			continue
+		(out_tpl, p_mask) = res
 		valid_tuple_count += 1
 
-		(tpl_new, p_mask) = res
-
-		line_new = fdelim.join(tpl_new)
+		line_new = fdelim.join(out_tpl)
 		fd_out.write(line_new + "\n")
 		line_new = fdelim.join(p_mask)
 		fd_p_mask.write(line_new + "\n")
@@ -234,7 +246,7 @@ def parse_args():
 	parser.add_argument('--datatypes-file', dest='datatypes_file', type=str,
 		help="CSV file containing the datatypes row (<workbook>/samples/<table>.datatypes.csv)",
 		required=True)
-	parser.add_argument('--expr-nodes-file', dest='expr_nodes_file', type=str,
+	parser.add_argument('--expr-tree-file', dest='expr_tree_file', type=str,
 		help="Input file containing expression nodes",
 		required=True)
 	parser.add_argument('--output-dir', dest='output_dir', type=str,
@@ -262,25 +274,35 @@ def main():
 	if len(header) != len(datatypes):
 		return RET_ERR
 
-	# build in_columns
-	in_columns = []
+	# build columns
+	columns = []
 	for idx, col_name in enumerate(header):
 		col_id = str(idx)
-		in_columns.append(Column(col_id, col_name, datatypes[idx]))
+		columns.append(Column(col_id, col_name, datatypes[idx]))
 
-	# build expression nodes
-	with open(args.expr_nodes_file, 'r') as f:
-		expr_nodes = [ExpressionNode.from_dict(en) for en in json.load(f)]
+	# load expression tree
+	with open(args.expr_tree_file, 'r') as f:
+		expr_tree_dict = json.load(f)
+		expression_tree = ExpressionTree.from_dict(expr_tree_dict)
+	if len(expression_tree.levels) == 0:
+		raise Exception("Empty expression tree")
 
-	# init expression manager
-	expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
+	# init expression managers
+	expr_manager_list = []
+	in_columns = columns
+	for idx, level in enumerate(expression_tree.levels):
+		expr_nodes = [expression_tree.get_node(node_id) for node_id in level]
+		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
+		expr_manager_list.append(expr_manager)
+		# out_columns become in_columns for the next level
+		in_columns = expr_manager.get_out_columns()
 
 	# generate new schema file with output columns
 	schema_file = os.path.join(args.output_dir, "{}.table.sql".format(args.out_table_name))
 	with open(schema_file, 'w') as fd_s:
-		expr_manager.dump_out_schema(fd_s, args.out_table_name)
+		expr_manager_list[-1].dump_out_schema(fd_s, args.out_table_name)
 
-	# apply expression nodes and generate the new csv file
+	# apply expression tree and generate the new csv file
 	output_file = os.path.join(args.output_dir, "{}.csv".format(args.out_table_name))
 	p_mask_file = os.path.join(args.output_dir, "{}.p_mask.csv".format(args.out_table_name))
 	try:
@@ -288,21 +310,17 @@ def main():
 			fd_in = os.fdopen(os.dup(sys.stdin.fileno()))
 		else:
 			fd_in = open(args.file, 'r')
-		fd_out = open(output_file, 'w')
-		fd_p_mask = open(p_mask_file, 'w')
-
 		driver = FileDriver(fd_in, args.fdelim)
-		(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager, args.fdelim, fd_out, fd_p_mask)
+		with open(output_file, 'w') as fd_out, open(p_mask_file, 'w') as fd_p_mask:
+			(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager_list, args.fdelim, fd_out, fd_p_mask)
 	finally:
-		fd_in.close()
 		try:
-			fd_out.close()
-			fd_p_mask.close()
+			fd_in.close()
 		except:
 			pass
 
 	# output stats
-	stats = expr_manager.get_stats(valid_tuple_count, total_tuple_count)
+	stats = expr_manager_list[-1].get_stats(valid_tuple_count, total_tuple_count)
 	stats_file = os.path.join(args.output_dir, "{}.stats.json".format(args.out_table_name))
 	with open(stats_file, 'w') as fd_s:
 		json.dump(stats, fd_s, indent=2)
@@ -334,7 +352,7 @@ table=CMSprovider_1
 
 ================================================================================
 input_file=$wbs_dir/$wb/$table.csv
-expr_nodes_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
+expr_tree_file=$wbs_dir/$wb/$table.expr_tree/expr_tree.json
 output_dir=$wbs_dir/$wb/$table.poc_1_out
 out_table="${table}_out"
 
@@ -347,13 +365,12 @@ source ~/.ingVWsh
 stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
 stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
 stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json
-expr_nodes_file=$wbs_dir/$wb/$table.expr_nodes/$table.expr_nodes.json
 apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json
 
 
 # [apply-expression]
 mkdir -p $output_dir && \
-time ./pattern_detection/apply_expression.py --expr-nodes-file $expr_nodes_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
+time ./pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
 
 cat $output_dir/$out_table.stats.json | less
 
@@ -368,7 +385,7 @@ cat $output_dir/$out_table.eval-vectorwise.json | less
 
 # [compare]
 ./evaluation/compare_stats.py $stats_file_nocompression $stats_file_default
-./evaluation/compare_stats.py $stats_file_default $stats_file_wc --expr-nodes-file $expr_nodes_file --apply-expr-stats-file $apply_expr_stats_file
+./evaluation/compare_stats.py $stats_file_default $stats_file_wc --expr-tree-file $expr_tree_file --apply-expr-stats-file $apply_expr_stats_file
 
 
 ================================================================================
