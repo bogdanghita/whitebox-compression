@@ -214,6 +214,9 @@ def apply_expression_manager_list(tpl, mask, expr_manager_list):
 		# print([col.col_id for col in expr_manager.get_out_columns()])
 		# print(len(tpl), tpl)
 		# print(len(mask), mask)
+		#
+		# for idx, col in enumerate(expr_manager.get_out_columns()):
+		# 	print(mask[idx], tpl[idx], col.col_id)
 
 	# print("[out_tpl]", len(tpl), tpl)
 	# print("[out_mask]", len(mask), mask)
@@ -308,6 +311,13 @@ def main():
 		expression_tree = ExpressionTree.from_dict(expr_tree_dict)
 	if len(expression_tree.levels) == 0:
 		raise Exception("Empty expression tree")
+
+	# debug
+	connected_components = expression_tree.get_connected_components()
+	print("[connected_components] len={}".format(len(connected_components.keys())))
+	for k, nodes in connected_components.items():
+		print(k, nodes)
+	# end-debug
 
 	# init expression managers
 	expr_manager_list = []

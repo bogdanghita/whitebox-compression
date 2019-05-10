@@ -33,6 +33,36 @@ class ExpressionTree(object):
 				"input_of": []
 			}
 
+	def to_dict(self):
+		res = {
+			"levels": deepcopy(self.levels),
+			"nodes": {},
+			"columns": {},
+			"in_columns": self.get_in_columns()
+		}
+		for node_id, expr_n in self.nodes.items():
+			res["nodes"][node_id] = expr_n.to_dict()
+		for col_id, col_item in self.columns.items():
+			res["columns"][col_id] = {
+				"col_info": col_item["col_info"].to_dict(),
+				"output_of": col_item["output_of"],
+				"input_of": col_item["input_of"]
+			}
+		return res
+
+	@classmethod
+	def from_dict(cls, expr_tree_dict):
+		json.dumps(expr_tree_dict, indent=2)
+
+		in_columns = [Column.from_dict(expr_tree_dict["columns"][col_id]["col_info"]) for col_id in expr_tree_dict["in_columns"]]
+		expr_tree = cls(in_columns)
+
+		for level in expr_tree_dict["levels"]:
+			expr_nodes = [ExpressionNode.from_dict(expr_tree_dict["nodes"][node_id]) for node_id in level]
+			expr_tree.add_level(expr_nodes)
+
+		return expr_tree
+
 	def add_level(self, expr_nodes):
 		level = []
 
@@ -108,55 +138,57 @@ class ExpressionTree(object):
 	def get_unused_columns(self):
 		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0 and len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
 
-	# def _get_column_parents(self, col_id):
-	# 	# NOTE: this method is not tested
-	# 	col = self.get_column(col_id)
-	# 	if col is None:
-	# 		raise Exception("Invalid column: col_id={}".format(col_id))
-	# 	# NOTE: the line below is not valid anymore, since output_of is a list (possible multiple parents for exception columns)
-	# 	parent_node = col["output_of"]
-	# 	if parent_node is None:
-	# 		return []
-	# 	return [c.col_id for c in parent_node.cols_in]
-	#
-	# def get_column_ancestors(self, col_id):
-	# 	# NOTE: this method is not tested
-	# 	ancestors = []
-	# 	q = [col_id]
-	# 	while len(q) > 0:
-	# 		col_id = q.pop(0)
-	# 		parents = self._get_column_parents(col_id)
-	# 		print("parents={}".format(parents))
-	# 		q.extend(parents)
-	# 		ancestors.extend(parents)
-	# 	return ancestors
+	def _dfs(self, node_id, visited):
+		visited.add(node_id)
+		yield node_id
+		for child_id in self.nodes[node_id].children:
+			if child_id in visited:
+				continue
+			yield from self._dfs(child_id, visited)
 
-	def to_dict(self):
-		res = {
-			"levels": deepcopy(self.levels),
-			"nodes": {},
-			"columns": {},
-			"in_columns": self.get_in_columns()
-		}
-		for node_id, expr_n in self.nodes.items():
-			res["nodes"][node_id] = expr_n.to_dict()
-		for col_id, col_item in self.columns.items():
-			res["columns"][col_id] = {
-				"col_info": col_item["col_info"].to_dict(),
-				"output_of": col_item["output_of"],
-				"input_of": col_item["input_of"]
-			}
-		return res
+	def get_connected_components(self):
+		unused_nodes = set(self.nodes.keys())
+		connected_components = {}
 
-	@classmethod
-	def from_dict(cls, expr_tree_dict):
-		json.dumps(expr_tree_dict, indent=2)
+		def _get_component_id(node_id):
+			for c_id, component in connected_components.items():
+				if node_id in component:
+					return c_id
+			return None
 
-		in_columns = [Column.from_dict(expr_tree_dict["columns"][col_id]["col_info"]) for col_id in expr_tree_dict["in_columns"]]
-		expr_tree = cls(in_columns)
+		# unify expr_nodes based on children property
+		cnt = 0
+		while len(unused_nodes) > 0:
+			cnt += 1
+			node_id = unused_nodes.pop()
+			component = set()
 
-		for level in expr_tree_dict["levels"]:
-			expr_nodes = [ExpressionNode.from_dict(expr_tree_dict["nodes"][node_id]) for node_id in level]
-			expr_tree.add_level(expr_nodes)
+			for n_node_id in self._dfs(node_id, set()):
+				n_c_id = _get_component_id(n_node_id)
+				if n_c_id is not None:
+					component = component.union(connected_components[n_c_id])
+					del connected_components[n_c_id]
+				else:
+					component.add(n_node_id)
+					unused_nodes.discard(n_node_id)
+			connected_components[cnt] = component
 
-		return expr_tree
+		# merge first level expr_nodes that have common input columns
+		for col_id in self.get_in_columns():
+			col = self.columns[col_id]
+			if len(col["input_of"]) < 2:
+				continue
+			node_id = col["input_of"][0]
+			component_id = _get_component_id(node_id)
+			if component_id is None:
+				raise Exception("No component for node_id={}".format(node_id))
+			component = connected_components[component_id]
+			for n_node_id in col["input_of"][1:]:
+				n_c_id = _get_component_id(n_node_id)
+				if n_c_id is None:
+					raise Exception("No component for n_node_id={}".format(n_node_id))
+				component = component.union(connected_components[n_c_id])
+				del connected_components[n_c_id]
+			connected_components[component_id] = component
+
+		return connected_components
