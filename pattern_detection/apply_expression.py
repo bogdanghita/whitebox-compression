@@ -18,10 +18,8 @@ class ExpressionManager(object):
 				- more than one pattern: choose one and apply it
 				- no pattern: add the attr to the exception column
 	NOTE-2: p_mask[i] value convention:
-			-2:    in_tpl[i] is not used in any expression node
-			-1:    in_tpl[i] is an exception (cannot be part of any expression node)
-			>= 0:  index of the expression node in_tpl[i] will be part of
-			# TODO: explain here the nested structure (after you implement it)
+			0:    out_col[i] is not used
+			1:    out_col[i] is used
 	NOTE-3: it is the operator's responsibility to handle null values and raise
 			exception if not supported; for now, they will be added to the
 			exceptions column; TODO: handle them better in the future
@@ -137,9 +135,9 @@ class ExpressionManager(object):
 			return False
 		return True
 
-	def apply_expressions(self, in_tpl):
+	def apply_expressions(self, in_tpl, in_mask):
 		out_tpl = [self.null_value] * len(self.out_columns)
-		p_mask = [str(self.ROW_MASK_CODE_NOT_USED)] * len(self.in_columns)
+		out_mask = ["0"] * len(self.out_columns)
 
 		if not self.is_valid_tuple(in_tpl):
 			return None
@@ -176,50 +174,55 @@ class ExpressionManager(object):
 			# use this expr_n
 			for in_col in expr_n.cols_in:
 				in_col_idx = self.in_columns_map[in_col.col_id]
-				p_mask[in_col_idx] = str(expr_n_idx)
-			# fill in out_tpl
+			# fill in out_tpl & mark out_col used in out_mask
 			for out_attr_idx, out_attr in enumerate(out_attrs):
 				out_col_idx = self.out_columns_map[expr_n.cols_out[out_attr_idx].col_id]
 				out_tpl[out_col_idx] = str(out_attr)
+				out_mask[out_col_idx] = "1"
 
 		# handle unused attrs
 		for in_col_idx, in_col in enumerate(self.in_columns):
+			# if column not preset as input in any expression node
 			if in_col.col_id not in in_columns_used:
-				# column not preset as input in any expression node
+				# in_col is an output column
 				if in_col.col_id in self.out_columns_map:
 					out_col_idx = self.out_columns_map[in_col.col_id]
 				else: # exception
 					out_col_idx = self.out_columns_map[ExceptionColumnManager.get_exception_col_id(in_col.col_id)]
-					p_mask[in_col_idx] = str(self.ROW_MASK_CODE_EXCEPTION)
-				# append attr to out_tpl
+				# add attr to out_tpl & mark out_col used in out_mask
 				out_tpl[out_col_idx] = str(in_tpl[in_col_idx])
+				# mark used in out_mask only if used in previous level
+				if in_mask[in_col_idx] == "1":
+					out_mask[out_col_idx] = "1"
 
-		return (out_tpl, p_mask)
+		return (out_tpl, out_mask)
 
 
-def apply_expression_manager_list(tpl, expr_manager_list):
-	# print("[in_tpl]", len(tpl), tpl)
+def apply_expression_manager_list(tpl, mask, expr_manager_list):
+	# print("\n[in_tpl]", len(tpl), tpl)
+	# print("[mask]", len(mask), mask)
 
 	# apply all expression managers one after the other
 	for expr_manager in expr_manager_list:
 	# for idx, expr_manager in enumerate(expr_manager_list):
-		res = expr_manager.apply_expressions(tpl)
+		res = expr_manager.apply_expressions(tpl, mask)
 		if res is None:
 			return None
-		tpl = res[0]
+		tpl, mask = res
 
 		# print("level: ", idx)
 		# print([col.col_id for col in expr_manager.get_out_columns()])
-		# print(len(res[0]), res[0])
-		# print(len(res[1]), res[1])
+		# print(len(tpl), tpl)
+		# print(len(mask), mask)
 
 	# print("[out_tpl]", len(tpl), tpl)
+	# print("[out_mask]", len(mask), mask)
 	# sys.exit(1)
 
 	return res
 
 
-def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_p_mask):
+def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_p_mask, in_mask):
 	total_tuple_count = 0
 	valid_tuple_count = 0
 
@@ -231,7 +234,7 @@ def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_p_mask):
 
 		in_tpl = line.split(fdelim)
 
-		res = apply_expression_manager_list(in_tpl, expr_manager_list)
+		res = apply_expression_manager_list(in_tpl, in_mask, expr_manager_list)
 		if res is None:
 			continue
 		(out_tpl, p_mask) = res
@@ -331,7 +334,8 @@ def main():
 			fd_in = open(args.file, 'r')
 		driver = FileDriver(fd_in)
 		with open(output_file, 'w') as fd_out, open(p_mask_file, 'w') as fd_p_mask:
-			(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager_list, args.fdelim, fd_out, fd_p_mask)
+			in_mask = ["1"] * len(columns)
+			(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager_list, args.fdelim, fd_out, fd_p_mask, in_mask)
 	finally:
 		try:
 			fd_in.close()

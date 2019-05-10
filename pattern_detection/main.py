@@ -188,7 +188,7 @@ def data_loop(data_manager, pd_engine, fdelim):
 		pd_engine.feed_tuple(tpl)
 
 
-def apply_expressions(expr_manager, in_data_manager, out_data_manager):
+def apply_expressions(expr_manager, in_data_manager, out_data_manager, mask):
 	total_tuple_count = 0
 	valid_tuple_count = 0
 
@@ -199,7 +199,7 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager):
 			break
 		total_tuple_count += 1
 
-		res = expr_manager.apply_expressions(tpl)
+		res = expr_manager.apply_expressions(tpl, mask)
 		if res is None:
 			continue
 		(tpl_new, p_mask) = res
@@ -300,7 +300,8 @@ def build_expression_tree(args, in_data_manager, columns):
 		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
 		out_columns = expr_manager.get_out_columns()
 
-		apply_expressions(expr_manager, in_data_manager, out_data_manager)
+		mask = ["1"] * len(in_columns)
+		apply_expressions(expr_manager, in_data_manager, out_data_manager, mask)
 
 		# debug
 		# for oc in out_columns: print(oc.col_id)
