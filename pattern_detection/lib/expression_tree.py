@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from copy import deepcopy
 from lib.util import *
 
@@ -129,10 +130,10 @@ class ExpressionTree(object):
 			return None
 		return self.columns[col_id]
 
-	def get_in_columns(self, level=None):
+	def get_in_columns(self):
 		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0, self.columns.keys())))
 
-	def get_out_columns(self, level=None):
+	def get_out_columns(self):
 		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
 
 	def get_unused_columns(self):
@@ -191,4 +192,12 @@ class ExpressionTree(object):
 				del connected_components[n_c_id]
 			connected_components[component_id] = component
 
+		# TODO: return List[ExpressionTree]
+
 		return connected_components
+
+
+def read_expr_tree(expr_tree_file):
+	with open(expr_tree_file, 'r') as f:
+		expr_tree_dict = json.load(f)
+		return ExpressionTree.from_dict(expr_tree_dict)

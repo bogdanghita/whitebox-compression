@@ -314,9 +314,9 @@ def main():
 
 	# debug
 	connected_components = expression_tree.get_connected_components()
-	print("[connected_components] len={}".format(len(connected_components.keys())))
-	for k, nodes in connected_components.items():
-		print(k, nodes)
+	print("[connected_components] len={}".format(len(connected_components)))
+	for cc_expr_tree in connected_components:
+		print(cc_expr_tree.levels)
 	# end-debug
 
 	# init expression managers
@@ -353,6 +353,7 @@ def main():
 			pass
 
 	# output stats
+	# TODO: these stats are not relevant in the current form; update or discard them
 	stats = expr_manager_list[-1].get_stats(valid_tuple_count, total_tuple_count)
 	stats_file = os.path.join(args.output_dir, "{}.stats.json".format(args.out_table_name))
 	with open(stats_file, 'w') as fd_s:
@@ -417,7 +418,7 @@ cat $output_dir/load-vectorwise/$out_table.data-files.out | less
 cat $output_dir/$out_table.eval-vectorwise.json | less
 
 # [compare]
-./evaluation/compare_stats.py $stats_file_nocompression $stats_file_default
+# ./evaluation/compare_stats.py $stats_file_nocompression $stats_file_default
 ./evaluation/compare_stats.py $stats_file_default $stats_file_wc --expr-tree-file $expr_tree_file --apply-expr-stats-file $apply_expr_stats_file
 
 

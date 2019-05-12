@@ -6,7 +6,7 @@ import argparse
 import json
 import pydot
 from lib.util import *
-from lib.expression_tree import ExpressionTree
+from lib.expression_tree import *
 
 
 COL_VERTEX_COLOR = {
@@ -60,12 +60,6 @@ def plot_expression_tree(expr_tree, out_file):
 			graph.add_edge(edge)
 
 	graph.write_svg(out_file)
-
-
-def read_expr_tree(expr_tree_file):
-	with open(expr_tree_file, 'r') as f:
-		expr_tree_dict = json.load(f)
-		return ExpressionTree.from_dict(expr_tree_dict)
 
 
 def parse_args():
