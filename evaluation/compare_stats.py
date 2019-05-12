@@ -32,101 +32,6 @@ def compare_data_files(s_file1, s_file2, s_data1, s_data2):
 	return output
 
 
-# def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_nodes_file, apply_expr_stats_file):
-# 	column_data = {
-# 		s_file1: {c["col_data"]["col_name"]: c for c in s_data1["columns"].values()},
-# 		s_file2: {c["col_data"]["col_name"]: c for c in s_data2["columns"].values()}
-# 	}
-
-# 	expr_nodes, exception_stats = None, None
-# 	if expr_nodes_file is not None:
-# 		with open(expr_nodes_file, 'r') as f:
-# 			expr_nodes = json.load(f)
-# 		# print(json.dumps(expr_nodes, indent=2))
-# 	if apply_expr_stats_file is not None:
-# 		with open(apply_expr_stats_file, 'r') as f:
-# 			apply_expr_stats = json.load(f)
-# 		exception_stats = {}
-# 		for in_col in apply_expr_stats["exceptions"]:
-# 			exception_stats[in_col["col_id"]] = in_col
-# 		# print(json.dumps(apply_expr_stats, indent=2))
-
-# 	output = "\n*** data_files (column level) ***"
-
-# 	if expr_nodes:
-# 		# TODO: adapt this code to work on recursive expression nodes (i.e. expression trees)
-# 		# TODO: in the current implementation: exception columns are counted for every expression node, even though they are shared between all expression nodes they are input of; TODO: find a smarter way to evaluate the performance in this case (e.g. take the exception ratio of each individual expr_n and multiply it with the size of the exception column; then also add the remaining size of the column which corresponds to the nulls)
-# 		for expr_n in expr_nodes:
-# 			output += "\n\n[{}][coverage={:.2f}]".format(expr_n["p_id"], expr_n["details"]["coverage"])
-
-# 			# in_cols
-# 			in_size_B = 0
-# 			output += "\n[input_colums]"
-# 			for in_col in expr_n["cols_in"]:
-# 				col_id, col_name = in_col["col_id"], in_col["name"]
-# 				if exception_stats and col_id in exception_stats:
-# 					ex_ratio = exception_stats[col_id]["exception_ratio"]
-# 				if col_name not in column_data[s_file1]:
-# 					raise Exception("error: in_col_name={} not found in s_file1={}".format(col_name, s_file1))
-# 				col_size_B = column_data[s_file1][col_name]["data_files"]["data_file"]["size_B"]
-# 				in_size_B += col_size_B
-# 				output += "\ncol_id={}, col_name={}, ex_ratio={:.2f}, size={}, in_col={}".format(in_col["col_id"], col_name, ex_ratio, sizeof_fmt(col_size_B), in_col)
-
-# 			# out_cols
-# 			out_size_B = 0
-# 			output += "\n[output_colums]"
-# 			for out_col in expr_n["cols_out"]:
-# 				col_id, col_name = out_col["col_id"], out_col["name"]
-# 				if col_name not in column_data[s_file2]:
-# 					raise Exception("out_col_name={} not found in s_file2={}".format(col_name, s_file2))
-# 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
-# 				out_size_B += col_size_B
-# 				output += "\ncol_id={}, col_name={}, size={}, out_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), out_col)
-
-# 			# exception columns
-# 			# ex_size_B = 0
-# 			# output += "\n[exception_colums]"
-# 			# for in_col in expr_n["cols_in"]:
-# 			# 	col_name = ExceptionColumnManager.get_exception_col_name(in_col["name"])
-# 			# 	if col_name not in column_data[s_file2]:
-# 			# 		raise Exception("col_name={} not found in s_file2={}".format(col_name, s_file2))
-# 			# 	col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
-# 			# 	ex_size_B += col_size_B
-# 			# 	output += "\ncol_id={}, col_name={}, size={}, out_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), out_col)
-# 			ex_size_B = 0
-# 			output += "\n[exception_colums]"
-# 			for ex_col in expr_n["cols_ex"]:
-# 				col_id, col_name = ex_col["col_id"], ex_col["name"]
-# 				if col_name not in column_data[s_file2]:
-# 					raise Exception("ex_col_name={} not found in s_file2={}".format(col_name, s_file2))
-# 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
-# 				ex_size_B += col_size_B
-# 				output += "\ncol_id={}, col_name={}, size={}, ex_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), ex_col)
-
-# 			# summary
-# 			total_out_size_B = out_size_B + ex_size_B
-# 			compression_ratio = float(in_size_B) / total_out_size_B if total_out_size_B > 0 else float("inf")
-# 			output += "\n[summary]"
-# 			output += "\np_id={p_id}, compression_ratio={compression_ratio:.2f}, in_size_B={in_size}, total_out_size_B={total_out_size} (out_size={out_size}, ex_size={ex_size})".format(
-# 					p_id=expr_n["p_id"],
-# 					compression_ratio=compression_ratio,
-# 					in_size=sizeof_fmt(in_size_B),
-# 					total_out_size=sizeof_fmt(total_out_size_B),
-# 					out_size=sizeof_fmt(out_size_B),
-# 					ex_size=sizeof_fmt(ex_size_B)
-# 				)
-# 			# compression_ratio = float(in_size_B) / out_size_B if out_size_B > 0 else float("inf")
-# 			# output += "\n[summary]"
-# 			# output += "\np_id={p_id}, compression_ratio={compression_ratio:.2f}, in_size_B={in_size}, out_size={out_size}".format(
-# 			# 		p_id=expr_n["p_id"],
-# 			# 		compression_ratio=compression_ratio,
-# 			# 		in_size=sizeof_fmt(in_size_B),
-# 			# 		out_size=sizeof_fmt(out_size_B)
-# 			# 	)
-
-# 	return output
-
-
 def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_stats_file):
 	column_data = {
 		s_file1: {c["col_data"]["col_name"]: c for c in s_data1["columns"].values()},
@@ -141,42 +46,34 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_ex
 			apply_expr_stats = json.load(f)
 		exception_stats = {}
 		# for in_col in apply_expr_stats["exceptions"]:
-		# 	exception_stats[in_col["col_id"]] = in_col
+		# 	exception_stats[in_col.col_id] = in_col
 		# print(json.dumps(apply_expr_stats, indent=2))
 
-	# print(expr_tree.to_dict())
 	ccs = expr_tree.get_connected_components()
 	for cc in ccs:
-		print(cc)
-	sys.exit(1)
+		print("levels={}, in_columns={}".format(cc.levels, cc.get_in_columns()))
 
 	output = "\n*** data_files (column level) ***"
 
 	if expr_tree:
-		# TODO: adapt this code to work on recursive expression nodes (i.e. expression trees)
-		# TODO: in the current implementation: exception columns are counted for every expression node, even though they are shared between all expression nodes they are input of; TODO: find a smarter way to evaluate the performance in this case (e.g. take the exception ratio of each individual expr_n and multiply it with the size of the exception column; then also add the remaining size of the column which corresponds to the nulls)
-
-		# for expr_n in expr_nodes:
-			# output += "\n\n[{}][coverage={:.2f}]".format(expr_n["p_id"], expr_n["details"]["coverage"])
-
 		for cc_expr_tree in expr_tree.get_connected_components():
 			in_columns = [cc_expr_tree.get_column(col_id) for col_id in cc_expr_tree.get_in_columns()]
 			out_columns = [cc_expr_tree.get_column(col_id) for col_id in cc_expr_tree.get_out_columns()]
 
 			# in_cols
 			in_size_B = 0
-			output += "\n[input_colums]"
+			output += "\n\n[input_colums]"
 			for col_item in in_columns:
 				in_col = col_item["col_info"]
-				col_id, col_name = in_col["col_id"], in_col["name"]
+				col_id, col_name = in_col.col_id, in_col.name
 				# if exception_stats and col_id in exception_stats:
 				# 	ex_ratio = exception_stats[col_id]["exception_ratio"]
 				if col_name not in column_data[s_file1]:
 					raise Exception("error: in_col_name={} not found in s_file1={}".format(col_name, s_file1))
 				col_size_B = column_data[s_file1][col_name]["data_files"]["data_file"]["size_B"]
 				in_size_B += col_size_B
-				# output += "\ncol_id={}, col_name={}, ex_ratio={:.2f}, size={}, in_col={}".format(in_col["col_id"], col_name, ex_ratio, sizeof_fmt(col_size_B), in_col)
-				output += "\ncol_id={}, col_name={}, size={}, in_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), in_col)
+				# output += "\ncol_id={}, col_name={}, ex_ratio={:.2f}, size={}, in_col={}".format(in_col.col_id, col_name, ex_ratio, sizeof_fmt(col_size_B), in_col)
+				output += "\ncol_id={}, col_name={}, size={}, in_col={}".format(in_col.col_id, col_name, sizeof_fmt(col_size_B), in_col)
 
 			# out_cols
 			out_size_B = 0
@@ -186,56 +83,39 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_ex
 				# handle expcetion columns separately
 				if ExceptionColumnManager.is_exception_col(out_col):
 					continue
-				col_id, col_name = out_col["col_id"], out_col["name"]
+				col_id, col_name = out_col.col_id, out_col.name
 				if col_name not in column_data[s_file2]:
 					raise Exception("out_col_name={} not found in s_file2={}".format(col_name, s_file2))
 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
 				out_size_B += col_size_B
-				output += "\ncol_id={}, col_name={}, size={}, out_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), out_col)
+				output += "\ncol_id={}, col_name={}, size={}, out_col={}".format(out_col.col_id, col_name, sizeof_fmt(col_size_B), out_col)
 
 			# exception columns
-			# ex_size_B = 0
-			# output += "\n[exception_colums]"
-			# for in_col in expr_n["cols_in"]:
-			# 	col_name = ExceptionColumnManager.get_exception_col_name(in_col["name"])
-			# 	if col_name not in column_data[s_file2]:
-			# 		raise Exception("col_name={} not found in s_file2={}".format(col_name, s_file2))
-			# 	col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
-			# 	ex_size_B += col_size_B
-			# 	output += "\ncol_id={}, col_name={}, size={}, out_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), out_col)
 			ex_size_B = 0
 			output += "\n[exception_colums]"
 			for col_item in out_columns:
 				ex_col = col_item["col_info"]
-				if not ExceptionColumnManager.is_exception_col(out_col):
+				if not ExceptionColumnManager.is_exception_col(ex_col):
 					continue
-				col_id, col_name = ex_col["col_id"], ex_col["name"]
+				col_id, col_name = ex_col.col_id, ex_col.name
 				if col_name not in column_data[s_file2]:
 					raise Exception("ex_col_name={} not found in s_file2={}".format(col_name, s_file2))
 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
 				ex_size_B += col_size_B
-				output += "\ncol_id={}, col_name={}, size={}, ex_col={}".format(in_col["col_id"], col_name, sizeof_fmt(col_size_B), ex_col)
+				output += "\ncol_id={}, col_name={}, size={}, ex_col={}".format(ex_col.col_id, col_name, sizeof_fmt(col_size_B), ex_col)
 
 			# summary
 			total_out_size_B = out_size_B + ex_size_B
 			compression_ratio = float(in_size_B) / total_out_size_B if total_out_size_B > 0 else float("inf")
-			output += "\n[summary]"
-			output += "\np_id={p_id}, compression_ratio={compression_ratio:.2f}, in_size_B={in_size}, total_out_size_B={total_out_size} (out_size={out_size}, ex_size={ex_size})".format(
-					p_id=expr_n["p_id"],
+			output += "\n[summary] {}".format([(idx, cc_expr_tree.get_node(n_id).p_id) for idx, l in enumerate(cc_expr_tree.levels) for n_id in l])
+			output += "\ncc={cc}, compression_ratio={compression_ratio:.2f}, in_size_B={in_size}, total_out_size_B={total_out_size} (out_size={out_size}, ex_size={ex_size})".format(
+					cc=cc_expr_tree.get_in_columns(),
 					compression_ratio=compression_ratio,
 					in_size=sizeof_fmt(in_size_B),
 					total_out_size=sizeof_fmt(total_out_size_B),
 					out_size=sizeof_fmt(out_size_B),
 					ex_size=sizeof_fmt(ex_size_B)
 				)
-			# compression_ratio = float(in_size_B) / out_size_B if out_size_B > 0 else float("inf")
-			# output += "\n[summary]"
-			# output += "\np_id={p_id}, compression_ratio={compression_ratio:.2f}, in_size_B={in_size}, out_size={out_size}".format(
-			# 		p_id=expr_n["p_id"],
-			# 		compression_ratio=compression_ratio,
-			# 		in_size=sizeof_fmt(in_size_B),
-			# 		out_size=sizeof_fmt(out_size_B)
-			# 	)
 
 	return output
 

@@ -148,6 +148,9 @@ class ExpressionTree(object):
 			yield from self._dfs(child_id, visited)
 
 	def get_connected_components(self):
+		"""
+		Returns: List[ExpressionNode]
+		"""
 		unused_nodes = set(self.nodes.keys())
 		connected_components = {}
 
@@ -192,9 +195,27 @@ class ExpressionTree(object):
 				del connected_components[n_c_id]
 			connected_components[component_id] = component
 
-		# TODO: return List[ExpressionTree]
+		# create an expression tree for each connected component
+		res = []
+		for cc in connected_components.values():
+			# print("\ncc:", cc)
+			expr_node_levels = []
+			for level in self.levels:
+				expr_nodes = [deepcopy(self.nodes[node_id]) for node_id in level if node_id in cc]
+				if len(expr_nodes) > 0:
+					expr_node_levels.append(expr_nodes)
+				# print("l:", [en.p_id for en in expr_nodes])
+			if len(expr_node_levels) == 0:
+				raise Exception("No expression nodes in connected component")
+			in_columns_unique_ids = {col.col_id for expr_node in expr_node_levels[0] for col in expr_node.cols_in}
+			in_columns = [self.columns[col_id]["col_info"] for col_id in in_columns_unique_ids]
+			# print([col.col_id for col in in_columns])
+			expr_tree = ExpressionTree(in_columns)
+			for expr_nodes in expr_node_levels:
+				expr_tree.add_level(expr_nodes)
+			res.append(expr_tree)
 
-		return connected_components
+		return res
 
 
 def read_expr_tree(expr_tree_file):
