@@ -38,15 +38,15 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_ex
 		s_file2: {c["col_data"]["col_name"]: c for c in s_data2["columns"].values()}
 	}
 
-	expr_tree, exception_stats = None, None
+	expr_tree, out_columns_stats = None, None
 	if expr_tree_file is not None:
 		expr_tree = read_expr_tree(expr_tree_file)
 	if apply_expr_stats_file is not None:
 		with open(apply_expr_stats_file, 'r') as f:
 			apply_expr_stats = json.load(f)
-		exception_stats = {}
-		# for in_col in apply_expr_stats["exceptions"]:
-		# 	exception_stats[in_col.col_id] = in_col
+		out_columns_stats = {}
+		for out_col in apply_expr_stats["out_columns"]:
+			out_columns_stats[out_col["col_id"]] = out_col
 		# print(json.dumps(apply_expr_stats, indent=2))
 
 	ccs = expr_tree.get_connected_components()
@@ -66,13 +66,10 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_ex
 			for col_item in in_columns:
 				in_col = col_item["col_info"]
 				col_id, col_name = in_col.col_id, in_col.name
-				# if exception_stats and col_id in exception_stats:
-				# 	ex_ratio = exception_stats[col_id]["exception_ratio"]
 				if col_name not in column_data[s_file1]:
 					raise Exception("error: in_col_name={} not found in s_file1={}".format(col_name, s_file1))
 				col_size_B = column_data[s_file1][col_name]["data_files"]["data_file"]["size_B"]
 				in_size_B += col_size_B
-				# output += "\ncol_id={}, col_name={}, ex_ratio={:.2f}, size={}, in_col={}".format(in_col.col_id, col_name, ex_ratio, sizeof_fmt(col_size_B), in_col)
 				output += "\ncol_id={}, col_name={}, size={}, in_col={}".format(in_col.col_id, col_name, sizeof_fmt(col_size_B), in_col)
 
 			# out_cols
@@ -86,9 +83,13 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_ex
 				col_id, col_name = out_col.col_id, out_col.name
 				if col_name not in column_data[s_file2]:
 					raise Exception("out_col_name={} not found in s_file2={}".format(col_name, s_file2))
+				if out_columns_stats and col_id in out_columns_stats:
+					null_ratio = out_columns_stats[col_id]["null_ratio"]
+				else:
+					null_ratio = "N/A"
 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
 				out_size_B += col_size_B
-				output += "\ncol_id={}, col_name={}, size={}, out_col={}".format(out_col.col_id, col_name, sizeof_fmt(col_size_B), out_col)
+				output += "\ncol_id={}, col_name={}, null_ratio={}, size={}, out_col={}".format(out_col.col_id, col_name, null_ratio, sizeof_fmt(col_size_B), out_col)
 
 			# exception columns
 			ex_size_B = 0
@@ -100,9 +101,13 @@ def compare_columns(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_ex
 				col_id, col_name = ex_col.col_id, ex_col.name
 				if col_name not in column_data[s_file2]:
 					raise Exception("ex_col_name={} not found in s_file2={}".format(col_name, s_file2))
+				if out_columns_stats and col_id in out_columns_stats:
+					null_ratio = out_columns_stats[col_id]["null_ratio"]
+				else:
+					null_ratio = "N/A"
 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
 				ex_size_B += col_size_B
-				output += "\ncol_id={}, col_name={}, size={}, ex_col={}".format(ex_col.col_id, col_name, sizeof_fmt(col_size_B), ex_col)
+				output += "\ncol_id={}, col_name={}, null_ratio={}, size={}, ex_col={}".format(ex_col.col_id, col_name, null_ratio, sizeof_fmt(col_size_B), ex_col)
 
 			# summary
 			total_out_size_B = out_size_B + ex_size_B

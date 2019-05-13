@@ -68,13 +68,20 @@ class ExpressionManager(object):
 			self.out_columns_map[out_col.col_id] = idx
 
 		# create stats columns
-		self.in_columns_stats = []
-		for idx, in_col in enumerate(in_columns):
-			in_col_stats = {
-				"col_id": in_col.col_id,
-				"exception_count": 0
+		# self.in_columns_stats = []
+		# for idx, in_col in enumerate(in_columns):
+		# 	in_col_stats = {
+		# 		"col_id": in_col.col_id,
+		# 		"exception_count": 0
+		# 	}
+		# 	self.in_columns_stats.append(in_col_stats)
+		self.out_columns_stats = []
+		for idx, out_col in enumerate(self.out_columns):
+			out_col_stats = {
+				"col_id": out_col.col_id,
+				"null_count": 0
 			}
-			self.in_columns_stats.append(in_col_stats)
+			self.out_columns_stats.append(out_col_stats)
 
 		# # TODO: debug
 		# print("***expression_nodes***")
@@ -111,22 +118,26 @@ class ExpressionManager(object):
 		fd.write(line + "\n")
 
 	def get_stats(self, valid_tuple_count, total_tuple_count):
-		# exception stats
-		in_columns_stats = deepcopy(self.in_columns_stats)
-		ex_col_stats = []
-		for in_col_s in in_columns_stats:
-			in_col_s["exception_ratio"] = float(in_col_s["exception_count"]) / valid_tuple_count if valid_tuple_count > 0 else float("inf")
-			ex_col_id = ExceptionColumnManager.get_exception_col_id(in_col_s["col_id"])
-			# NOTE: this check is necessary because not all input columns have an exception column
-			if ex_col_id in self.out_columns_map:
-				ex_col_stats.append(in_col_s)
+		# # exception stats
+		# in_columns_stats = deepcopy(self.in_columns_stats)
+		# ex_col_stats = []
+		# for in_col_s in in_columns_stats:
+		# 	in_col_s["exception_ratio"] = float(in_col_s["exception_count"]) / valid_tuple_count if valid_tuple_count > 0 else float("inf")
+		# 	ex_col_id = ExceptionColumnManager.get_exception_col_id(in_col_s["col_id"])
+		# 	# NOTE: this check is necessary because not all input columns have an exception column
+		# 	if ex_col_id in self.out_columns_map:
+		# 		ex_col_stats.append(in_col_s)
+		# null stats
+		out_columns_stats = deepcopy(self.out_columns_stats)
+		for out_col_s in out_columns_stats:
+			out_col_s["null_ratio"] = float(out_col_s["null_count"]) / valid_tuple_count if valid_tuple_count > 0 else float("inf")
 		# other stats
 		valid_tuple_ratio = float(valid_tuple_count) / total_tuple_count if total_tuple_count > 0 else float("inf")
 		stats = {
 			"total_tuple_count": total_tuple_count,
 			"valid_tuple_count": valid_tuple_count,
 			"valid_tuple_ratio": valid_tuple_ratio,
-			"exceptions": ex_col_stats
+			"out_columns": out_columns_stats
 		}
 		return stats
 
@@ -164,9 +175,9 @@ class ExpressionManager(object):
 			except OperatorException as e:
 				# this operator cannot be applied, but others may be; in the worst case, attr is added to the exception column at the end
 				# print("debug: OperatorException: {}".format(e))
-				for in_col in expr_n.cols_in:
-					in_col_idx = self.in_columns_map[in_col.col_id]
-					self.in_columns_stats[in_col_idx]["exception_count"] += 1
+				# for in_col in expr_n.cols_in:
+				# 	in_col_idx = self.in_columns_map[in_col.col_id]
+				# 	self.in_columns_stats[in_col_idx]["exception_count"] += 1
 				continue
 			# mark in_col as used
 			for in_col in expr_n.cols_in:
@@ -194,6 +205,11 @@ class ExpressionManager(object):
 				# mark used in out_mask only if used in previous level
 				if in_mask[in_col_idx] == "1":
 					out_mask[out_col_idx] = "1"
+
+		# count nulls for stats
+		for idx, attr in enumerate(out_tpl):
+			if attr == self.null_value:
+				self.out_columns_stats[idx]["null_count"] += 1
 
 		return (out_tpl, out_mask)
 
