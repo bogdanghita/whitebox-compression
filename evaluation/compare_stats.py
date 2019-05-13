@@ -130,7 +130,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 
 		# aggregate for used columns
 		agg_compression_ratio = float(agg_in_size_B) / agg_total_out_size_B if agg_total_out_size_B > 0 else float("inf")
-		agg_output += "\nagg_in_size_B={agg_in_size_B}, agg_total_out_size_B={agg_total_out_size_B}, agg_compression_ratio={agg_compression_ratio:.2f}".format(
+		agg_output += "\nagg_in_size={agg_in_size_B}, agg_total_out_size={agg_total_out_size_B}, agg_compression_ratio={agg_compression_ratio:.2f}".format(
 					agg_in_size_B=sizeof_fmt(agg_in_size_B),
 					agg_total_out_size_B=sizeof_fmt(agg_total_out_size_B),
 					agg_compression_ratio=agg_compression_ratio)
