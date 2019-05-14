@@ -18,7 +18,7 @@ import plot_pattern_distribution, plot_ngram_freq_masks
 RET_ERR = 15
 
 # TODO: make these parameters of the script
-MAX_ITERATIONS = 100
+MAX_ITERATIONS = 20
 MIN_COL_COVERAGE = 0.2
 
 

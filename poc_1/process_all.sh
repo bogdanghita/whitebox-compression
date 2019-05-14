@@ -1,6 +1,4 @@
 #!/bin/bash
-set -e
-set -o pipefail
 
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 WORKING_DIR="$(pwd)"
@@ -23,8 +21,6 @@ wbs_dir="$1"
 
 
 generate_sample() {
-	set -e
-	set -o pipefail
 	echo "$(date) [generate_sample]"
 
 	wb="$1"
@@ -43,8 +39,6 @@ generate_sample() {
 }
 
 generate_expression() {
-	set -e
-	set -o pipefail
 	echo "$(date) [generate_expression]"
 
 	wb="$1"
@@ -61,8 +55,6 @@ generate_expression() {
 }
 
 apply_expression() {
-	set -e
-	set -o pipefail
 	echo "$(date) [apply_expression]"
 
 	wb="$1"
@@ -80,8 +72,6 @@ apply_expression() {
 
 
 process() {
-	set -e
-	set -o pipefail
 	echo "$(date) [process]"
 
 	wb="$1"

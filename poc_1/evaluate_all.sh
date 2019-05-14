@@ -1,6 +1,4 @@
 #!/bin/bash
-set -e
-set -o pipefail
 
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 WORKING_DIR="$(pwd)"
@@ -22,8 +20,6 @@ wbs_dir="$1"
 
 
 evaluate() {
-	set -e
-	set -o pipefail
 	echo "$(date) [evaluate]"
 
 	wb="$1"
