@@ -8,7 +8,7 @@ from lib.util import *
 from lib_pattern_detection.expression_tree import *
 
 
-def compare_data_files(s_file1, s_file2, s_data1, s_data2):
+def compare_data_files(s_file1, s_file2, s_data1, s_data2, table_name="<table_name>"):
 	table_data_files = {
 		s_file1: s_data1["table"]["data_files"],
 		s_file2: s_data2["table"]["data_files"]
@@ -27,12 +27,12 @@ def compare_data_files(s_file1, s_file2, s_data1, s_data2):
 	output += "\n[ratio]\n"
 	size_B1, size_B2 = table_data_files[s_file1]["size_B"], table_data_files[s_file2]["size_B"]
 	size_B_ratio = float(size_B1) / size_B2 if size_B2 != 0 else float("inf")
-	output += "size_B(1) / size_B(2) = %.2f" % (size_B_ratio)
+	output += "[%s] size_B(1)=%s, size_B(2)=%s, table_compression_ratio=%.2f" % (table_name, sizeof_fmt(size_B1), sizeof_fmt(size_B2), size_B_ratio)
 
 	return output
 
 
-def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_stats_file):
+def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_stats_file, table_name="<table_name>"):
 	column_data = {
 		s_file1: {c["col_data"]["col_name"]: c for c in s_data1["columns"].values()},
 		s_file2: {c["col_data"]["col_name"]: c for c in s_data2["columns"].values()}
@@ -130,7 +130,8 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 
 		# aggregate for used columns
 		agg_compression_ratio = float(agg_in_size_B) / agg_total_out_size_B if agg_total_out_size_B > 0 else float("inf")
-		agg_output += "\nagg_in_size={agg_in_size_B}, agg_total_out_size={agg_total_out_size_B}, agg_compression_ratio={agg_compression_ratio:.2f}".format(
+		agg_output += "\n[{table_name}] agg_in_size={agg_in_size_B}, agg_total_out_size={agg_total_out_size_B}, used_compression_ratio={agg_compression_ratio:.2f}".format(
+					table_name=table_name,
 					agg_in_size_B=sizeof_fmt(agg_in_size_B),
 					agg_total_out_size_B=sizeof_fmt(agg_total_out_size_B),
 					agg_compression_ratio=agg_compression_ratio)
@@ -144,16 +145,22 @@ def compare_stats(s_file1, s_file2, expr_tree_file, apply_expr_stats_file):
 		s_data1 = json.load(f1)
 		s_data2 = json.load(f2)
 
+	try:
+		table_name = os.path.basename(s_file1).split(".")[0]
+	except Exception as e:
+		print("debug: unable to get table name from file name")
+		table_name = "<table_name>"
+
 	# data_files
 	try:
-		output_df = compare_data_files(s_file1, s_file2, s_data1, s_data2)
+		output_df = compare_data_files(s_file1, s_file2, s_data1, s_data2, table_name)
 		print(output_df)
 	except Exception as e:
 		print("error: unable to perform: compare_data_files; e={}".format(e))
 
 	# expression nodes: in/out column comparison
 	try:
-		output_cols = compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_stats_file)
+		output_cols = compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_stats_file, table_name)
 		print(output_cols)
 	except Exception as e:
 		print("error: unable to perform: compare_ccs; e={}".format(e))
@@ -229,7 +236,7 @@ for wb in $testset_dir/*; do \
     wb="$(basename $wb)"; \
     echo $wb $table; \
 \
-    out_table="${table}_out"
+    out_table="${table}_out"; \
     stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json; \
     stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json; \
     stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json; \
