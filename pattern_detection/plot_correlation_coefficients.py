@@ -10,13 +10,15 @@ import numpy as np
 def plot(plt, header, rows, out_file=None, out_file_format="svg"):
 	arr = np.array(rows)
 
-	plt.figure(figsize=(8, 8), dpi=100)
+	# plt.figure(figsize=(8, 8), dpi=100)
+	figsize = max(8, len(header) / 6)
+	plt.figure(figsize=(figsize, figsize), dpi=100)
 	plt.imshow(arr, cmap='hot', interpolation=None, aspect='auto')
 	plt.colorbar(label="correlation coefficient")
 	plt.xticks(range(len(header)), header, rotation=270)
 	plt.yticks(range(len(header)), header, rotation=0)
-	plt.xlabel("col_id")
-	plt.ylabel("col_id")
+	plt.xlabel("col_id (determines cols on Y axis)")
+	plt.ylabel("col_id (is determined by cols on X axis)")
 	plt.tight_layout()
 
 	if out_file:

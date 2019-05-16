@@ -659,8 +659,9 @@ class NGramFreqSplit(StringPatternDetector):
 
 
 class ColumnCorrelation(PatternDetector):
-	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value):
+	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, corr_sample_size):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
+		self.corr_sample_size = corr_sample_size
 		# corr_coefs cache
 		self.corr_coefs = None
 		self.init_columns(columns)
@@ -747,17 +748,33 @@ class ColumnCorrelation(PatternDetector):
 
 		return res
 
+	def get_sample_values(self):
+		sample_values = {}
+
+		nb_rows = len(self.columns[list(self.columns.keys())[0]]["attrs"])
+		nb_sample_points = min(self.corr_sample_size, nb_rows)
+
+		sample_points = [int(x) for x in np.random.uniform(0, nb_rows, nb_sample_points)]
+
+		for c_idx in self.columns.keys():
+			col_id = self.columns[c_idx]["info"].col_id
+			col_values = self.columns[c_idx]["attrs"]
+			sample_values[col_id] = np.take(col_values, sample_points)
+
+		return sample_values
+
 	def get_corr_coefs(self):
 		# do not recompute corr_coefs if cached
 		if self.corr_coefs is not None:
 			return self.corr_coefs
 
-		column_values = {self.columns[c_idx]["info"].col_id: np.array(self.columns[c_idx]["attrs"]) for c_idx in self.columns.keys()}
+		# column_values = {self.columns[c_idx]["info"].col_id: np.array(self.columns[c_idx]["attrs"]) for c_idx in self.columns.keys()}
+		sample_values = self.get_sample_values()
 		corr_coefs = {}
 
-		for c1_id, c1_values in column_values.items():
+		for c1_id, c1_values in sample_values.items():
 			corr_coefs[c1_id] = {}
-			for c2_id, c2_values in column_values.items():
+			for c2_id, c2_values in sample_values.items():
 				corr_coefs[c1_id][c2_id] = theils_u(c1_values, c2_values)
 
 		# save to corr_coefs cache

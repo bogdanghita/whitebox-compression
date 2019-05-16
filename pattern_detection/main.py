@@ -20,6 +20,7 @@ RET_ERR = 15
 # TODO: make these parameters of the script
 MAX_ITERATIONS = 20
 MIN_COL_COVERAGE = 0.2
+COL_CORR_SAMPLE_SIZE = 1000
 
 
 class PatternDetectionEngine(object):
@@ -263,14 +264,15 @@ def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value)
 	pd_obj_id += 1
 	column_correlation = ColumnCorrelation(
 		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+		corr_sample_size=COL_CORR_SAMPLE_SIZE
 		)
 
 	pattern_detectors = [
 		# null_pattern_detector,
 		# constant_pattern_detector,
-		# number_as_string,
+		number_as_string,
 		# string_common_prefix,
-		# char_set_split,
+		char_set_split,
 		# ngram_freq_split,
 		column_correlation
 	]
@@ -307,6 +309,54 @@ def output_iteration_results(args, it, in_columns, pattern_detectors, patterns, 
 			print("debug: no ColumnCorrelation pattern detector used")
 
 
+def build_expression_tree_iteration(args, it, in_columns, pattern_detectors, pattern_selector, in_data_manager, expression_tree, pattern_log):
+	# init engine
+	pd_engine = PatternDetectionEngine(in_columns, pattern_detectors)
+	# feed data to engine
+	data_loop(in_data_manager, pd_engine, args.fdelim)
+	# get results from engine
+	(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
+	# update pattern log
+	pattern_log.update_log(patterns, pattern_detectors)
+
+	# debug
+	OutputManager.output_stats(in_columns, patterns)
+	# end-debug
+
+	# select patterns for each column
+	expr_nodes = pattern_selector.select_patterns(patterns, in_columns, valid_tuple_count)
+
+	# debug
+	# for en in expr_nodes: print(en)
+	# end-debug
+
+	# output iteration results
+	output_iteration_results(args, it, in_columns, pattern_detectors, patterns, expr_nodes)
+
+	# stop if no more patterns can be applied
+	if len(expr_nodes) == 0:
+		print("stop iteration: no more patterns can be applied")
+		return None
+
+	# add expression nodes as a new level in the expression tree
+	expression_tree.add_level(expr_nodes)
+
+	# apply expression nodes
+	out_data_manager = DataManager()
+	expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
+	out_columns = expr_manager.get_out_columns()
+
+	c_mask = ["1"] * len(in_columns)
+	apply_expressions(expr_manager, in_data_manager, out_data_manager, c_mask)
+
+	# debug
+	# for oc in out_columns: print(oc.col_id)
+	# for oc in expression_tree.get_out_columns(): print(oc)
+	# end-debug
+
+	return (out_columns, out_data_manager)
+
+
 def build_expression_tree(args, in_data_manager, columns):
 	in_columns = deepcopy(columns)
 	expression_tree = ExpressionTree(in_columns)
@@ -320,49 +370,12 @@ def build_expression_tree(args, in_data_manager, columns):
 		# pattern_selector = DummyPatternSelector(MIN_COL_COVERAGE)
 		pattern_selector = CoveragePatternSelector(MIN_COL_COVERAGE)
 
-		# init engine
-		pd_engine = PatternDetectionEngine(in_columns, pattern_detectors)
-		# feed data to engine
-		data_loop(in_data_manager, pd_engine, args.fdelim)
-		# get results from engine
-		(patterns, total_tuple_count, valid_tuple_count) = pd_engine.get_patterns()
-		# update pattern log
-		pattern_log.update_log(patterns, pattern_detectors)
-
-		# debug
-		OutputManager.output_stats(in_columns, patterns)
-		# end-debug
-
-		# select patterns for each column
-		expr_nodes = pattern_selector.select_patterns(patterns, in_columns, valid_tuple_count)
-
-		# debug
-		for en in expr_nodes: print(en)
-		# end-debug
-
-		# output iteration results
-		output_iteration_results(args, it, in_columns, pattern_detectors, patterns, expr_nodes)
-
-		# stop if no more patterns can be applied
-		if len(expr_nodes) == 0:
-			print("stop iteration: no more patterns can be applied")
+		res = build_expression_tree_iteration(args, it,
+					in_columns, pattern_detectors, pattern_selector, in_data_manager,
+					expression_tree, pattern_log)
+		if res is None:
 			break
-
-		# add expression nodes as a new level in the expression tree
-		expression_tree.add_level(expr_nodes)
-
-		# apply expression nodes
-		out_data_manager = DataManager()
-		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
-		out_columns = expr_manager.get_out_columns()
-
-		mask = ["1"] * len(in_columns)
-		apply_expressions(expr_manager, in_data_manager, out_data_manager, mask)
-
-		# debug
-		# for oc in out_columns: print(oc.col_id)
-		# for oc in expression_tree.get_out_columns(): print(oc)
-		# end-debug
+		(out_columns, out_data_manager) = res
 
 		# prepare next iteration
 		in_data_manager = out_data_manager
