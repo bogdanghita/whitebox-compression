@@ -2,9 +2,11 @@ import os
 import sys
 from copy import deepcopy
 from statistics import mean, median
+import numpy as np
 from lib.util import *
 from lib.prefix_tree import PrefixTree
 from lib.datatype_analyzer import NumericDatatypeAnalyzer
+from lib.nominal import *
 
 
 class OperatorException(Exception):
@@ -445,7 +447,7 @@ class CharSetSplit(StringPatternDetector):
 		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
 
 		# operator info
-		operator_info = dict(char_sets={}, pattern_string=pattern_s)
+		operator_info = dict(name="split", char_sets={}, pattern_string=pattern_s)
 		for ph, cs in self.char_sets.items():
 			new_cs = deepcopy(cs)
 			new_cs["char_set"] = list(new_cs["char_set"])
@@ -655,6 +657,125 @@ class NGramFreqSplit(StringPatternDetector):
 			res[col["info"].col_id] = (lambda col: (self.get_ngram_freq_mask(attr, col["ngrams"]["freqs"], delim=delim) for attr in col["attrs"]))(col)
 		return res
 
+
+class ColumnCorrelation(PatternDetector):
+	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value):
+		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
+		# corr_coefs cache
+		self.corr_coefs = None
+		self.init_columns(columns)
+
+	def select_column(self, col):
+		return True
+
+	@classmethod
+	def empty_col_item(cls, col):
+		res = PatternDetector.empty_col_item(col)
+		res["nulls"] = []
+		res["attrs"] = []
+		return res
+
+	def handle_attr(self, attr, idx):
+		'''Handles an attribute
+
+		Returns:
+			handled: boolean value indicating whether the attr was handled by this function or not
+		'''
+		col = self.columns[idx]
+
+		if self.is_null(attr, self.null_value):
+			col["nulls"].append(self.row_count-1)
+
+		# store the attributes for the evaluate() step
+		# TODO: store these values globally, i.e. only once, to avoid storing them twice if more pattern detectors need to do this
+		col["attrs"].append(attr)
+
+		return True
+
+	def feed_tuple(self, tpl):
+		PatternDetector.feed_tuple(self, tpl)
+		for idx in self.columns.keys():
+			attr = tpl[idx]
+			self.handle_attr(attr, idx)
+
+		# invalidate corr_coefs cache
+		self.corr_coefs = None
+
+	def compute_coverage(self, col):
+		# NOTE: the current implementation cannot determine the coverage
+		return 0.0
+
+	def build_pattern_data(self, col, p_idx, determined_columns):
+		res_columns, ex_columns = [], []
+		coverage = self.compute_coverage(col)
+		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
+
+		# operator info
+		operator_info = dict(name="combine")
+
+		# TODO: fill in res_columns
+
+		# TODO: fill in and ex_columns
+
+		# pattern data
+		p_item = {
+			"p_id": "{}:default".format(self.name),
+			"coverage": coverage,
+			"rows": col["patterns"]["default"]["rows"],
+			"res_columns": res_columns,
+			"ex_columns": ex_columns,
+			"operator_info": operator_info,
+			"details": dict(null_coverage=null_coverage),
+			"pattern_signature": self.get_signature()
+		}
+		return p_item
+
+	def evaluate(self):
+		res = dict()
+
+		corr_coefs = self.get_corr_coefs()
+
+		for idx, col in self.columns.items():
+			patterns = []
+			determined_columns = []
+			# TODO: select columns determined by col, that are good for column correlation ([?] with high corr_coef)
+
+			p_idx = len(patterns)
+			p_item = self.build_pattern_data(col, p_idx, determined_columns)
+			patterns.append(p_item)
+			# res[col["info"].col_id] = patterns
+
+		return res
+
+	def get_corr_coefs(self):
+		# do not recompute corr_coefs if cached
+		if self.corr_coefs is not None:
+			return self.corr_coefs
+
+		column_values = {self.columns[c_idx]["info"].col_id: np.array(self.columns[c_idx]["attrs"]) for c_idx in self.columns.keys()}
+		corr_coefs = {}
+
+		for c1_id, c1_values in column_values.items():
+			corr_coefs[c1_id] = {}
+			for c2_id, c2_values in column_values.items():
+				corr_coefs[c1_id][c2_id] = theils_u(c1_values, c2_values)
+
+		# save to corr_coefs cache
+		self.corr_coefs = corr_coefs
+		return corr_coefs
+
+	@classmethod
+	def get_operator(cls, cols_in, cols_out, operator_info, null_value):
+		def operator(attrs):
+
+			# TODO
+
+			attrs_out = [null_value] * len(cols_out)
+			return attrs_out
+
+		return operator
+
+
 '''
 ================================================================================
 '''
@@ -662,9 +783,10 @@ pattern_detectors = {
 	"NullPatternDetector".lower(): NullPatternDetector,
 	"ConstantPatternDetector".lower(): ConstantPatternDetector,
 	"NumberAsString".lower(): NumberAsString,
+	"StringCommonPrefix".lower(): StringCommonPrefix,
 	"CharSetSplit".lower(): CharSetSplit,
 	"NGramFreqSplit".lower(): NGramFreqSplit,
-	"StringCommonPrefix".lower(): StringCommonPrefix,
+	"ColumnCorrelation".lower(): ColumnCorrelation,
 }
 def get_pattern_detector(pattern_id):
 	default_exception = Exception("Invalid pattern id")

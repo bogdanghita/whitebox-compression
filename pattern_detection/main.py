@@ -12,7 +12,7 @@ from patterns import *
 from apply_expression import ExpressionManager
 from lib.expression_tree import ExpressionTree
 from plot_expression_tree import plot_expression_tree
-import plot_pattern_distribution, plot_ngram_freq_masks
+import plot_pattern_distribution, plot_ngram_freq_masks, plot_correlation_coefficients
 
 
 RET_ERR = 15
@@ -133,6 +133,22 @@ class OutputManager(object):
 			plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 	@staticmethod
+	def output_corr_coefs(level, corr_coefs, corr_coefs_output_dir, fdelim=",", plot_file_format="svg"):
+		out_file = "{}/l_{}.csv".format(corr_coefs_output_dir, level)
+		columns = sorted(corr_coefs.keys())
+		with open(out_file, 'w') as fd:
+			header = fdelim.join(columns)
+			fd.write(header + "\n")
+			for col1_id in columns:
+				values = []
+				for col2_id in columns:
+					values.append("{:.6f}".format(corr_coefs[col1_id][col2_id]))
+				fd.write(fdelim.join(values) + "\n")
+
+		plot_file = "{}/l_{}.{}".format(corr_coefs_output_dir, level, plot_file_format)
+		plot_correlation_coefficients.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
+
+	@staticmethod
 	def output_expression_tree(expression_tree, output_dir, plot=True):
 		expr_tree_out_file = os.path.join(output_dir, "expr_tree.json")
 		with open(expr_tree_out_file, 'w') as f:
@@ -162,6 +178,8 @@ def parse_args():
 		help="Output dir to write pattern distribution to")
 	parser.add_argument('--ngram-freq-masks-output-dir', dest='ngram_freq_masks_output_dir', type=str,
 		help="Output dir to write ngram frequency masks to")
+	parser.add_argument('--corr-coefs-output-dir', dest='corr_coefs_output_dir', type=str,
+		help="Output dir to write column correlation coefficients to")
 	parser.add_argument("-F", "--fdelim", dest="fdelim",
 		help="Use <fdelim> as delimiter between fields", default="|")
 	parser.add_argument("--null", dest="null", type=str,
@@ -242,16 +260,51 @@ def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value)
 		n=3
 		)
 	# NOTE: don't forget to increment pd_obj_id before adding a new pattern
+	pd_obj_id += 1
+	column_correlation = ColumnCorrelation(
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+		)
 
 	pattern_detectors = [
 		# null_pattern_detector,
 		# constant_pattern_detector,
-		number_as_string,
+		# number_as_string,
 		# string_common_prefix,
-		char_set_split,
+		# char_set_split,
 		# ngram_freq_split,
+		column_correlation
 	]
 	return pattern_detectors
+
+
+def output_iteration_results(args, it, in_columns, pattern_detectors, patterns, expr_nodes):
+	# output pattern distributions (for this level)
+	if args.pattern_distribution_output_dir is not None:
+		OutputManager.output_pattern_distribution(it, in_columns, patterns, args.pattern_distribution_output_dir)
+
+	# output ngram frequency masks (for this level)
+	if args.ngram_freq_masks_output_dir is not None:
+		ngram_freq_split_pds = [pd for pd in pattern_detectors if isinstance(pd, NGramFreqSplit)]
+		if len(ngram_freq_split_pds) > 0:
+			if len(ngram_freq_split_pds) != 1:
+				print("debug: more that one NGramFreqSplit pattern detector found; using the first one")
+			ngram_freq_split = ngram_freq_split_pds[0]
+			ngram_freq_masks = ngram_freq_split.get_ngram_freq_masks(delim=",")
+			OutputManager.output_ngram_freq_masks(it, ngram_freq_masks, args.ngram_freq_masks_output_dir)
+		else:
+			print("debug: no NGramFreqSplit pattern detector used")
+
+	# output correlation coefficients (for this level)
+	if args.corr_coefs_output_dir is not None:
+		col_corr_pds = [pd for pd in pattern_detectors if isinstance(pd, ColumnCorrelation)]
+		if len(col_corr_pds) > 0:
+			if len(col_corr_pds) != 1:
+				print("debug: more that one ColumnCorrelation pattern detector found; using the first one")
+			col_corr = col_corr_pds[0]
+			corr_coefs = col_corr.get_corr_coefs()
+			OutputManager.output_corr_coefs(it, corr_coefs, args.corr_coefs_output_dir)
+		else:
+			print("debug: no ColumnCorrelation pattern detector used")
 
 
 def build_expression_tree(args, in_data_manager, columns):
@@ -287,6 +340,9 @@ def build_expression_tree(args, in_data_manager, columns):
 		for en in expr_nodes: print(en)
 		# end-debug
 
+		# output iteration results
+		output_iteration_results(args, it, in_columns, pattern_detectors, patterns, expr_nodes)
+
 		# stop if no more patterns can be applied
 		if len(expr_nodes) == 0:
 			print("stop iteration: no more patterns can be applied")
@@ -307,23 +363,6 @@ def build_expression_tree(args, in_data_manager, columns):
 		# for oc in out_columns: print(oc.col_id)
 		# for oc in expression_tree.get_out_columns(): print(oc)
 		# end-debug
-
-# '''
-		# output pattern distributions (for this level)
-		if args.pattern_distribution_output_dir is not None:
-			OutputManager.output_pattern_distribution(it, in_columns, patterns, args.pattern_distribution_output_dir)
-		# output ngram frequency masks (for this level)
-		if args.ngram_freq_masks_output_dir is not None:
-			ngram_freq_split_pds = [pd for pd in pattern_detectors if isinstance(pd, NGramFreqSplit)]
-			if len(ngram_freq_split_pds) > 0:
-				if len(ngram_freq_split_pds) != 1:
-					print("debug: more that one NGramFreqSplit pattern detector found; using the first one")
-				ngram_freq_split = ngram_freq_split_pds[0]
-				ngram_freq_masks = ngram_freq_split.get_ngram_freq_masks(delim=",")
-				OutputManager.output_ngram_freq_masks(it, ngram_freq_masks, args.ngram_freq_masks_output_dir)
-			else:
-				print("debug: no NGramFreqSplit pattern detector used")
-# '''
 
 		# prepare next iteration
 		in_data_manager = out_data_manager
@@ -419,17 +458,19 @@ max_sample_size=$((1024*1024*10))
 dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
+corr_coefs_output_dir=$wbs_dir/$wb/$table.corr_coefs
 expr_tree_output_dir=$wbs_dir/$wb/$table.expr_tree
 
 #[sample]
 ./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
 
 #[pattern-detection]
-mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $expr_tree_output_dir && \
+mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $corr_coefs_output_dir $expr_tree_output_dir && \
 time ./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv \
 --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv \
 --pattern-distribution-output-dir $pattern_distr_out_dir \
 --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir \
+--corr-coefs-output-dir $corr_coefs_output_dir \
 --expr-tree-output-dir $expr_tree_output_dir \
 $wbs_dir/$wb/$table.sample.csv
 
