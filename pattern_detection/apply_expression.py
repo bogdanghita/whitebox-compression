@@ -123,7 +123,7 @@ class ExpressionManager(object):
 		# ex_col_stats = []
 		# for in_col_s in in_columns_stats:
 		# 	in_col_s["exception_ratio"] = float(in_col_s["exception_count"]) / valid_tuple_count if valid_tuple_count > 0 else float("inf")
-		# 	ex_col_id = ExceptionColumnManager.get_exception_col_id(in_col_s["col_id"])
+		# 	ex_col_id = OutputColumnManager.get_exception_col_id(in_col_s["col_id"])
 		# 	# NOTE: this check is necessary because not all input columns have an exception column
 		# 	if ex_col_id in self.out_columns_map:
 		# 		ex_col_stats.append(in_col_s)
@@ -195,11 +195,15 @@ class ExpressionManager(object):
 		for in_col_idx, in_col in enumerate(self.in_columns):
 			# if column not preset as input in any expression node
 			if in_col.col_id not in in_columns_used:
+				# attr is null and no expression node handled it
+				if in_tpl[in_col_idx] == self.null_value:
+					# nothing to be done; out_tpl[out_col_idx] is already null
+					continue
 				# in_col is an output column
 				if in_col.col_id in self.out_columns_map:
 					out_col_idx = self.out_columns_map[in_col.col_id]
 				else: # exception
-					out_col_idx = self.out_columns_map[ExceptionColumnManager.get_exception_col_id(in_col.col_id)]
+					out_col_idx = self.out_columns_map[OutputColumnManager.get_exception_col_id(in_col.col_id)]
 				# add attr to out_tpl & mark out_col used in out_mask
 				out_tpl[out_col_idx] = str(in_tpl[in_col_idx])
 				# mark used in out_mask only if used in previous level

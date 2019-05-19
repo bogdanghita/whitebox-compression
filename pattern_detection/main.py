@@ -21,6 +21,7 @@ RET_ERR = 15
 MAX_ITERATIONS = 20
 MIN_COL_COVERAGE = 0.2
 COL_CORR_SAMPLE_SIZE = 1000
+MAX_DICT_SIZE_B = 1 * 1024 * 1024
 
 
 class PatternDetectionEngine(object):
@@ -71,7 +72,9 @@ class OutputManager(object):
 				col = next(c for c in columns if c.col_id == col_id)
 				print("{}".format(col))
 				for p in sorted(col_p_list, key=lambda x: x["coverage"], reverse=True):
-					print("{:.2f}\t{}, res_columns={}, ex_columns={}, operator_info={}".format(p["coverage"], p["p_id"], p["res_columns"], p["ex_columns"], p["operator_info"]))
+					# print("{:.2f}\t{}, res_columns={}, ex_columns={}, operator_info={}".format(p["coverage"], p["p_id"], p["res_columns"], p["ex_columns"], p["operator_info"]))
+					# without operator info
+					print("{:.2f}\t{}, res_columns={}, ex_columns={}".format(p["coverage"], p["p_id"], p["res_columns"], p["ex_columns"]))
 
 	@staticmethod
 	def output_pattern_distribution(level, columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
@@ -260,6 +263,10 @@ def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value)
 		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
 		n=3
 		)
+	dict_pattern = DictPattern(
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+		max_dict_size=MAX_DICT_SIZE_B
+		)
 	# NOTE: don't forget to increment pd_obj_id before adding a new pattern
 	pd_obj_id += 1
 	column_correlation = ColumnCorrelation(
@@ -270,11 +277,12 @@ def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value)
 	pattern_detectors = [
 		# null_pattern_detector,
 		# constant_pattern_detector,
-		number_as_string,
+		# number_as_string,
 		# string_common_prefix,
-		char_set_split,
+		# char_set_split,
 		# ngram_freq_split,
-		column_correlation
+		dict_pattern,
+		# column_correlation
 	]
 	return pattern_detectors
 

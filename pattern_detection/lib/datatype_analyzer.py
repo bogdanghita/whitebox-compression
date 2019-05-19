@@ -5,6 +5,8 @@ from lib.util import *
 
 
 MAX_DECIMAL_PRECISION = 18
+RANGE_TINYINT = (0, 255)
+RANGE_SMALLINT = (-32768, 32767)
 
 
 class MinMax(object):

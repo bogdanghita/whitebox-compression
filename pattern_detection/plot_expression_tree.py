@@ -36,7 +36,7 @@ def plot_expression_tree(expr_tree, out_file):
 	# create vertices
 	col_vertices = {}
 	for col_id, col_item in expr_tree.columns.items():
-		col_type = "exception" if ExceptionColumnManager.is_exception_col(col_item["col_info"]) else "default"
+		col_type = "exception" if OutputColumnManager.is_exception_col(col_item["col_info"]) else "default"
 		c_vertex = get_col_vertex(col_item["col_info"], col_type)
 		graph.add_node(c_vertex)
 		col_vertices[col_id] = c_vertex

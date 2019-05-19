@@ -3,9 +3,10 @@ import sys
 from copy import deepcopy
 from statistics import mean, median
 import numpy as np
+from collections import Counter
 from lib.util import *
 from lib.prefix_tree import PrefixTree
-from lib.datatype_analyzer import NumericDatatypeAnalyzer
+from lib.datatype_analyzer import *
 from lib.nominal import *
 
 
@@ -180,6 +181,176 @@ class ConstantPatternDetector(PatternDetector):
 		# TODO
 
 
+class DictPattern(PatternDetector):
+	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, max_dict_size):
+		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
+		self.max_dict_size = max_dict_size
+		self.init_columns(columns)
+
+	def select_column(self, col):
+		# NOTE: for now we only consider varchar columns
+		return col.datatype.name == "varchar"
+
+	@classmethod
+	def empty_col_item(cls, col):
+		res = PatternDetector.empty_col_item(col)
+		res["nulls"] = []
+		res["counter"] = Counter()
+		return res
+
+	def handle_attr(self, attr, idx):
+		'''Handles an attribute
+
+		Returns:
+			handled: boolean value indicating whether the attr was handled by this function or not
+		'''
+		col = self.columns[idx]
+
+		if self.is_null(attr, self.null_value):
+			col["nulls"].append(self.row_count-1)
+			return True
+		
+		col["counter"][attr] += 1
+
+		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
+
+		return True
+
+	def feed_tuple(self, tpl):
+		PatternDetector.feed_tuple(self, tpl)
+		for idx in self.columns.keys():
+			attr = tpl[idx]
+			self.handle_attr(attr, idx)
+
+	def dict_compressible(self, col_item):
+		counter = col_item["counter"]
+		nb_keys = len(counter.keys())
+		nb_elems = sum(counter.values())
+
+		# check number of keys
+		if nb_keys >= RANGE_SMALLINT[1]:
+			return False
+
+		# NOTE: for now we only consider varchar columns; thus, keys are strings
+
+		# check dict size
+		size_keys = sum([len(key) for key in counter.keys()])
+		if size_keys > self.max_dict_size:
+			return False
+
+		# check total size of input vs total size of output
+		size_out_col = nb_bits(size_keys-1) * nb_elems
+		size_in_col = sum([len(key) * count for key, count in counter.items()])
+		''' 
+		NOTE: we do not take into account the size of the dict, because the relation:
+			size_in_col < size_out_col + size_keys
+			may be False on the sample, but True on the full column
+		'''
+		# if size_in_col < size_out_col + size_keys:
+		if size_in_col < size_out_col:
+			return False
+
+		return True
+
+	def get_output_col_datatype(self, col_item):
+		counter = col_item["counter"]
+		nb_keys = len(counter.keys())
+
+		if nb_keys-1 < RANGE_TINYINT[1]:
+			name = "tinyint"
+		elif nb_keys-1 < RANGE_SMALLINT[1]:
+			name = "smallint"
+		else:
+			raise Exception("Dict size out of range: nb_keys={}".format(nb_keys))
+
+		datatype = DataType(name=name)
+		return datatype
+
+	def compute_coverage(self, col):
+		null_cnt = len(col["nulls"])
+		valid_cnt = len(col["patterns"]["default"]["rows"])
+		total_cnt = self.row_count
+		if total_cnt == 0:
+			return 0
+		return float(valid_cnt) / total_cnt
+
+	def build_pattern_data(self, col):
+		res_columns = []
+		coverage = self.compute_coverage(col)
+		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
+
+		# operator info
+		map_obj = {attr:pos for pos, attr in enumerate(col["counter"].keys())}
+		operator_info = dict(name="map", map=map_obj)
+
+		# new column info
+		ncol_col_id = OutputColumnManager.get_output_col_id(
+			in_col_id=col["info"].col_id,
+			pd_id=self.pd_obj_id,
+			p_id=0,
+			out_col_idx=0)
+		ncol_name = OutputColumnManager.get_output_col_name(
+			in_col_name=col["info"].name,
+			pd_id=self.pd_obj_id,
+			p_id=0,
+			out_col_idx=0)
+
+		ncol_datatype = self.get_output_col_datatype(col)
+		ncol_datatype.nullable = True
+		ncol = Column(ncol_col_id, ncol_name, ncol_datatype)
+		res_columns.append(ncol)
+
+		# pattern data
+		p_item = {
+			"p_id": "{}:default".format(self.name),
+			"coverage": coverage,
+			"rows": col["patterns"]["default"]["rows"],
+			"res_columns": res_columns,
+			"ex_columns": [],
+			"operator_info": operator_info,
+			"details": dict(null_coverage=null_coverage),
+			"pattern_signature": self.get_signature()
+		}
+		return p_item
+
+	def evaluate(self):
+		res = dict()
+
+		for idx, col in self.columns.items():
+			if len(col["patterns"]["default"]["rows"]) == 0:
+				continue
+			if len(col["counter"].keys()) == 0:
+				continue
+			if not self.dict_compressible(col):
+				continue
+
+			# consider column if it is dict_compressible; no score needed
+			p_item = self.build_pattern_data(col)
+			res[col["info"].col_id] = [p_item]
+
+		return res
+
+	@classmethod
+	def get_operator(cls, cols_in, cols_out, operator_info, null_value):
+		def operator(attrs):
+			val = attrs[0]
+
+			if cls.is_null(val, null_value):
+				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
+
+			map_obj = operator_info["map"]
+
+			try:
+				n_val = map_obj[val]
+			except Exception as e:
+				raise OperatorException("[{}] value not in dictionary: value={}, err={}".format(cls.__name__, val, e))
+
+			attrs_out = [n_val]
+			return attrs_out
+
+		return operator
+
+
 class StringPatternDetector(PatternDetector):
 	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
@@ -275,13 +446,13 @@ class NumberAsString(StringPatternDetector):
 
 		# new column info
 		# ncol_col_id = str(col["info"].col_id) + "_0"
-		ncol_col_id = ExceptionColumnManager.get_output_col_id(
+		ncol_col_id = OutputColumnManager.get_output_col_id(
 			in_col_id=col["info"].col_id,
 			pd_id=self.pd_obj_id,
 			p_id=0,
 			out_col_idx=0)
 		# ncol_name = str(col["info"].name) + "_0"
-		ncol_name = ExceptionColumnManager.get_output_col_name(
+		ncol_name = OutputColumnManager.get_output_col_name(
 			in_col_name=col["info"].name,
 			pd_id=self.pd_obj_id,
 			p_id=0,
@@ -293,7 +464,7 @@ class NumberAsString(StringPatternDetector):
 		res_columns.append(ncol)
 
 		# exception column info
-		ecol = ExceptionColumnManager.get_exception_col(col["info"])
+		ecol = OutputColumnManager.get_exception_col(col["info"])
 		ex_columns.append(ecol)
 
 		# pattern data
@@ -457,13 +628,13 @@ class CharSetSplit(StringPatternDetector):
 		# new columns info
 		for idx, ph in enumerate(pattern_s):
 			# ncol_col_id = str(col["info"].col_id) + "_" + str(idx)
-			ncol_col_id = ExceptionColumnManager.get_output_col_id(
+			ncol_col_id = OutputColumnManager.get_output_col_id(
 				in_col_id=col["info"].col_id,
 				pd_id=self.pd_obj_id,
 				p_id=p_idx,
 				out_col_idx=idx)
 			# ncol_name = str(col["info"].name) + "_" + str(idx)
-			ncol_name = ExceptionColumnManager.get_output_col_name(
+			ncol_name = OutputColumnManager.get_output_col_name(
 				in_col_name=col["info"].name,
 				pd_id=self.pd_obj_id,
 				p_id=p_idx,
@@ -477,7 +648,7 @@ class CharSetSplit(StringPatternDetector):
 			res_columns.append(ncol)
 
 		# exception column info
-		ecol = ExceptionColumnManager.get_exception_col(col["info"])
+		ecol = OutputColumnManager.get_exception_col(col["info"])
 		ex_columns.append(ecol)
 
 		# pattern data
@@ -799,6 +970,7 @@ class ColumnCorrelation(PatternDetector):
 pattern_detectors = {
 	"NullPatternDetector".lower(): NullPatternDetector,
 	"ConstantPatternDetector".lower(): ConstantPatternDetector,
+	"DictPattern".lower(): DictPattern,
 	"NumberAsString".lower(): NumberAsString,
 	"StringCommonPrefix".lower(): StringCommonPrefix,
 	"CharSetSplit".lower(): CharSetSplit,

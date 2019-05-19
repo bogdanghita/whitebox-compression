@@ -81,7 +81,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 			for col_item in out_columns:
 				out_col = col_item["col_info"]
 				# handle expcetion columns separately
-				if ExceptionColumnManager.is_exception_col(out_col):
+				if OutputColumnManager.is_exception_col(out_col):
 					continue
 				col_id, col_name = out_col.col_id, out_col.name
 				if col_name not in column_data[s_file2]:
@@ -99,7 +99,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 			ccs_output += "\n[exception_colums]"
 			for col_item in out_columns:
 				ex_col = col_item["col_info"]
-				if not ExceptionColumnManager.is_exception_col(ex_col):
+				if not OutputColumnManager.is_exception_col(ex_col):
 					continue
 				col_id, col_name = ex_col.col_id, ex_col.name
 				if col_name not in column_data[s_file2]:

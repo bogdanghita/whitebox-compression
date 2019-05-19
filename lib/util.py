@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import re
+import math
 from copy import deepcopy
 
 
@@ -11,6 +12,14 @@ def sizeof_fmt(num, suffix='B'):
 			return "%.1f%s%s" % (num, unit, suffix)
 		num /= 1024.0
 	return "%.1f%s%s" % (num, 'Yi', suffix)
+
+
+def nb_bits(num):
+	if num < 0:
+		raise Exception("Unsupported: negative number")
+	if num == 0:
+		return 1
+	return math.ceil(math.log(num+1, 2))
 
 
 def eprint(s):
@@ -228,7 +237,7 @@ class ExpressionNode(object):
 		return cls.from_dict(res_d)
 
 
-class ExceptionColumnManager(object):
+class OutputColumnManager(object):
 	@classmethod
 	def get_output_col_id(cls, in_col_id, pd_id, p_id, out_col_idx):
 		return "{}__{}_{}_{}".format(in_col_id, pd_id, p_id, out_col_idx)
