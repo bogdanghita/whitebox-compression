@@ -3,7 +3,7 @@ import sys
 from copy import deepcopy
 from statistics import mean, median
 import numpy as np
-from collections import Counter
+from collections import Counter, defaultdict
 from lib.util import *
 from lib.prefix_tree import PrefixTree
 from lib.datatype_analyzer import *
@@ -21,13 +21,72 @@ class PatternDetector(object):
 		self.expr_tree = expr_tree
 		self.null_value = null_value
 		self.row_count = 0
-		self.name = self.__class__.__name__
+		self.name = self.get_p_name()
 		self.columns = {}
+
+	@classmethod
+	def get_p_name(cls):
+		return cls.__name__
 
 	def init_columns(self, columns):
 		for idx, col in enumerate(columns):
 			if self.select_column(col):
 				self.columns[idx] = self.empty_col_item(col)
+
+	def _select_column_norepeat(self, col):
+		# do not try this pattern again on the same column
+		p_log = self.pattern_log.get_log(col.col_id)
+		pattern_signature = self.get_signature()
+		if pattern_signature in p_log:
+			return False
+		return True
+
+	def _select_column_norepeat_parent(self, col):
+		# do not try this pattern if col is an output column of this exact same pattern
+		pattern_signature = self.get_signature()
+		et_col = self.expr_tree.get_column(col.col_id)
+		if et_col is None:
+			raise Exception("Column not present in the expression tree: col={}".format(col))
+		# NOTE: exception columns can have multiple expr_n parents
+		parent_expr_n_id_list = et_col["output_of"]
+		if len(parent_expr_n_id_list) == 0:
+			return True
+		for parent_expr_n_id in parent_expr_n_id_list:
+			parent_expr_n = self.expr_tree.get_node(parent_expr_n_id)
+			if pattern_signature == parent_expr_n.pattern_signature:
+				return False
+		return True
+
+	def _select_column_output_of(self, col, accept_out=set(), accept_ex=set(), 
+											reject_out=set(), reject_ex=set()):
+		et_col = self.expr_tree.get_column(col.col_id)
+		if et_col is None:
+			raise Exception("Column not present in the expression tree: col={}".format(col))
+
+		# NOTE: exception columns can have multiple expr_n parents
+		parent_expr_n_id_list = et_col["output_of"]
+
+		if len(parent_expr_n_id_list) == 0 and len(accept_out) + len(accept_ex) > 0:
+			return False
+
+		if OutputColumnManager.is_exception_col(col):
+			for parent_expr_n_id in parent_expr_n_id_list:
+				parent_expr_n = self.expr_tree.get_node(parent_expr_n_id)
+				if parent_expr_n.p_name in accept_ex:
+					return True
+				if parent_expr_n.p_name in reject_ex:
+					return False
+		elif len(parent_expr_n_id_list) > 0:
+			parent_expr_n = self.expr_tree.get_node(parent_expr_n_id_list[0])
+			if parent_expr_n.p_name in accept_out:
+				return True
+			if parent_expr_n.p_name in reject_out:
+				return False
+
+		if len(accept_out) + len(accept_ex) > 0:
+			return False
+
+		return True
 
 	def select_column(self, col):
 		return True
@@ -63,6 +122,7 @@ class PatternDetector(object):
 				patterns: list(
 					dict(
 						p_id: # id of the pattern
+						p_name: # name of the pattern class
 						score: float # number between 0 and 1 indicating how well the column fits this pattern
 						rows: [row_id: int, ...], # rows where the pattern applies; indexed from 0
 						res_columns: [rcol_1, rcol_2, ...], # list of resulting columns; type: util.Column
@@ -127,6 +187,7 @@ class NullPatternDetector(PatternDetector):
 			coverage = 0 if self.row_count == 0 else len(col["patterns"]["default"]["rows"]) / self.row_count
 			p_item = {
 				"p_id": "{}:default".format(self.name),
+				"p_name": self.name,
 				"coverage": coverage,
 				"rows": col["patterns"]["default"]["rows"],
 				"res_columns": [], # TODO
@@ -141,21 +202,27 @@ class NullPatternDetector(PatternDetector):
 
 
 class ConstantPatternDetector(PatternDetector):
-	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value):
+	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, min_constant_ratio):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
+		self.min_constant_ratio = min_constant_ratio
 		self.init_columns(columns)
 
 	def select_column(self, col):
-		# do not try this pattern again
-		p_log = self.pattern_log.get_log(col.col_id)
-		if self.get_signature() in p_log:
+		# do not try this pattern again on the same column
+		if not self._select_column_norepeat(col):
 			return False
+		# do not try this pattern if col is an output column of this exact same pattern
+		if not self._select_column_norepeat_parent(col):
+			return False
+
 		return True
 
 	@classmethod
 	def empty_col_item(cls, col):
 		res = PatternDetector.empty_col_item(col)
 		res["nulls"] = []
+		res["counter"] = Counter()
+		res["attrs"] = defaultdict(list)
 		return res
 
 	def handle_attr(self, attr, idx):
@@ -164,10 +231,15 @@ class ConstantPatternDetector(PatternDetector):
 		Returns:
 			handled: boolean value indicating whether the attr was handled by this function or not
 		'''
+		col = self.columns[idx]
+
 		if self.is_null(attr, self.null_value):
-			self.columns[idx]["nulls"].append(self.row_count-1)
+			col["nulls"].append(self.row_count-1)
 			return True
-		# TODO
+
+		col["counter"][attr] += 1
+		col["attrs"][attr].append(self.row_count-1)
+		
 		return True
 
 	def feed_tuple(self, tpl):
@@ -176,9 +248,83 @@ class ConstantPatternDetector(PatternDetector):
 			attr = tpl[idx]
 			self.handle_attr(attr, idx)
 
+	def constant_compressible(self, col, constant, count):
+		null_cnt = len(col["nulls"])
+		constant_cnt = count
+		notnull_cnt = self.row_count - null_cnt
+		if notnull_cnt == 0:
+			return False
+		constant_ratio = float(constant_cnt) / notnull_cnt
+		return constant_ratio >= self.min_constant_ratio
+
+	def compute_coverage(self, col, constant, count):
+		null_cnt = len(col["nulls"])
+		valid_cnt = count
+		total_cnt = self.row_count
+		if total_cnt == 0:
+			return 0
+		return float(valid_cnt) / total_cnt
+
+	def build_pattern_data(self, col, constant, count):
+		ex_columns = []
+
+		col["patterns"]["default"]["rows"] = col["attrs"][constant]
+		coverage = self.compute_coverage(col, constant, count)
+		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
+
+		# operator info
+		operator_info = dict(name="map", constant=constant)
+
+		# exception column info
+		ecol = OutputColumnManager.get_exception_col(col["info"])
+		ex_columns.append(ecol)
+
+		# pattern data
+		p_item = {
+			"p_id": "{}:default".format(self.name),
+			"p_name": self.name,
+			"coverage": coverage,
+			"rows": col["patterns"]["default"]["rows"],
+			"res_columns": [],
+			"ex_columns": ex_columns,
+			"operator_info": operator_info,
+			"details": dict(null_coverage=null_coverage),
+			"pattern_signature": self.get_signature()
+		}
+		return p_item
+
 	def evaluate(self):
-		return dict()
-		# TODO
+		res = dict()
+
+		for idx, col in self.columns.items():
+			if len(col["counter"].keys()) == 0:
+				continue
+
+			constant, count = col["counter"].most_common(1)[0]
+			if not self.constant_compressible(col, constant, count):
+				continue
+
+			# consider column if it is constant_compressible; no score needed
+			p_item = self.build_pattern_data(col, constant, count)
+			res[col["info"].col_id] = [p_item]
+
+		return res
+
+	@classmethod
+	def get_operator(cls, cols_in, cols_out, operator_info, null_value):
+		def operator(attrs):
+			val = attrs[0]
+
+			if cls.is_null(val, null_value):
+				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
+
+			constant = operator_info["constant"]
+			if val != constant:
+				raise OperatorException("[{}] value not equal to constant: value={}".format(cls.__name__, val))
+
+			return []
+
+		return operator
 
 
 class DictPattern(PatternDetector):
@@ -189,7 +335,23 @@ class DictPattern(PatternDetector):
 
 	def select_column(self, col):
 		# NOTE: for now we only consider varchar columns
-		return col.datatype.name == "varchar"
+		if col.datatype.name != "varchar":
+			return False
+
+		# do not try this pattern again on the same column
+		if not self._select_column_norepeat(col):
+			return False
+		# do not try this pattern if col is an output column of this exact same pattern
+		if not self._select_column_norepeat_parent(col):
+			return False
+
+		""" do not try this pattern if col is an output column of ConstantPatternDetector
+		(but it can be an exception column of it)
+		"""
+		if not self._select_column_output_of(col, reject_out={ConstantPatternDetector.get_p_name()}):
+			return False
+
+		return True
 
 	@classmethod
 	def empty_col_item(cls, col):
@@ -303,6 +465,7 @@ class DictPattern(PatternDetector):
 		# pattern data
 		p_item = {
 			"p_id": "{}:default".format(self.name),
+			"p_name": self.name,
 			"coverage": coverage,
 			"rows": col["patterns"]["default"]["rows"],
 			"res_columns": res_columns,
@@ -390,23 +553,14 @@ class NumberAsString(StringPatternDetector):
 	def select_column(self, col):
 		if not StringPatternDetector.select_column(self, col):
 			return False
-		# do not try this pattern again
-		p_log = self.pattern_log.get_log(col.col_id)
-		pattern_signature = self.get_signature()
-		if pattern_signature in p_log:
+
+		# do not try this pattern again on the same column
+		if not self._select_column_norepeat(col):
 			return False
 		# do not try this pattern if col is an output column of this exact same pattern
-		et_col = self.expr_tree.get_column(col.col_id)
-		if et_col is None:
-			raise Exception("Column not present in the expression tree: col={}".format(col))
-		# NOTE: exception columns can have multiple expr_n parents
-		parent_expr_n_id_list = et_col["output_of"]
-		if len(parent_expr_n_id_list) == 0:
-			return True
-		for parent_expr_n_id in parent_expr_n_id_list:
-			parent_expr_n = self.expr_tree.get_node(parent_expr_n_id)
-			if pattern_signature == parent_expr_n.pattern_signature:
-				return False
+		if not self._select_column_norepeat_parent(col):
+			return False
+
 		return True
 
 	@classmethod
@@ -470,6 +624,7 @@ class NumberAsString(StringPatternDetector):
 		# pattern data
 		p_item = {
 			"p_id": "{}:default".format(self.name),
+			"p_name": self.name,
 			"coverage": coverage,
 			"rows": col["patterns"]["default"]["rows"],
 			"res_columns": res_columns,
@@ -525,10 +680,14 @@ class StringCommonPrefix(StringPatternDetector):
 	def select_column(self, col):
 		if not StringPatternDetector.select_column(self, col):
 			return False
-		# do not try this pattern again
-		p_log = self.pattern_log.get_log(col.col_id)
-		if self.get_signature() in p_log:
+
+		# do not try this pattern again on the same column
+		if not self._select_column_norepeat(col):
 			return False
+		# # do not try this pattern if col is an output column of this exact same pattern
+		# if not self._select_column_norepeat_parent(col):
+		# 	return False
+
 		return True
 
 	def handle_attr(self, attr, idx):
@@ -555,10 +714,14 @@ class CharSetSplit(StringPatternDetector):
 	def select_column(self, col):
 		if not StringPatternDetector.select_column(self, col):
 			return False
-		# do not try this pattern again
-		p_log = self.pattern_log.get_log(col.col_id)
-		if self.get_signature() in p_log:
+
+		# do not try this pattern again on the same column
+		if not self._select_column_norepeat(col):
 			return False
+		# do not try this pattern if col is an output column of this exact same pattern
+		if not self._select_column_norepeat_parent(col):
+			return False
+
 		return True
 
 	def get_signature(self):
@@ -654,6 +817,7 @@ class CharSetSplit(StringPatternDetector):
 		# pattern data
 		p_item = {
 			"p_id": "{}:{}".format(self.name, pattern_s),
+			"p_name": self.name,
 			"coverage": coverage,
 			"rows": pattern_s_data["rows"],
 			"res_columns": res_columns,
@@ -747,7 +911,17 @@ class NGramFreqSplit(StringPatternDetector):
 		self.init_columns(columns)
 
 	def select_column(self, col):
-		return StringPatternDetector.select_column(self, col)
+		if StringPatternDetector.select_column(self, col) == False:
+			return False
+
+		# do not try this pattern again on the same column
+		if not self._select_column_norepeat(col):
+			return False
+		# # do not try this pattern if col is an output column of this exact same pattern
+		# if not self._select_column_norepeat_parent(col):
+		# 	return False
+
+		return True
 
 	@classmethod
 	def empty_col_item(cls, col):
@@ -838,7 +1012,13 @@ class ColumnCorrelation(PatternDetector):
 		self.init_columns(columns)
 
 	def select_column(self, col):
-		return True
+		# do not try this pattern again on the same column
+		if not self._select_column_norepeat(col):
+			return False
+		""" only select if col is an output column of DictPattern 
+		(and not an exception column of it)
+		"""
+		return self._select_column_output_of(col, accept_out={DictPattern.get_p_name()})
 
 	@classmethod
 	def empty_col_item(cls, col):
@@ -892,6 +1072,7 @@ class ColumnCorrelation(PatternDetector):
 		# pattern data
 		p_item = {
 			"p_id": "{}:default".format(self.name),
+			"p_name": self.name,
 			"coverage": coverage,
 			"rows": col["patterns"]["default"]["rows"],
 			"res_columns": res_columns,

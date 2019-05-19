@@ -22,6 +22,7 @@ MAX_ITERATIONS = 20
 MIN_COL_COVERAGE = 0.2
 COL_CORR_SAMPLE_SIZE = 1000
 MAX_DICT_SIZE_B = 1 * 1024 * 1024
+MIN_CONSTANT_RATIO = 0.9
 
 
 class PatternDetectionEngine(object):
@@ -235,18 +236,29 @@ def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value)
 	null_pattern_detector = NullPatternDetector(
 		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
 		)
+
 	pd_obj_id += 1
 	constant_pattern_detector = ConstantPatternDetector(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+		min_constant_ratio=MIN_CONSTANT_RATIO
 		)
+
+	pd_obj_id += 1
+	dict_pattern = DictPattern(
+		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+		max_dict_size=MAX_DICT_SIZE_B
+		)
+
 	pd_obj_id += 1
 	number_as_string = NumberAsString(
 		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
 		)
+
 	pd_obj_id += 1
 	string_common_prefix = StringCommonPrefix(
 		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
 		)
+
 	pd_obj_id += 1
 	char_set_split = CharSetSplit(
 		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
@@ -258,30 +270,29 @@ def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value)
 		],
 		drop_single_char_pattern=True
 		)
+
 	pd_obj_id += 1
 	ngram_freq_split = NGramFreqSplit(
 		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
 		n=3
 		)
-	dict_pattern = DictPattern(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-		max_dict_size=MAX_DICT_SIZE_B
-		)
-	# NOTE: don't forget to increment pd_obj_id before adding a new pattern
+
 	pd_obj_id += 1
 	column_correlation = ColumnCorrelation(
 		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
 		corr_sample_size=COL_CORR_SAMPLE_SIZE
 		)
 
+	# NOTE: don't forget to increment pd_obj_id before adding a new pattern
+
 	pattern_detectors = [
 		# null_pattern_detector,
-		# constant_pattern_detector,
+		constant_pattern_detector,
+		dict_pattern,
 		# number_as_string,
 		# string_common_prefix,
 		# char_set_split,
 		# ngram_freq_split,
-		dict_pattern,
 		# column_correlation
 	]
 	return pattern_detectors

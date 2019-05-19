@@ -188,8 +188,9 @@ class Column(object):
 
 
 class ExpressionNode(object):
-	def __init__(self, p_id, cols_in, cols_out, cols_ex, operator_info, details, pattern_signature, parents=None, children=None):
+	def __init__(self, p_id, p_name, cols_in, cols_out, cols_ex, operator_info, details, pattern_signature, parents=None, children=None):
 		self.p_id = p_id
+		self.p_name = p_name
 		self.cols_in = cols_in
 		self.cols_out = cols_out
 		self.cols_ex = cols_ex
@@ -202,7 +203,7 @@ class ExpressionNode(object):
 		self.children = children if children is not None else set()
 
 	def __repr__(self):
-		return "ExpressionNode(p_id=%r,cols_in=%r,cols_out=%r,cols_ex=%r,operator_info=%r,details=%r,pattern_signature=%r,parents=%r,children=%r)" % (self.p_id, self.cols_in, self.cols_out, self.cols_ex, self.operator_info, self.details, self.pattern_signature, self.parents, self.children)
+		return "ExpressionNode(p_id=%r,p_name=%r,cols_in=%r,cols_out=%r,cols_ex=%r,operator_info=%r,details=%r,pattern_signature=%r,parents=%r,children=%r)" % (self.p_id, self.p_name, self.cols_in, self.cols_out, self.cols_ex, self.operator_info, self.details, self.pattern_signature, self.parents, self.children)
 
 	def to_dict(self):
 		return {
