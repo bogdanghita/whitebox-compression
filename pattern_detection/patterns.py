@@ -4,6 +4,7 @@ from copy import deepcopy
 from statistics import mean, median
 import numpy as np
 from collections import Counter, defaultdict
+from overrides import overrides
 from lib.util import *
 from lib.prefix_tree import PrefixTree
 from lib.datatype_analyzer import *
@@ -57,7 +58,7 @@ class PatternDetector(object):
 				return False
 		return True
 
-	def _select_column_output_of(self, col, accept_out=set(), accept_ex=set(), 
+	def _select_column_output_of(self, col, accept_out=set(), accept_ex=set(),
 											reject_out=set(), reject_ex=set()):
 		et_col = self.expr_tree.get_column(col.col_id)
 		if et_col is None:
@@ -156,6 +157,7 @@ class NullPatternDetector(PatternDetector):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 		self.init_columns(columns)
 
+	@overrides
 	def select_column(self, col):
 		return col.datatype.nullable
 
@@ -173,12 +175,14 @@ class NullPatternDetector(PatternDetector):
 			self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
 		return True
 
+	@overrides
 	def feed_tuple(self, tpl):
 		PatternDetector.feed_tuple(self, tpl)
 		for idx in self.columns.keys():
 			attr = tpl[idx]
 			self.handle_attr(attr, idx)
 
+	@overrides
 	def evaluate(self):
 		res = dict()
 		for idx, col in self.columns.items():
@@ -207,6 +211,7 @@ class ConstantPatternDetector(PatternDetector):
 		self.min_constant_ratio = min_constant_ratio
 		self.init_columns(columns)
 
+	@overrides
 	def select_column(self, col):
 		# do not try this pattern again on the same column
 		if not self._select_column_norepeat(col):
@@ -239,9 +244,10 @@ class ConstantPatternDetector(PatternDetector):
 
 		col["counter"][attr] += 1
 		col["attrs"][attr].append(self.row_count-1)
-		
+
 		return True
 
+	@overrides
 	def feed_tuple(self, tpl):
 		PatternDetector.feed_tuple(self, tpl)
 		for idx in self.columns.keys():
@@ -293,6 +299,7 @@ class ConstantPatternDetector(PatternDetector):
 		}
 		return p_item
 
+	@overrides
 	def evaluate(self):
 		res = dict()
 
@@ -333,6 +340,7 @@ class DictPattern(PatternDetector):
 		self.max_dict_size = max_dict_size
 		self.init_columns(columns)
 
+	@overrides
 	def select_column(self, col):
 		# NOTE: for now we only consider varchar columns
 		if col.datatype.name != "varchar":
@@ -371,13 +379,14 @@ class DictPattern(PatternDetector):
 		if self.is_null(attr, self.null_value):
 			col["nulls"].append(self.row_count-1)
 			return True
-		
+
 		col["counter"][attr] += 1
 
 		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
 
 		return True
 
+	@overrides
 	def feed_tuple(self, tpl):
 		PatternDetector.feed_tuple(self, tpl)
 		for idx in self.columns.keys():
@@ -403,7 +412,7 @@ class DictPattern(PatternDetector):
 		# check total size of input vs total size of output
 		size_out_col = nb_bits(size_keys-1) * nb_elems
 		size_in_col = sum([len(key) * count for key, count in counter.items()])
-		''' 
+		'''
 		NOTE: we do not take into account the size of the dict, because the relation:
 			size_in_col < size_out_col + size_keys
 			may be False on the sample, but True on the full column
@@ -476,6 +485,7 @@ class DictPattern(PatternDetector):
 		}
 		return p_item
 
+	@overrides
 	def evaluate(self):
 		res = dict()
 
@@ -518,6 +528,7 @@ class StringPatternDetector(PatternDetector):
 	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 
+	@overrides
 	def select_column(self, col):
 		return col.datatype.name == "varchar"
 
@@ -538,6 +549,7 @@ class StringPatternDetector(PatternDetector):
 			return True
 		return False
 
+	@overrides
 	def feed_tuple(self, tpl):
 		PatternDetector.feed_tuple(self, tpl)
 		for idx in self.columns.keys():
@@ -550,6 +562,7 @@ class NumberAsString(StringPatternDetector):
 		StringPatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 		self.init_columns(columns)
 
+	@overrides
 	def select_column(self, col):
 		if not StringPatternDetector.select_column(self, col):
 			return False
@@ -569,6 +582,7 @@ class NumberAsString(StringPatternDetector):
 		res["ndt_analyzer"] = NumericDatatypeAnalyzer()
 		return res
 
+	@overrides
 	def handle_attr(self, attr, idx):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
 		if handled:
@@ -635,6 +649,7 @@ class NumberAsString(StringPatternDetector):
 		}
 		return p_item
 
+	@overrides
 	def evaluate(self):
 		res = dict()
 		for idx, col in self.columns.items():
@@ -677,6 +692,7 @@ class StringCommonPrefix(StringPatternDetector):
 		self.prefix_tree = PrefixTree()
 		self.init_columns(columns)
 
+	@overrides
 	def select_column(self, col):
 		if not StringPatternDetector.select_column(self, col):
 			return False
@@ -690,6 +706,7 @@ class StringCommonPrefix(StringPatternDetector):
 
 		return True
 
+	@overrides
 	def handle_attr(self, attr, idx):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
 		if handled:
@@ -697,6 +714,7 @@ class StringCommonPrefix(StringPatternDetector):
 		self.prefix_tree.insert(attr)
 		return True
 
+	@overrides
 	def evaluate(self):
 		return dict()
 		# TODO
@@ -711,6 +729,7 @@ class CharSetSplit(StringPatternDetector):
 		self.drop_single_char_pattern = drop_single_char_pattern
 		self.init_columns(columns)
 
+	@overrides
 	def select_column(self, col):
 		if not StringPatternDetector.select_column(self, col):
 			return False
@@ -724,6 +743,7 @@ class CharSetSplit(StringPatternDetector):
 
 		return True
 
+	@overrides
 	def get_signature(self):
 		char_sets_signature = ""
 		for char_set in self.char_sets.values():
@@ -755,6 +775,7 @@ class CharSetSplit(StringPatternDetector):
 		else:
 			return "".join(pattern_string)
 
+	@overrides
 	def handle_attr(self, attr, idx):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
 		if handled:
@@ -828,6 +849,7 @@ class CharSetSplit(StringPatternDetector):
 		}
 		return p_item
 
+	@overrides
 	def evaluate(self):
 		res = dict()
 
@@ -910,6 +932,7 @@ class NGramFreqSplit(StringPatternDetector):
 		self.case_sensitive = case_sensitive
 		self.init_columns(columns)
 
+	@overrides
 	def select_column(self, col):
 		if StringPatternDetector.select_column(self, col) == False:
 			return False
@@ -954,6 +977,7 @@ class NGramFreqSplit(StringPatternDetector):
 
 		return delim.join(ngfm)
 
+	@overrides
 	def handle_attr(self, attr, idx):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
 		if handled:
@@ -973,6 +997,7 @@ class NGramFreqSplit(StringPatternDetector):
 
 		return True
 
+	@overrides
 	def evaluate(self):
 		res = dict()
 
@@ -1007,15 +1032,23 @@ class ColumnCorrelation(PatternDetector):
 	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, corr_sample_size):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 		self.corr_sample_size = corr_sample_size
-		# corr_coefs cache
-		self.corr_coefs = None
 		self.init_columns(columns)
 
+	@overrides
+	def init_columns(self, columns):
+		PatternDetector.init_columns(self, columns)
+		for i_idx, i_col in self.columns.items():
+			for j_idx, j_col in self.columns.items():
+				j_col_id = j_col["info"].col_id
+				i_col["corr_counters"][j_col_id] = defaultdict(Counter)
+		# print([col["info"].col_id for col in self.columns.values()])
+
+	@overrides
 	def select_column(self, col):
 		# do not try this pattern again on the same column
 		if not self._select_column_norepeat(col):
 			return False
-		""" only select if col is an output column of DictPattern 
+		""" only select if col is an output column of DictPattern
 		(and not an exception column of it)
 		"""
 		return self._select_column_output_of(col, accept_out={DictPattern.get_p_name()})
@@ -1024,42 +1057,59 @@ class ColumnCorrelation(PatternDetector):
 	def empty_col_item(cls, col):
 		res = PatternDetector.empty_col_item(col)
 		res["nulls"] = []
-		res["attrs"] = []
+		res["attrs"] = defaultdict(lambda: dict(rows=[]))
+		# see init_columns for corr_counters structure
+		res["corr_counters"] = {}
 		return res
 
-	def handle_attr(self, attr, idx):
-		'''Handles an attribute
-
-		Returns:
-			handled: boolean value indicating whether the attr was handled by this function or not
-		'''
-		col = self.columns[idx]
-
-		if self.is_null(attr, self.null_value):
-			col["nulls"].append(self.row_count-1)
-
-		# store the attributes for the evaluate() step
-		# TODO: store these values globally, i.e. only once, to avoid storing them twice if more pattern detectors need to do this
-		col["attrs"].append(attr)
-
-		return True
-
+	@overrides
 	def feed_tuple(self, tpl):
 		PatternDetector.feed_tuple(self, tpl)
-		for idx in self.columns.keys():
-			attr = tpl[idx]
-			self.handle_attr(attr, idx)
 
-		# invalidate corr_coefs cache
-		self.corr_coefs = None
+		"""
+		[null-handling] also see notes-week_16
+		Let X and Y be 2 columns; let X determine Y; let X_val and Y_val be
+			values in X and Y on the same row;
+		- If X_val is null: Both in the detection and compression phase:
+			treat it like a normal value; i.e. nulls on col X can determine
+			values in col Y; they are taken into account when computing the
+			correlation coefficient the null value can appear on the map
+		- If Y_val is null:
+			- Detection phase: do NOT count it as an exception
+			- Compression phase: they will be treated as exceptions and will
+				be stored in the exception column; but there is no penalty,
+				because even if it were not an exception, the exception column
+				will contain a null at the position
+		"""
 
-	def compute_coverage(self, col):
-		# NOTE: the current implementation cannot determine the coverage
-		return 0.0
+		for i_idx in self.columns.keys():
+			i_col, i_attr = self.columns[i_idx], tpl[i_idx]
+			# register values
+			if self.is_null(i_attr, self.null_value):
+				i_col["nulls"].append(self.row_count-1)
+			else:
+				i_col["attrs"][i_attr]["rows"].append(self.row_count-1)
+			# for every 2 columns: update correlation counters
+			for j_idx in self.columns.keys():
+				# NOTE: for now also do it for same column for validation purposes
+				# if i_idx == j_idx:
+				# 	continue
+				j_col, j_attr = self.columns[j_idx], tpl[j_idx]
+				j_col_id = j_col["info"].col_id
+				# update counter
+				i_col["corr_counters"][j_col_id][i_attr][j_attr] += 1
+
+	def compute_coverage(self, col, determined_columns):
+		null_cnt = len(col["nulls"])
+		valid_cnt = len(col["patterns"]["default"]["rows"])
+		total_cnt = self.row_count
+		if total_cnt == 0:
+			return 0
+		return float(valid_cnt) / total_cnt
 
 	def build_pattern_data(self, col, p_idx, determined_columns):
 		res_columns, ex_columns = [], []
-		coverage = self.compute_coverage(col)
+		coverage = self.compute_coverage(col, determined_columns)
 		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
 
 		# operator info
@@ -1067,7 +1117,7 @@ class ColumnCorrelation(PatternDetector):
 
 		# TODO: fill in res_columns
 
-		# TODO: fill in and ex_columns
+		# TODO: fill in ex_columns
 
 		# pattern data
 		p_item = {
@@ -1083,6 +1133,7 @@ class ColumnCorrelation(PatternDetector):
 		}
 		return p_item
 
+	@overrides
 	def evaluate(self):
 		res = dict()
 
@@ -1093,6 +1144,8 @@ class ColumnCorrelation(PatternDetector):
 			determined_columns = []
 			# TODO: select columns determined by col, that are good for column correlation ([?] with high corr_coef)
 
+			# TODO: fill in ["patterns"]["default"]["rows"]
+
 			p_idx = len(patterns)
 			p_item = self.build_pattern_data(col, p_idx, determined_columns)
 			patterns.append(p_item)
@@ -1100,41 +1153,46 @@ class ColumnCorrelation(PatternDetector):
 
 		return res
 
-	def get_sample_values(self):
-		sample_values = {}
+	def evaluate_correlation(self, i_col, j_col):
+		i_col_id, j_col_id = i_col["info"].col_id, j_col["info"].col_id
+		corr_counters = i_col["corr_counters"][j_col_id]
 
-		nb_rows = len(self.columns[list(self.columns.keys())[0]]["attrs"])
-		nb_sample_points = min(self.corr_sample_size, nb_rows)
+		corr_map, corr_count = {}, 0
+		for i_attr, counter in corr_counters.items():
+			null_count = counter[self.null_value]
+			(j_attr, count) = counter.most_common(1)[0]
+			if j_attr == self.null_value:
+				count = 0
+			# NOTE: see [null-handling] info in feed_tuple()
+			corr_count += count + null_count
+			corr_map[i_attr] = j_attr
 
-		sample_points = [int(x) for x in np.random.uniform(0, nb_rows, nb_sample_points)]
+		total_cnt = self.row_count
+		corr_coef = corr_count / total_cnt if total_cnt > 0 else 0.0
 
-		for c_idx in self.columns.keys():
-			col_id = self.columns[c_idx]["info"].col_id
-			col_values = self.columns[c_idx]["attrs"]
-			sample_values[col_id] = np.take(col_values, sample_points)
-
-		return sample_values
+		return (corr_coef, corr_map)
 
 	def get_corr_coefs(self):
-		# do not recompute corr_coefs if cached
-		if self.corr_coefs is not None:
-			return self.corr_coefs
+		corr_coefs = defaultdict(dict)
 
-		# column_values = {self.columns[c_idx]["info"].col_id: np.array(self.columns[c_idx]["attrs"]) for c_idx in self.columns.keys()}
-		sample_values = self.get_sample_values()
-		corr_coefs = {}
+		for i_idx, i_col in self.columns.items():
+			for j_idx, j_col in self.columns.items():
+				i_col_id, j_col_id = i_col["info"].col_id, j_col["info"].col_id
+				# NOTE: for now also do it for same column for validation purposes
+				# if i_idx == j_idx:
+				# 	continue
+				(corr_coef, corr_map) = self.evaluate_correlation(i_col, j_col)
+				corr_coefs[i_col_id][j_col_id] = corr_coef
+			# print(corr_coefs[i_col_id])
 
-		for c1_id, c1_values in sample_values.items():
-			corr_coefs[c1_id] = {}
-			for c2_id, c2_values in sample_values.items():
-				corr_coefs[c1_id][c2_id] = theils_u(c1_values, c2_values)
-
-		# save to corr_coefs cache
-		self.corr_coefs = corr_coefs
 		return corr_coefs
 
 	@classmethod
 	def get_operator(cls, cols_in, cols_out, operator_info, null_value):
+		"""
+		[null-handling] see comment in feed_tuple()
+		"""
+
 		def operator(attrs):
 
 			# TODO

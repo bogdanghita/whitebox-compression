@@ -287,13 +287,13 @@ def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value)
 
 	pattern_detectors = [
 		# null_pattern_detector,
-		constant_pattern_detector,
+		# constant_pattern_detector,
 		dict_pattern,
 		# number_as_string,
 		# string_common_prefix,
 		# char_set_split,
 		# ngram_freq_split,
-		# column_correlation
+		column_correlation
 	]
 	return pattern_detectors
 
@@ -323,7 +323,10 @@ def output_iteration_results(args, it, in_columns, pattern_detectors, patterns, 
 				print("debug: more that one ColumnCorrelation pattern detector found; using the first one")
 			col_corr = col_corr_pds[0]
 			corr_coefs = col_corr.get_corr_coefs()
-			OutputManager.output_corr_coefs(it, corr_coefs, args.corr_coefs_output_dir)
+			if len(corr_coefs.keys()) > 0:
+				OutputManager.output_corr_coefs(it, corr_coefs, args.corr_coefs_output_dir)
+			else:
+				print("debug: no columns used in ColumnCorrelation")
 		else:
 			print("debug: no ColumnCorrelation pattern detector used")
 

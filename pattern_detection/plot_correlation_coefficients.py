@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 
-#!/usr/bin/env python3
-
 import os, sys
 import argparse
 import numpy as np
 
 
 def plot(plt, header, rows, out_file=None, out_file_format="svg"):
+	# rows = list(map(list, zip(*rows))) # transpose
 	arr = np.array(rows)
 
 	# plt.figure(figsize=(8, 8), dpi=100)
@@ -17,8 +16,8 @@ def plot(plt, header, rows, out_file=None, out_file_format="svg"):
 	plt.colorbar(label="correlation coefficient")
 	plt.xticks(range(len(header)), header, rotation=270)
 	plt.yticks(range(len(header)), header, rotation=0)
-	plt.xlabel("col_id (determines cols on Y axis)")
-	plt.ylabel("col_id (is determined by cols on X axis)")
+	plt.xlabel("col_id (is determined by cols on Y axis)")
+	plt.ylabel("col_id (determines cols on X axis)")
 	plt.tight_layout()
 
 	if out_file:
