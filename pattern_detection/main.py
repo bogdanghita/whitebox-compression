@@ -20,7 +20,7 @@ RET_ERR = 15
 # TODO: make these parameters of the script
 MAX_ITERATIONS = 20
 MIN_COL_COVERAGE = 0.2
-COL_CORR_SAMPLE_SIZE = 1000
+MIN_CORR_COEF = 0.9
 MAX_DICT_SIZE_B = 1 * 1024 * 1024
 MIN_CONSTANT_RATIO = 0.9
 
@@ -280,14 +280,14 @@ def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value)
 	pd_obj_id += 1
 	column_correlation = ColumnCorrelation(
 		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-		corr_sample_size=COL_CORR_SAMPLE_SIZE
+		min_corr_coef=MIN_CORR_COEF
 		)
 
 	# NOTE: don't forget to increment pd_obj_id before adding a new pattern
 
 	pattern_detectors = [
 		# null_pattern_detector,
-		# constant_pattern_detector,
+		constant_pattern_detector,
 		dict_pattern,
 		# number_as_string,
 		# string_common_prefix,

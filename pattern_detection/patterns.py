@@ -1029,9 +1029,9 @@ class NGramFreqSplit(StringPatternDetector):
 
 
 class ColumnCorrelation(PatternDetector):
-	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, corr_sample_size):
+	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, min_corr_coef):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
-		self.corr_sample_size = corr_sample_size
+		self.min_corr_coef = min_corr_coef
 		self.init_columns(columns)
 
 	@overrides
@@ -1057,10 +1057,22 @@ class ColumnCorrelation(PatternDetector):
 	def empty_col_item(cls, col):
 		res = PatternDetector.empty_col_item(col)
 		res["nulls"] = []
-		res["attrs"] = defaultdict(lambda: dict(rows=[]))
+		res["attrs"] = []
 		# see init_columns for corr_counters structure
 		res["corr_counters"] = {}
 		return res
+
+	def handle_attr(self, attr, idx):
+		col = self.columns[idx]
+
+		if self.is_null(attr, self.null_value):
+			col["nulls"].append(self.row_count-1)
+
+		# store the attributes for the evaluate() step
+		# TODO: store these values globally, i.e. only once, to avoid storing them twice if more pattern detectors need to do this
+		col["attrs"].append(attr)
+
+		return True
 
 	@overrides
 	def feed_tuple(self, tpl):
@@ -1079,16 +1091,13 @@ class ColumnCorrelation(PatternDetector):
 			- Compression phase: they will be treated as exceptions and will
 				be stored in the exception column; but there is no penalty,
 				because even if it were not an exception, the exception column
-				will contain a null at the position
+				will contain a null at that position
 		"""
 
 		for i_idx in self.columns.keys():
 			i_col, i_attr = self.columns[i_idx], tpl[i_idx]
-			# register values
-			if self.is_null(i_attr, self.null_value):
-				i_col["nulls"].append(self.row_count-1)
-			else:
-				i_col["attrs"][i_attr]["rows"].append(self.row_count-1)
+			self.handle_attr(i_attr, i_idx)
+
 			# for every 2 columns: update correlation counters
 			for j_idx in self.columns.keys():
 				# NOTE: for now also do it for same column for validation purposes
@@ -1098,60 +1107,6 @@ class ColumnCorrelation(PatternDetector):
 				j_col_id = j_col["info"].col_id
 				# update counter
 				i_col["corr_counters"][j_col_id][i_attr][j_attr] += 1
-
-	def compute_coverage(self, col, determined_columns):
-		null_cnt = len(col["nulls"])
-		valid_cnt = len(col["patterns"]["default"]["rows"])
-		total_cnt = self.row_count
-		if total_cnt == 0:
-			return 0
-		return float(valid_cnt) / total_cnt
-
-	def build_pattern_data(self, col, p_idx, determined_columns):
-		res_columns, ex_columns = [], []
-		coverage = self.compute_coverage(col, determined_columns)
-		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
-
-		# operator info
-		operator_info = dict(name="combine")
-
-		# TODO: fill in res_columns
-
-		# TODO: fill in ex_columns
-
-		# pattern data
-		p_item = {
-			"p_id": "{}:default".format(self.name),
-			"p_name": self.name,
-			"coverage": coverage,
-			"rows": col["patterns"]["default"]["rows"],
-			"res_columns": res_columns,
-			"ex_columns": ex_columns,
-			"operator_info": operator_info,
-			"details": dict(null_coverage=null_coverage),
-			"pattern_signature": self.get_signature()
-		}
-		return p_item
-
-	@overrides
-	def evaluate(self):
-		res = dict()
-
-		corr_coefs = self.get_corr_coefs()
-
-		for idx, col in self.columns.items():
-			patterns = []
-			determined_columns = []
-			# TODO: select columns determined by col, that are good for column correlation ([?] with high corr_coef)
-
-			# TODO: fill in ["patterns"]["default"]["rows"]
-
-			p_idx = len(patterns)
-			p_item = self.build_pattern_data(col, p_idx, determined_columns)
-			patterns.append(p_item)
-			# res[col["info"].col_id] = patterns
-
-		return res
 
 	def evaluate_correlation(self, i_col, j_col):
 		i_col_id, j_col_id = i_col["info"].col_id, j_col["info"].col_id
@@ -1172,6 +1127,96 @@ class ColumnCorrelation(PatternDetector):
 
 		return (corr_coef, corr_map)
 
+	def fill_in_rows(self, i_col, j_col, corr_map):
+		j_col_id = j_col["info"].col_id
+		rows = []
+		for idx, (i_attr, j_attr) in enumerate(zip(i_col["attrs"], j_col["attrs"])):
+			if corr_map[i_attr] == j_attr:
+				rows.append(idx)
+		col["patterns"][j_col_id]["rows"] = rows
+
+	def compute_coverage(self, col, j_col):
+		j_col_id = j_col["info"].col_id
+
+		null_cnt = len(col["nulls"])
+		valid_cnt = len(col["patterns"][j_col_id]["rows"])
+		total_cnt = self.row_count
+		if total_cnt == 0:
+			return 0
+		return float(valid_cnt) / total_cnt
+
+	def build_pattern_data(self, col, p_idx, j_col, corr_coef, corr_map):
+		ex_columns = []
+		coverage = self.compute_coverage(col, j_col)
+		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
+		
+		j_col_id = j_col["info"].col_id
+
+		# operator info
+		operator_info = dict(name="validate_map", corr_map=corr_map)
+
+		# exception column info
+		ecol = OutputColumnManager.get_exception_col(j_col["info"])
+		ex_columns.append(ecol)
+
+		# pattern data
+		p_item = {
+			"p_id": "{}:{}".format(self.name, j_col_id),
+			"p_name": self.name,
+			"coverage": coverage,
+			"rows": col["patterns"][j_col_id]["rows"],
+			"res_columns": [],
+			"ex_columns": ex_columns,
+			"operator_info": operator_info,
+			"details": dict(null_coverage=null_coverage, corr_coef=corr_coef),
+			"pattern_signature": self.get_signature()
+		}
+		return p_item
+
+	@overrides
+	def evaluate(self):
+		res = dict()
+
+		for idx, col in self.columns.items():
+			patterns = []
+			for j_idx, j_col in self.columns.items():
+				if idx == j_idx:
+					continue
+				(corr_coef, corr_map) = self.evaluate_correlation(col, j_col)
+				# only select pairs with high corr_coef
+				if corr_coef < self.min_corr_coef:
+					continue
+
+				# fill in col["patterns"][j_col_id]["rows"]
+				self.fill_in_rows(i_col, j_col, corr_map)
+
+				p_idx = len(patterns)
+				p_item = self.build_pattern_data(col, p_idx, j_col, corr_coef, corr_map)
+				patterns.append(p_item)
+
+			res[col["info"].col_id] = patterns
+
+		return res
+
+	@classmethod
+	def get_operator(cls, cols_in, cols_out, operator_info, null_value):
+		"""
+		[null-handling] see comment in feed_tuple()
+		"""
+
+		def operator(attrs):
+			i_val, j_val = attrs[0], attrs[1]
+			corr_map = operator_info["corr_map"]
+
+			if not i_val not in corr_map:
+				raise OperatorException("[{}] i_val not in correlation map: i_val={}".format(cls.__name__), i_val)
+			if corr_map[i_val] != j_val:
+				raise OperatorException("[{}] (i_val, j_val) does not match correlation map".format(cls.__name__))
+
+			return []
+
+		return operator
+
 	def get_corr_coefs(self):
 		corr_coefs = defaultdict(dict)
 
@@ -1186,21 +1231,6 @@ class ColumnCorrelation(PatternDetector):
 			# print(corr_coefs[i_col_id])
 
 		return corr_coefs
-
-	@classmethod
-	def get_operator(cls, cols_in, cols_out, operator_info, null_value):
-		"""
-		[null-handling] see comment in feed_tuple()
-		"""
-
-		def operator(attrs):
-
-			# TODO
-
-			attrs_out = [null_value] * len(cols_out)
-			return attrs_out
-
-		return operator
 
 
 '''
