@@ -134,9 +134,19 @@ class ExpressionTree(object):
 		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0, self.columns.keys())))
 
 	def get_out_columns(self):
-		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
+		# columns that are not consumed by any node
+		res = []
+		for col_id, col_item in self.columns.items():
+			for node_id in col_item["input_of"]:
+				if col_id in {cic_col.col_id for cic_col in self.nodes[node_id].cols_in_consumed}:
+					break
+			else:
+				res.append(col_id)
+		return sorted(res)
+
 
 	def get_unused_columns(self):
+		# NOTE: unconsumed columns have len(input_of) > 0
 		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0 and len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
 
 	def _dfs(self, node_id, visited):

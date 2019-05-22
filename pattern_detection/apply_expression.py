@@ -56,12 +56,21 @@ class ExpressionManager(object):
 			if in_col.col_id not in used_columns:
 				self.out_columns.append(in_col)
 				continue
-		# 2) output & exception columns from expression nodes
+		# [2) output, 3) exception, 4) unconsumed input] columns from expression nodes
 		for expr_n in expr_nodes:
+			# output columns
 			self.out_columns.extend(expr_n.cols_out)
+			# exception columns
 			for ex_col in expr_n.cols_ex:
+				# NOTE: multiple expr_n can have the same ex_col; add it only once
 				if ex_col.col_id not in [c.col_id for c in self.out_columns]:
 					self.out_columns.append(ex_col)
+			# unconsumed input columns
+			for in_col in expr_n.cols_in:
+				if in_col.col_id not in {c.col_id for c in expr_n.cols_in_consumed}:
+					# NOTE: in_col may have been added already by other expr_n; add it only once
+					if in_col.col_id not in [c.col_id for c in self.out_columns]:
+						self.out_columns.append(in_col)
 
 		# save output & exception column indices
 		for idx, out_col in enumerate(self.out_columns):
@@ -200,6 +209,7 @@ class ExpressionManager(object):
 					# nothing to be done; out_tpl[out_col_idx] is already null
 					continue
 				# in_col is an output column
+				# NOTE: this also catches unconsumed input columns
 				if in_col.col_id in self.out_columns_map:
 					out_col_idx = self.out_columns_map[in_col.col_id]
 				else: # exception

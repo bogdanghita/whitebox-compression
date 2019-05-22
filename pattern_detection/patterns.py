@@ -124,8 +124,11 @@ class PatternDetector(object):
 					dict(
 						p_id: # id of the pattern
 						p_name: # name of the pattern class
-						score: float # number between 0 and 1 indicating how well the column fits this pattern
 						rows: [row_id: int, ...], # rows where the pattern applies; indexed from 0
+						coverage: float, # number between 0 and 1 indicating the proportion of non-exception rows
+						null_coverage: float, # number between 0 and 1 indicating the proportion of nulls
+						in_columns: [icol_1, icol_2, ...], # list of input columns; type: util.Column
+						in_columns_consumed: [icol_1, icol_2, ...], # list of input columns that are consumed by this pattern (see NOTE-1 below); type: type(util.Column.col_id)
 						res_columns: [rcol_1, rcol_2, ...], # list of resulting columns; type: util.Column
 						ex_columns: [ecol_1, ecol_2, ...], # list of exception columns; type: util.Column
 						operator_info: dict(), # operator parameters (used when applying the transformation)
@@ -133,6 +136,8 @@ class PatternDetector(object):
 						pattern_signature: str # unique signature of the pattern (for comparison purposes)
 					)
 				)
+
+		NOTE-1: input columns can either be consumed or not; a consumed input column will be transformed and no longer be an output column of the expression tree; a column that is NOT consumed wis used just as a form of metadata for the transformation of other consumed columns AND will still remain and output column of the expression tree
 		'''
 		return dict()
 
@@ -193,11 +198,14 @@ class NullPatternDetector(PatternDetector):
 				"p_id": "{}:default".format(self.name),
 				"p_name": self.name,
 				"coverage": coverage,
+				"null_coverage": coverage,
 				"rows": col["patterns"]["default"]["rows"],
+				"in_columns": [col["info"]],
+				"in_columns_consumed": [], # TODO
 				"res_columns": [], # TODO
 				"ex_columns": [], # TODO
 				"operator_info": dict(), # TODO
-				"details": dict(null_coverage=coverage),
+				"details": dict(),
 				"pattern_signature": self.get_signature()
 			}
 			patterns = [p_item]
@@ -290,11 +298,14 @@ class ConstantPatternDetector(PatternDetector):
 			"p_id": "{}:default".format(self.name),
 			"p_name": self.name,
 			"coverage": coverage,
+			"null_coverage": null_coverage,
 			"rows": col["patterns"]["default"]["rows"],
+			"in_columns": [col["info"]],
+			"in_columns_consumed": [col["info"]],
 			"res_columns": [],
 			"ex_columns": ex_columns,
 			"operator_info": operator_info,
-			"details": dict(null_coverage=null_coverage),
+			"details": dict(),
 			"pattern_signature": self.get_signature()
 		}
 		return p_item
@@ -476,11 +487,14 @@ class DictPattern(PatternDetector):
 			"p_id": "{}:default".format(self.name),
 			"p_name": self.name,
 			"coverage": coverage,
+			"null_coverage": null_coverage,
 			"rows": col["patterns"]["default"]["rows"],
+			"in_columns": [col["info"]],
+			"in_columns_consumed": [col["info"]],
 			"res_columns": res_columns,
 			"ex_columns": [],
 			"operator_info": operator_info,
-			"details": dict(null_coverage=null_coverage),
+			"details": dict(),
 			"pattern_signature": self.get_signature()
 		}
 		return p_item
@@ -640,11 +654,14 @@ class NumberAsString(StringPatternDetector):
 			"p_id": "{}:default".format(self.name),
 			"p_name": self.name,
 			"coverage": coverage,
+			"null_coverage": null_coverage,
 			"rows": col["patterns"]["default"]["rows"],
+			"in_columns": [col["info"]],
+			"in_columns_consumed": [col["info"]],
 			"res_columns": res_columns,
 			"ex_columns": ex_columns,
 			"operator_info": operator_info,
-			"details": dict(null_coverage=null_coverage),
+			"details": dict(),
 			"pattern_signature": self.get_signature()
 		}
 		return p_item
@@ -840,11 +857,14 @@ class CharSetSplit(StringPatternDetector):
 			"p_id": "{}:{}".format(self.name, pattern_s),
 			"p_name": self.name,
 			"coverage": coverage,
+			"null_coverage": null_coverage,
 			"rows": pattern_s_data["rows"],
+			"in_columns": [col["info"]],
+			"in_columns_consumed": [col["info"]],
 			"res_columns": res_columns,
 			"ex_columns": ex_columns,
 			"operator_info": operator_info,
-			"details": dict(null_coverage=null_coverage),
+			"details": dict(),
 			"pattern_signature": self.get_signature()
 		}
 		return p_item
@@ -1127,12 +1147,14 @@ class ColumnCorrelation(PatternDetector):
 
 		return (corr_coef, corr_map)
 
-	def fill_in_rows(self, i_col, j_col, corr_map):
+	def fill_in_rows(self, col, j_col, corr_map):
 		j_col_id = j_col["info"].col_id
 		rows = []
-		for idx, (i_attr, j_attr) in enumerate(zip(i_col["attrs"], j_col["attrs"])):
+		for idx, (i_attr, j_attr) in enumerate(zip(col["attrs"], j_col["attrs"])):
 			if corr_map[i_attr] == j_attr:
 				rows.append(idx)
+		if j_col_id not in col["patterns"]:
+			col["patterns"][j_col_id] = {"rows": [], "details": {}}
 		col["patterns"][j_col_id]["rows"] = rows
 
 	def compute_coverage(self, col, j_col):
@@ -1164,11 +1186,15 @@ class ColumnCorrelation(PatternDetector):
 			"p_id": "{}:{}".format(self.name, j_col_id),
 			"p_name": self.name,
 			"coverage": coverage,
+			"null_coverage": null_coverage,
 			"rows": col["patterns"][j_col_id]["rows"],
+			"in_columns": [col["info"], j_col["info"]],
+			"in_columns_consumed": [j_col["info"]],
 			"res_columns": [],
 			"ex_columns": ex_columns,
 			"operator_info": operator_info,
-			"details": dict(null_coverage=null_coverage, corr_coef=corr_coef),
+			"details": dict(corr_coef=corr_coef, 
+							determined_column_id=j_col_id),
 			"pattern_signature": self.get_signature()
 		}
 		return p_item
@@ -1188,7 +1214,7 @@ class ColumnCorrelation(PatternDetector):
 					continue
 
 				# fill in col["patterns"][j_col_id]["rows"]
-				self.fill_in_rows(i_col, j_col, corr_map)
+				self.fill_in_rows(col, j_col, corr_map)
 
 				p_idx = len(patterns)
 				p_item = self.build_pattern_data(col, p_idx, j_col, corr_coef, corr_map)
@@ -1209,7 +1235,7 @@ class ColumnCorrelation(PatternDetector):
 			corr_map = operator_info["corr_map"]
 
 			if not i_val not in corr_map:
-				raise OperatorException("[{}] i_val not in correlation map: i_val={}".format(cls.__name__), i_val)
+				raise OperatorException("[{}] i_val not in correlation map: i_val={}".format(cls.__name__, i_val))
 			if corr_map[i_val] != j_val:
 				raise OperatorException("[{}] (i_val, j_val) does not match correlation map".format(cls.__name__))
 

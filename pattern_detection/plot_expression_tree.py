@@ -9,16 +9,21 @@ from lib.util import *
 from lib.expression_tree import *
 
 
-COL_VERTEX_COLOR = {
+COL_VERTEX_FILLCOLOR = {
 	"default": "#EEEEEE",
 	"exception": "#FFCDD2"
+}
+COL_VERTEX_COLOR = {
+	"default": "black",
+	"output": "red"
 }
 EXPR_NODE_VERTEX_COLOR = "#BBDEFB"
 
 
-def get_col_vertex(col, col_type="default"):
+def get_col_vertex(col, col_type="default", is_out_col=False):
 	content = "[{}]\n{}\n{}".format(col.col_id, col.name, col.datatype.to_sql_str())
-	return pydot.Node(content, shape="box", style="filled", fillcolor=COL_VERTEX_COLOR[col_type])
+	color = COL_VERTEX_COLOR["output"] if is_out_col else COL_VERTEX_COLOR["default"]
+	return pydot.Node(content, shape="box", style="filled", color=color, fillcolor=COL_VERTEX_FILLCOLOR[col_type])
 
 def get_node_vertex(node_id, expr_node):
 	p_id = expr_node.p_id.replace(":", " ")
@@ -31,13 +36,16 @@ def get_node_vertex(node_id, expr_node):
 	return pydot.Node(content, style="filled", fillcolor=EXPR_NODE_VERTEX_COLOR)
 
 def plot_expression_tree(expr_tree, out_file):
+	out_columns = set(expr_tree.get_out_columns())
 	graph = pydot.Dot(graph_type='digraph')
 
 	# create vertices
 	col_vertices = {}
 	for col_id, col_item in expr_tree.columns.items():
 		col_type = "exception" if OutputColumnManager.is_exception_col(col_item["col_info"]) else "default"
-		c_vertex = get_col_vertex(col_item["col_info"], col_type)
+		c_vertex = get_col_vertex(col_item["col_info"], 
+								  col_type=col_type, 
+								  is_out_col=col_id in out_columns)
 		graph.add_node(c_vertex)
 		col_vertices[col_id] = c_vertex
 	expr_nodes_vertices = {}
