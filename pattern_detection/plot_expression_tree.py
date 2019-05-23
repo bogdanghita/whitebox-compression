@@ -43,8 +43,8 @@ def plot_expression_tree(expr_tree, out_file):
 	col_vertices = {}
 	for col_id, col_item in expr_tree.columns.items():
 		col_type = "exception" if OutputColumnManager.is_exception_col(col_item["col_info"]) else "default"
-		c_vertex = get_col_vertex(col_item["col_info"], 
-								  col_type=col_type, 
+		c_vertex = get_col_vertex(col_item["col_info"],
+								  col_type=col_type,
 								  is_out_col=col_id in out_columns)
 		graph.add_node(c_vertex)
 		col_vertices[col_id] = c_vertex
@@ -77,7 +77,8 @@ def parse_args():
 
 	parser.add_argument('file', help='Expression tree file')
 	parser.add_argument('--out-file', dest='out_file', type=str,
-		help="Output file to save visualization to")
+		help="Output file to save visualization to",
+		required=True)
 
 	return parser.parse_args()
 

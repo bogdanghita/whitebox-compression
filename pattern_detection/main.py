@@ -12,6 +12,7 @@ from patterns import *
 from apply_expression import ExpressionManager
 from lib.expression_tree import ExpressionTree
 from plot_expression_tree import plot_expression_tree
+from plot_correlation_graph import plot_correlation_graph
 import plot_pattern_distribution, plot_ngram_freq_masks, plot_correlation_coefficients
 
 
@@ -64,8 +65,8 @@ class PatternDetectionEngine(object):
 class OutputManager(object):
 	@staticmethod
 	def output_stats(columns, patterns):
-		for c in columns:
-			print(c)
+		# for c in columns:
+		# 	print(c)
 		# print(json.dumps(patterns, indent=2))
 		for pd in patterns.values():
 			print("*** {} ***".format(pd["name"]))
@@ -138,8 +139,9 @@ class OutputManager(object):
 			plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 	@staticmethod
-	def output_corr_coefs(level, corr_coefs, corr_coefs_output_dir, fdelim=",", plot_file_format="svg"):
-		out_file = "{}/l_{}.csv".format(corr_coefs_output_dir, level)
+	def output_corr_coefs(level, corr_coefs, selected_corrs, corr_coefs_output_dir, fdelim=",", plot_file_format="svg"):
+		# correlation coefficients
+		out_file = "{}/l_{}.coefs.csv".format(corr_coefs_output_dir, level)
 		columns = sorted(corr_coefs.keys())
 		with open(out_file, 'w') as fd:
 			header = fdelim.join(columns)
@@ -150,8 +152,15 @@ class OutputManager(object):
 					values.append("{:.6f}".format(corr_coefs[col1_id][col2_id]))
 				fd.write(fdelim.join(values) + "\n")
 
-		plot_file = "{}/l_{}.{}".format(corr_coefs_output_dir, level, plot_file_format)
+		plot_file = "{}/l_{}.coefs.{}".format(corr_coefs_output_dir, level, plot_file_format)
 		plot_correlation_coefficients.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
+
+		# correlation graph
+		out_file = "{}/l_{}.graph.json".format(corr_coefs_output_dir, level)
+		with open(out_file, 'w') as fd:
+			json.dump(selected_corrs, fd)
+		plot_file = "{}/l_{}.graph.svg".format(corr_coefs_output_dir, level)
+		plot_correlation_graph(selected_corrs, plot_file)
 
 	@staticmethod
 	def output_expression_tree(expression_tree, output_dir, plot=True):
@@ -322,9 +331,9 @@ def output_iteration_results(args, it, in_columns, pattern_detectors, patterns, 
 			if len(col_corr_pds) != 1:
 				print("debug: more that one ColumnCorrelation pattern detector found; using the first one")
 			col_corr = col_corr_pds[0]
-			corr_coefs = col_corr.get_corr_coefs()
+			corr_coefs, selected_corrs = col_corr.get_corr_coefs()
 			if len(corr_coefs.keys()) > 0:
-				OutputManager.output_corr_coefs(it, corr_coefs, args.corr_coefs_output_dir)
+				OutputManager.output_corr_coefs(it, corr_coefs, selected_corrs, args.corr_coefs_output_dir)
 			else:
 				print("debug: no columns used in ColumnCorrelation")
 		else:
@@ -391,6 +400,7 @@ def build_expression_tree(args, in_data_manager, columns):
 		pattern_detectors = init_pattern_detectors(in_columns, pattern_log, expression_tree, args.null)
 		# pattern_selector = DummyPatternSelector(MIN_COL_COVERAGE)
 		pattern_selector = CoveragePatternSelector(MIN_COL_COVERAGE)
+		# pattern_selector = RuleBasedPatternSelector()
 
 		res = build_expression_tree_iteration(args, it,
 					in_columns, pattern_detectors, pattern_selector, in_data_manager,
@@ -443,8 +453,8 @@ def main():
 
 	# debug
 	print("\n[levels]")
-	for level in expression_tree.get_node_levels():
-		print("level={}".format(level))
+	for idx, level in enumerate(expression_tree.get_node_levels()):
+		print("level_{}={}".format(idx+1, level))
 		# for node_id in level:
 		# 	node = expression_tree.get_node(node_id)
 		# 	print("node_id={}, node={}".format(node_id, node))

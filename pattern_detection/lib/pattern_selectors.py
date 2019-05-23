@@ -66,8 +66,9 @@ class DummyPatternSelector(PatternSelector):
 				if col_p["coverage"] > max_coverage:
 					max_coverage, best_p = col_p["coverage"], col_p
 			if best_p is None:
-				print("debug: no pattern selected for column={}".format(col))
+				# print("debug: no pattern selected for column={}".format(col))
 				# TODO: maybe do something here
+				pass
 			else:
 				details = deepcopy(best_p["details"])
 				details.update({
@@ -166,7 +167,7 @@ class CoveragePatternSelector(PatternSelector):
 					continue
 				candidate_patterns.append(col_p)
 			if len(candidate_patterns) == 0:
-				print("debug: no pattern selected for column={}".format(col))
+				# print("debug: no pattern selected for column={}".format(col))
 				# TODO: maybe do something here
 				continue
 
@@ -174,6 +175,7 @@ class CoveragePatternSelector(PatternSelector):
 			if len(candidate_patterns) < self.max_candidate_patterns_exhaustive:
 				selected_patterns = self._select_patterns_exhaustive(candidate_patterns, nb_rows)
 			else:
+				print("debug: falling back to greedy pattern selection; len(candidate_patterns)={}, col_id={}".format(len(candidate_patterns), col.col_id))
 				selected_patterns = self._select_patterns_greedy(candidate_patterns, nb_rows)
 
 			for col_p in selected_patterns:
@@ -193,5 +195,21 @@ class CoveragePatternSelector(PatternSelector):
 					details=details,
 					pattern_signature=col_p["pattern_signature"])
 				expression_nodes.append(exp_node)
+
+		return expression_nodes
+
+
+class RuleBasedPatternSelector(PatternSelector):
+	"""
+	# TODO
+	"""
+
+	def __init__(self):
+		PatternSelector.__init__(self)
+
+	def select_patterns(self, patterns, columns, nb_rows):
+		expression_nodes = []
+
+		# TODO
 
 		return expression_nodes

@@ -1057,10 +1057,10 @@ class ColumnCorrelation(PatternDetector):
 	@overrides
 	def init_columns(self, columns):
 		PatternDetector.init_columns(self, columns)
-		for i_idx, i_col in self.columns.items():
-			for j_idx, j_col in self.columns.items():
-				j_col_id = j_col["info"].col_id
-				i_col["corr_counters"][j_col_id] = defaultdict(Counter)
+		for source_idx, source_col in self.columns.items():
+			for target_idx, target_col in self.columns.items():
+				target_col_id = target_col["info"].col_id
+				source_col["corr_counters"][target_col_id] = defaultdict(Counter)
 		# print([col["info"].col_id for col in self.columns.values()])
 
 	@overrides
@@ -1114,113 +1114,116 @@ class ColumnCorrelation(PatternDetector):
 				will contain a null at that position
 		"""
 
-		for i_idx in self.columns.keys():
-			i_col, i_attr = self.columns[i_idx], tpl[i_idx]
-			self.handle_attr(i_attr, i_idx)
+		for source_idx in self.columns.keys():
+			source_col, source_attr = self.columns[source_idx], tpl[source_idx]
+			self.handle_attr(source_attr, source_idx)
 
 			# for every 2 columns: update correlation counters
-			for j_idx in self.columns.keys():
+			for target_idx in self.columns.keys():
 				# NOTE: for now also do it for same column for validation purposes
-				# if i_idx == j_idx:
+				# if source_idx == target_idx:
 				# 	continue
-				j_col, j_attr = self.columns[j_idx], tpl[j_idx]
-				j_col_id = j_col["info"].col_id
+				target_col, target_attr = self.columns[target_idx], tpl[target_idx]
+				target_col_id = target_col["info"].col_id
 				# update counter
-				i_col["corr_counters"][j_col_id][i_attr][j_attr] += 1
+				source_col["corr_counters"][target_col_id][source_attr][target_attr] += 1
 
-	def evaluate_correlation(self, i_col, j_col):
-		i_col_id, j_col_id = i_col["info"].col_id, j_col["info"].col_id
-		corr_counters = i_col["corr_counters"][j_col_id]
+	def evaluate_correlation(self, source_col, target_col):
+		source_col_id, target_col_id = source_col["info"].col_id, target_col["info"].col_id
+		corr_counters = source_col["corr_counters"][target_col_id]
 
 		corr_map, corr_count = {}, 0
-		for i_attr, counter in corr_counters.items():
+		for source_attr, counter in corr_counters.items():
 			null_count = counter[self.null_value]
-			(j_attr, count) = counter.most_common(1)[0]
-			if j_attr == self.null_value:
+			(target_attr, count) = counter.most_common(1)[0]
+			if target_attr == self.null_value:
 				count = 0
 			# NOTE: see [null-handling] info in feed_tuple()
 			corr_count += count + null_count
-			corr_map[i_attr] = j_attr
+			corr_map[source_attr] = target_attr
 
 		total_cnt = self.row_count
 		corr_coef = corr_count / total_cnt if total_cnt > 0 else 0.0
 
 		return (corr_coef, corr_map)
 
-	def fill_in_rows(self, col, j_col, corr_map):
-		j_col_id = j_col["info"].col_id
+	def select_correlation(self, corr_coef, corr_map):
+		return corr_coef >= self.min_corr_coef
+
+	def fill_in_rows(self, target_col, source_col, corr_map):
+		source_col_id = source_col["info"].col_id
 		rows = []
-		for idx, (i_attr, j_attr) in enumerate(zip(col["attrs"], j_col["attrs"])):
-			if corr_map[i_attr] == j_attr:
+		for idx, (s_attr, t_attr) in enumerate(zip(source_col["attrs"], target_col["attrs"])):
+			if corr_map[s_attr] == t_attr:
 				rows.append(idx)
-		if j_col_id not in col["patterns"]:
-			col["patterns"][j_col_id] = {"rows": [], "details": {}}
-		col["patterns"][j_col_id]["rows"] = rows
+		if source_col_id not in target_col["patterns"]:
+			target_col["patterns"][source_col_id] = {"rows": [], "details": {}}
+		target_col["patterns"][source_col_id]["rows"] = rows
 
-	def compute_coverage(self, col, j_col):
-		j_col_id = j_col["info"].col_id
+	def compute_coverage(self, target_col, source_col):
+		source_col_id = source_col["info"].col_id
 
-		null_cnt = len(col["nulls"])
-		valid_cnt = len(col["patterns"][j_col_id]["rows"])
+		valid_cnt = len(target_col["patterns"][source_col_id]["rows"])
 		total_cnt = self.row_count
 		if total_cnt == 0:
 			return 0
 		return float(valid_cnt) / total_cnt
 
-	def build_pattern_data(self, col, p_idx, j_col, corr_coef, corr_map):
+	def build_pattern_data(self, col, p_idx, source_col, corr_coef, corr_map):
 		ex_columns = []
-		coverage = self.compute_coverage(col, j_col)
+		coverage = self.compute_coverage(col, source_col)
 		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
-		
-		j_col_id = j_col["info"].col_id
+
+		source_col_id = source_col["info"].col_id
 
 		# operator info
 		operator_info = dict(name="validate_map", corr_map=corr_map)
 
 		# exception column info
-		ecol = OutputColumnManager.get_exception_col(j_col["info"])
+		ecol = OutputColumnManager.get_exception_col(col["info"])
 		ex_columns.append(ecol)
+
+		# debug
+		# print(col["info"].col_id, source_col["info"].col_id, corr_coef, coverage, null_coverage)
+		# end-debug
 
 		# pattern data
 		p_item = {
-			"p_id": "{}:{}".format(self.name, j_col_id),
+			"p_id": "{}:{}".format(self.name, source_col_id),
 			"p_name": self.name,
 			"coverage": coverage,
 			"null_coverage": null_coverage,
-			"rows": col["patterns"][j_col_id]["rows"],
-			"in_columns": [col["info"], j_col["info"]],
-			"in_columns_consumed": [j_col["info"]],
+			"rows": col["patterns"][source_col_id]["rows"],
+			"in_columns": [col["info"], source_col["info"]],
+			"in_columns_consumed": [col["info"]],
 			"res_columns": [],
 			"ex_columns": ex_columns,
 			"operator_info": operator_info,
-			"details": dict(corr_coef=corr_coef, 
-							determined_column_id=j_col_id),
+			"details": dict(corr_coef=corr_coef,
+							src_col_id=source_col_id),
 			"pattern_signature": self.get_signature()
 		}
 		return p_item
 
 	@overrides
 	def evaluate(self):
-		res = dict()
+		res = defaultdict(list)
 
-		for idx, col in self.columns.items():
-			patterns = []
-			for j_idx, j_col in self.columns.items():
-				if idx == j_idx:
+		for source_idx, source_col in self.columns.items():
+			for target_idx, target_col in self.columns.items():
+				if source_idx == target_idx:
 					continue
-				(corr_coef, corr_map) = self.evaluate_correlation(col, j_col)
-				# only select pairs with high corr_coef
-				if corr_coef < self.min_corr_coef:
+				(corr_coef, corr_map) = self.evaluate_correlation(source_col, target_col)
+
+				if not self.select_correlation(corr_coef, corr_map):
 					continue
 
-				# fill in col["patterns"][j_col_id]["rows"]
-				self.fill_in_rows(col, j_col, corr_map)
+				self.fill_in_rows(target_col, source_col, corr_map)
 
-				p_idx = len(patterns)
-				p_item = self.build_pattern_data(col, p_idx, j_col, corr_coef, corr_map)
-				patterns.append(p_item)
+				p_idx = len(res[target_col["info"].col_id])
+				p_item = self.build_pattern_data(target_col, p_idx, source_col, corr_coef, corr_map)
 
-			res[col["info"].col_id] = patterns
+				res[target_col["info"].col_id].append(p_item)
 
 		return res
 
@@ -1231,13 +1234,13 @@ class ColumnCorrelation(PatternDetector):
 		"""
 
 		def operator(attrs):
-			i_val, j_val = attrs[0], attrs[1]
+			target_val, source_val = attrs[0], attrs[1]
 			corr_map = operator_info["corr_map"]
 
-			if not i_val not in corr_map:
-				raise OperatorException("[{}] i_val not in correlation map: i_val={}".format(cls.__name__, i_val))
-			if corr_map[i_val] != j_val:
-				raise OperatorException("[{}] (i_val, j_val) does not match correlation map".format(cls.__name__))
+			if not source_val not in corr_map:
+				raise OperatorException("[{}] source_val not in correlation map: source_val={}".format(cls.__name__, source_val))
+			if corr_map[source_val] != target_val:
+				raise OperatorException("[{}] (source_val, target_val) does not match correlation map".format(cls.__name__))
 
 			return []
 
@@ -1245,18 +1248,22 @@ class ColumnCorrelation(PatternDetector):
 
 	def get_corr_coefs(self):
 		corr_coefs = defaultdict(dict)
+		selected_corrs = []
 
-		for i_idx, i_col in self.columns.items():
-			for j_idx, j_col in self.columns.items():
-				i_col_id, j_col_id = i_col["info"].col_id, j_col["info"].col_id
+		for source_idx, source_col in self.columns.items():
+			for target_idx, target_col in self.columns.items():
+				source_col_id, target_col_id = source_col["info"].col_id, target_col["info"].col_id
 				# NOTE: for now also do it for same column for validation purposes
-				# if i_idx == j_idx:
+				# if source_idx == target_idx:
 				# 	continue
-				(corr_coef, corr_map) = self.evaluate_correlation(i_col, j_col)
-				corr_coefs[i_col_id][j_col_id] = corr_coef
-			# print(corr_coefs[i_col_id])
+				(corr_coef, corr_map) = self.evaluate_correlation(source_col, target_col)
+				corr_coefs[source_col_id][target_col_id] = corr_coef
 
-		return corr_coefs
+				if source_idx != target_idx and self.select_correlation(corr_coef, corr_map):
+					selected_corrs.append((source_col_id, target_col_id, corr_coef))
+			# print(corr_coefs[source_col_id])
+
+		return corr_coefs, selected_corrs
 
 
 '''
