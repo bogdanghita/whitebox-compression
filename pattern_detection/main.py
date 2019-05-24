@@ -25,10 +25,10 @@ iteration_stages = [
 		"DictPattern": {"max_dict_size": 64 * 1024},
 		"CharSetSplit": {
 			"default_placeholder": "?",
-			"char_sets": [
-				{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
-			],
-			"drop_single_char_pattern": True
+				"char_sets": [
+					{"name": "digits", "placeholder": "D", "char_set": {"0","1","2","3","4","5","6","7","8","9"}},
+				],
+				"drop_single_char_pattern": True
 		}
 	},
 	"pattern_selector": {
@@ -47,15 +47,15 @@ iteration_stages = [
 		"ColumnCorrelation": {"min_corr_coef": 0.9}
 	},
 	"pattern_selector": {
-		"type": "CoveragePatternSelector",
-		"params": {
-			"min_col_coverage": 0.2
-		}
+		"type": "CorrelationPatternSelector",
+		"params": {}
 	}
 },
 {
 	"max_it": 1,
-	"pattern_detectors": ["NumberAsString"],
+	"pattern_detectors": {
+		"NumberAsString": {}
+	},
 	"pattern_selector": {
 		"type": "CoveragePatternSelector",
 		"params": {

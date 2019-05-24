@@ -3,6 +3,7 @@ import sys
 import itertools
 from copy import deepcopy
 from bitstring import *
+from overrides import overrides
 from lib.util import ExpressionNode
 
 
@@ -46,6 +47,7 @@ class DummyPatternSelector(PatternSelector):
 		PatternSelector.__init__(self)
 		self.min_col_coverage = min_col_coverage
 
+	@overrides
 	def select_patterns(self, patterns, columns, nb_rows):
 		expression_nodes = []
 
@@ -142,6 +144,7 @@ class CoveragePatternSelector(PatternSelector):
 		# TODO: implement a basic greedy approach
 		raise Exception("Not implemented")
 
+	@overrides
 	def select_patterns(self, patterns, columns, nb_rows):
 		expression_nodes = []
 
@@ -202,6 +205,9 @@ class CoveragePatternSelector(PatternSelector):
 class PriorityPatternSelector(PatternSelector):
 	"""
 	Selects patterns based on their priority; applies CoveragePatternSelector for patterns with the same priority
+
+	NOTE: a column can only be used (or shared between shared) by patterns with the same priority
+		  e.g. a column cannot be used by a pd with priority 1 and a pd with priority 2; but it can be used by 2 pds with priority 1
 	"""
 
 	def __init__(self, priorities, coverage_pattern_selector_args):
@@ -223,13 +229,50 @@ class PriorityPatternSelector(PatternSelector):
 		else:
 			raise Exception("Invalid coverage_pattern_selector_args")
 
+	def update_remaining_patterns(self, patterns, expression_nodes):
+		""" Remove patterns that take as input already used columns """
+		used_columns = {col.col_id for expr_n in expression_nodes for col in expr_n.cols_in}
+
+		# remove from patterns
+		for p_name, p_item in patterns.items():
+			for col_id in list(p_item["columns"].keys()):
+				col_p_list = p_item["columns"][col_id]
+				# delete patterns that have the main col in used_columns
+				if col_id in used_columns:
+					del p_item["columns"][col_id]
+					continue
+				# delete patterns that have a secondary column in used_columns (e.g. source_column in ColumnCorrelation)
+				for i in range(len(col_p_list)):
+					col_p_item = col_p_list[i]
+					if len(used_columns & {c.col_id for c in col_p_item["in_columns"]}) > 0:
+						del col_p_list[i]
+
+	@overrides
 	def select_patterns(self, patterns, columns, nb_rows):
+		patterns, columns = deepcopy(patterns), deepcopy(columns)
 		expression_nodes = []
 
 		for pattern_group in self.priorities:
-			tmp_patterns = {p_name: deepcopy(patterns[p_name]) for p_name in patterns.keys() if p_name in pattern_group}
+			tmp_patterns = {p_name: patterns[p_name] for p_name in patterns.keys() if p_name in pattern_group}
 			tmp_expression_nodes = self.coverage_ps.select_patterns(tmp_patterns, columns, nb_rows)
-			expression_nodes.extend(tmp_patterns)
+			expression_nodes.extend(tmp_expression_nodes)
+			self.update_remaining_patterns(patterns, tmp_expression_nodes)
+
+		return expression_nodes
+
+
+class CorrelationPatternSelector(PatternSelector):
+	"""
+	Specialized pattern selector for ColumnCorrelation
+
+	NOTE: does not support any other pattern except ColumnCorrelation
+	"""
+
+	def __init__(self):
+		PatternSelector.__init__(self)
+
+	def select_patterns(self, patterns, columns, nb_rows):
+		expression_nodes = []
 
 		return expression_nodes
 
@@ -241,6 +284,7 @@ ps_list = [
 DummyPatternSelector,
 CoveragePatternSelector,
 PriorityPatternSelector,
+CorrelationPatternSelector,
 ]
 ps_map = {ps.__name__.lower(): ps for ps in ps_list}
 
