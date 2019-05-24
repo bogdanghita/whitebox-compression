@@ -180,7 +180,8 @@ class PatternDetector(object):
 
 
 class ConstantPatternDetector(PatternDetector):
-	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, min_constant_ratio):
+	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value,
+				 min_constant_ratio):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 		self.min_constant_ratio = min_constant_ratio
 		self.init_columns(columns)
@@ -319,7 +320,8 @@ class ConstantPatternDetector(PatternDetector):
 
 
 class DictPattern(PatternDetector):
-	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, max_dict_size):
+	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value,
+				 max_dict_size):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 		self.max_dict_size = max_dict_size
 		self.init_columns(columns)
@@ -723,7 +725,11 @@ class StringCommonPrefix(StringPatternDetector):
 
 
 class CharSetSplit(StringPatternDetector):
-	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, default_placeholder, char_sets, empty_string_pattern="<empty_string>", drop_single_char_pattern=True):
+	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value,
+				 default_placeholder,
+				 char_sets,
+				 empty_string_pattern="<empty_string>",
+				 drop_single_char_pattern=True):
 		StringPatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 		self.default_placeholder = default_placeholder
 		self.char_sets = {c["placeholder"]:c for c in char_sets}
@@ -935,7 +941,8 @@ class CharSetSplit(StringPatternDetector):
 
 
 class NGramFreqSplit(StringPatternDetector):
-	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, n, case_sensitive=False):
+	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value,
+				 n, case_sensitive=False):
 		StringPatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 		self.n = n
 		self.case_sensitive = case_sensitive
@@ -1042,7 +1049,8 @@ class NGramFreqSplit(StringPatternDetector):
 
 
 class ColumnCorrelation(PatternDetector):
-	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value, min_corr_coef):
+	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value,
+				 min_corr_coef):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 		self.min_corr_coef = min_corr_coef
 		self.init_columns(columns)
@@ -1264,24 +1272,26 @@ class ColumnCorrelation(PatternDetector):
 '''
 ================================================================================
 '''
-pattern_detectors = {
-	"ConstantPatternDetector".lower(): ConstantPatternDetector,
-	"DictPattern".lower(): DictPattern,
-	"NumberAsString".lower(): NumberAsString,
-	"StringCommonPrefix".lower(): StringCommonPrefix,
-	"CharSetSplit".lower(): CharSetSplit,
-	"NGramFreqSplit".lower(): NGramFreqSplit,
-	"ColumnCorrelation".lower(): ColumnCorrelation,
-}
+pd_list = [
+ConstantPatternDetector,
+DictPattern,
+NumberAsString,
+StringCommonPrefix,
+CharSetSplit,
+NGramFreqSplit,
+ColumnCorrelation,
+]
+pd_map = {pd.get_p_name().lower(): pd for pd in pd_list}
+
 def get_pattern_detector(pattern_id):
-	default_exception = Exception("Invalid pattern id")
+	default_exception = Exception("Invalid pattern id: {}".format(pattern_id))
 	try:
 		pn = pattern_id.split(":")[0]
 	except Exception as e:
 		raise default_exception
 
 	pnl = pn.lower()
-	if pnl in pattern_detectors:
-		return pattern_detectors[pnl]
+	if pnl in pd_map:
+		return pd_map[pnl]
 
 	raise default_exception

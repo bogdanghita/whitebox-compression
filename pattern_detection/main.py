@@ -16,14 +16,54 @@ from plot_correlation_graph import plot_correlation_graph
 import plot_pattern_distribution, plot_ngram_freq_masks, plot_correlation_coefficients
 
 
-RET_ERR = 15
-
-# TODO: make these parameters of the script
-MAX_ITERATIONS = 20
-MIN_COL_COVERAGE = 0.2
-MIN_CORR_COEF = 0.9
-MAX_DICT_SIZE_B = 64 * 1024
-MIN_CONSTANT_RATIO = 0.9
+# TODO: read this from a config file
+iteration_stages = [
+{
+	"max_it": 3,
+	"pattern_detectors": {
+		"ConstantPatternDetector": {"min_constant_ratio": 0.9},
+		"DictPattern": {"max_dict_size": 64 * 1024},
+		"CharSetSplit": {
+			"default_placeholder": "?",
+			"char_sets": [
+				{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
+			],
+			"drop_single_char_pattern": True
+		}
+	},
+	"pattern_selector": {
+		"type": "PriorityPatternSelector",
+		"params": {
+			"priorities": [["ConstantPatternDetector"], ["DictPattern"], ["CharSetSplit"]],
+			"coverage_pattern_selector_args": {
+				"min_col_coverage": 0.2
+			}
+		}
+	}
+},
+{
+	"max_it": 1,
+	"pattern_detectors": {
+		"ColumnCorrelation": {"min_corr_coef": 0.9}
+	},
+	"pattern_selector": {
+		"type": "CoveragePatternSelector",
+		"params": {
+			"min_col_coverage": 0.2
+		}
+	}
+},
+{
+	"max_it": 1,
+	"pattern_detectors": ["NumberAsString"],
+	"pattern_selector": {
+		"type": "CoveragePatternSelector",
+		"params": {
+			"min_col_coverage": 0.2
+		}
+	}
+}
+]
 
 
 class PatternDetectionEngine(object):
@@ -244,65 +284,83 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager, mask):
 		out_data_manager.write_tuple(tpl_new)
 
 
-def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value):
-	pd_obj_id = 0
-	constant_pattern_detector = ConstantPatternDetector(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-		min_constant_ratio=MIN_CONSTANT_RATIO
-		)
+def init_pattern_detectors(pattern_detectors, in_columns, pattern_log, expression_tree, null_value):
+	# TODO: aici
 
-	pd_obj_id += 1
-	dict_pattern = DictPattern(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-		max_dict_size=MAX_DICT_SIZE_B
-		)
+	# pd_obj_id = 0
+	# constant_pattern_detector = ConstantPatternDetector(
+	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+	# 	min_constant_ratio=MIN_CONSTANT_RATIO
+	# 	)
+	#
+	# pd_obj_id += 1
+	# dict_pattern = DictPattern(
+	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+	# 	max_dict_size=MAX_DICT_SIZE_B
+	# 	)
+	#
+	# pd_obj_id += 1
+	# number_as_string = NumberAsString(
+	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value
+	# 	)
+	#
+	# pd_obj_id += 1
+	# string_common_prefix = StringCommonPrefix(
+	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value
+	# 	)
+	#
+	# pd_obj_id += 1
+	# char_set_split = CharSetSplit(
+	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+	# 	default_placeholder="?",
+	# 	char_sets=[
+	# 		{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
+	# 		# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
+	# 		# TODO: play around with the char sets here
+	# 	],
+	# 	drop_single_char_pattern=True
+	# 	)
+	#
+	# pd_obj_id += 1
+	# ngram_freq_split = NGramFreqSplit(
+	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+	# 	n=3
+	# 	)
+	#
+	# pd_obj_id += 1
+	# column_correlation = ColumnCorrelation(
+	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+	# 	min_corr_coef=MIN_CORR_COEF
+	# 	)
+	#
+	# # NOTE: don't forget to increment pd_obj_id before adding a new pattern
+	#
+	# pd_instances = [
+	# 	constant_pattern_detector,
+	# 	dict_pattern,
+	# 	# number_as_string,
+	# 	# string_common_prefix,
+	# 	# char_set_split,
+	# 	# ngram_freq_split,
+	# 	column_correlation
+	# ]
 
-	pd_obj_id += 1
-	number_as_string = NumberAsString(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
-		)
+	pd_instances = []
 
-	pd_obj_id += 1
-	string_common_prefix = StringCommonPrefix(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
-		)
+	for pd_obj_id, (pd_name, pd_params) in enumerate(pattern_detectors.items()):
+		class_obj = get_pattern_detector(pd_name)
+		pd = class_obj(pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
+					   **pd_params)
+		pd_instances.append(pd)
 
-	pd_obj_id += 1
-	char_set_split = CharSetSplit(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-		default_placeholder="?",
-		char_sets=[
-			{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
-			# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
-			# TODO: play around with the char sets here
-		],
-		drop_single_char_pattern=True
-		)
+	return pd_instances
 
-	pd_obj_id += 1
-	ngram_freq_split = NGramFreqSplit(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-		n=3
-		)
 
-	pd_obj_id += 1
-	column_correlation = ColumnCorrelation(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-		min_corr_coef=MIN_CORR_COEF
-		)
+def init_pattern_selector(pattern_selector):
+	class_obj = get_pattern_selector(pattern_selector["type"])
+	ps_instance = class_obj(**pattern_selector["params"])
 
-	# NOTE: don't forget to increment pd_obj_id before adding a new pattern
-
-	pattern_detectors = [
-		constant_pattern_detector,
-		dict_pattern,
-		# number_as_string,
-		# string_common_prefix,
-		# char_set_split,
-		# ngram_freq_split,
-		column_correlation
-	]
-	return pattern_detectors
+	return ps_instance
 
 
 def output_iteration_results(args, it, in_columns, pattern_detectors, patterns, expr_nodes):
@@ -391,27 +449,26 @@ def build_expression_tree(args, in_data_manager, columns):
 	expression_tree = ExpressionTree(in_columns)
 	pattern_log = PatternLog()
 
-	for it in range(MAX_ITERATIONS):
-		print("\n\n=== ITERATION: it={} ===\n\n".format(it))
+	for it_stage_idx, it_stage in enumerate(iteration_stages):
+		for it in range(it_stage["max_it"]):
+			print("\n\n=== STAGE: {}, ITERATION: it={} ===\n\n".format(it_stage_idx, it))
 
-		# pattern detectors & selector
-		pattern_detectors = init_pattern_detectors(in_columns, pattern_log, expression_tree, args.null)
-		# pattern_selector = DummyPatternSelector(MIN_COL_COVERAGE)
-		pattern_selector = CoveragePatternSelector(MIN_COL_COVERAGE)
-		# pattern_selector = RuleBasedPatternSelector()
+			# pattern detectors & selector
+			pattern_detectors = init_pattern_detectors(it_stage["pattern_detectors"], in_columns, pattern_log, expression_tree, args.null)
+			pattern_selector = init_pattern_selector(it_stage["pattern_selector"])
 
-		res = build_expression_tree_iteration(args, it,
-					in_columns, pattern_detectors, pattern_selector, in_data_manager,
-					expression_tree, pattern_log)
-		if res is None:
-			break
-		(out_columns, out_data_manager) = res
+			res = build_expression_tree_iteration(args, it,
+						in_columns, pattern_detectors, pattern_selector, in_data_manager,
+						expression_tree, pattern_log)
+			if res is None:
+				break
+			(out_columns, out_data_manager) = res
 
-		# prepare next iteration
-		in_data_manager = out_data_manager
-		in_columns = out_columns
-	else:
-		print("stop iteration: MAX_ITERATIONS={} reached".format(MAX_ITERATIONS))
+			# prepare next iteration
+			in_data_manager = out_data_manager
+			in_columns = out_columns
+		else:
+			print("stop iteration: max_it={} reached".format(it_stage["max_it"]))
 
 	return expression_tree
 
@@ -426,7 +483,7 @@ def main():
 	with open(args.datatypes_file, 'r') as fd:
 		datatypes = list(map(lambda x: DataType.from_sql_str(x.strip()), fd.readline().split(args.fdelim)))
 	if len(header) != len(datatypes):
-		return RET_ERR
+		raise Exception("Header and datatypes do not match")
 
 	# init columns
 	columns = []

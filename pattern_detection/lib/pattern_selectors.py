@@ -199,17 +199,56 @@ class CoveragePatternSelector(PatternSelector):
 		return expression_nodes
 
 
-class RuleBasedPatternSelector(PatternSelector):
+class PriorityPatternSelector(PatternSelector):
 	"""
-	# TODO
+	Selects patterns based on their priority; applies CoveragePatternSelector for patterns with the same priority
 	"""
 
-	def __init__(self):
+	def __init__(self, priorities, coverage_pattern_selector_args):
+		"""
+		Params:
+			priorities: List[List]
+				Outer list: groups of pattern detectors; first group has the highest priority, last has the lowest priority
+				Inner list: pattern detector names with the same priority
+			coverage_pattern_selector_args: list or dict with arguments for the CoveragePatternSelector
+		"""
 		PatternSelector.__init__(self)
+		self.priorities = priorities
+
+		# init CoveragePatternSelector instance
+		if isinstance(coverage_pattern_selector_args, list):
+			self.coverage_ps = CoveragePatternSelector(*coverage_pattern_selector_args)
+		elif isinstance(coverage_pattern_selector_args, dict):
+			self.coverage_ps = CoveragePatternSelector(**coverage_pattern_selector_args)
+		else:
+			raise Exception("Invalid coverage_pattern_selector_args")
 
 	def select_patterns(self, patterns, columns, nb_rows):
 		expression_nodes = []
 
-		# TODO
+		for pattern_group in self.priorities:
+			tmp_patterns = {p_name: deepcopy(patterns[p_name]) for p_name in patterns.keys() if p_name in pattern_group}
+			tmp_expression_nodes = self.coverage_ps.select_patterns(tmp_patterns, columns, nb_rows)
+			expression_nodes.extend(tmp_patterns)
 
 		return expression_nodes
+
+
+'''
+================================================================================
+'''
+ps_list = [
+DummyPatternSelector,
+CoveragePatternSelector,
+PriorityPatternSelector,
+]
+ps_map = {ps.__name__.lower(): ps for ps in ps_list}
+
+def get_pattern_selector(ps_name):
+	default_exception = Exception("Invalid pattern selector name: {}".format(ps_name))
+
+	ps_name = ps_name.lower()
+	if ps_name in ps_map:
+		return ps_map[ps_name]
+
+	raise default_exception
