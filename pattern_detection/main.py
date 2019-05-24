@@ -22,7 +22,7 @@ RET_ERR = 15
 MAX_ITERATIONS = 20
 MIN_COL_COVERAGE = 0.2
 MIN_CORR_COEF = 0.9
-MAX_DICT_SIZE_B = 1 * 1024 * 1024
+MAX_DICT_SIZE_B = 64 * 1024
 MIN_CONSTANT_RATIO = 0.9
 
 
@@ -77,6 +77,10 @@ class OutputManager(object):
 					# print("{:.2f}\t{}, res_columns={}, ex_columns={}, operator_info={}".format(p["coverage"], p["p_id"], p["res_columns"], p["ex_columns"], p["operator_info"]))
 					# without operator info
 					print("{:.2f}\t{}, res_columns={}, ex_columns={}".format(p["coverage"], p["p_id"], p["res_columns"], p["ex_columns"]))
+					# debug
+					if pd["name"] == "DictPattern":
+						print("nb_keys={}".format(len(p["operator_info"]["map"].keys())))
+					# end-debug
 
 	@staticmethod
 	def output_pattern_distribution(level, columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
@@ -242,11 +246,6 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager, mask):
 
 def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value):
 	pd_obj_id = 0
-	null_pattern_detector = NullPatternDetector(
-		pd_obj_id, in_columns, pattern_log, expression_tree, null_value
-		)
-
-	pd_obj_id += 1
 	constant_pattern_detector = ConstantPatternDetector(
 		pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
 		min_constant_ratio=MIN_CONSTANT_RATIO
@@ -295,7 +294,6 @@ def init_pattern_detectors(in_columns, pattern_log, expression_tree, null_value)
 	# NOTE: don't forget to increment pd_obj_id before adding a new pattern
 
 	pattern_detectors = [
-		# null_pattern_detector,
 		constant_pattern_detector,
 		dict_pattern,
 		# number_as_string,
