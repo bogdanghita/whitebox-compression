@@ -5,6 +5,7 @@ from copy import deepcopy
 from bitstring import *
 from overrides import overrides
 from lib.util import ExpressionNode
+from patterns import *
 
 
 class PatternSelector(object):
@@ -271,8 +272,57 @@ class CorrelationPatternSelector(PatternSelector):
 	def __init__(self):
 		PatternSelector.__init__(self)
 
-	def select_patterns(self, patterns, columns, nb_rows):
+	def get_connected_components(self, corrs):
+		"""
+		NOTE: We need the connected components considering the graph as undirected (even though it is directed)
+		"""
+
+		nodes = {node_id for edge in corrs for node_id in edge[:2]}
+		ccs = {idx:{node_id} for idx, node_id in enumerate(nodes)}
+
+		def get_cc(node_id):
+			for cc, node_ids in ccs.items():
+				if node_id in node_ids:
+					return cc
+			raise Exception("node_id not found in any cc: node_id={}".format(node_id))
+
+		for edge in corrs:
+			src, dst = edge[0], edge[1]
+			src_cc, dst_cc = get_cc(src), get_cc(dst)
+			if src_cc == dst_cc:
+				continue
+			ccs[src_cc] |= ccs[dst_cc]
+			del ccs[dst_cc]
+		
+		res = {cc:[] for cc in ccs.keys()}
+		for edge in corrs:
+			cc = get_cc(edge[0])
+			res[cc].append(edge)
+
+		return list(res.values())
+
+	def select_patterns_cc(self, corr_cc, p_item, columns, nb_rows):
 		expression_nodes = []
+
+		# TODO
+
+		return expression_nodes
+
+	def select_patterns(self, patterns, columns, nb_rows):
+		if ColumnCorrelation.get_p_name() not in patterns:
+			return []
+		p_item = patterns[ColumnCorrelation.get_p_name()]
+
+		corrs = [(col_p_item["details"]["src_col_id"], col_id, col_p_item["details"]["corr_coef"]) for col_id, col_p_list in p_item["columns"].items() for col_p_item in col_p_list]
+		print(corrs)
+
+		corr_cc_list = self.get_connected_components(corrs)
+		print(corr_cc_list)
+
+		expression_nodes = []
+		for corr_cc in corr_cc_list:
+			tmp_expression_nodes = self.select_patterns_cc(corr_cc, p_item, columns, nb_rows)
+			expression_nodes.extend(tmp_expression_nodes)
 
 		return expression_nodes
 

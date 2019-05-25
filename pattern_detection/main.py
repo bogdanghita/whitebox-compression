@@ -123,7 +123,7 @@ class OutputManager(object):
 					# end-debug
 
 	@staticmethod
-	def output_pattern_distribution(level, columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
+	def output_pattern_distribution(stage, level, columns, patterns, pattern_distribution_output_dir, fdelim=",", plot_file_format="svg"):
 		# group patterns by columns
 		column_patterns = {}
 		for c in columns:
@@ -138,7 +138,7 @@ class OutputManager(object):
 			if len(col_p.keys()) == 0:
 				continue
 
-			out_file = "{}/l_{}_col_{}.csv".format(pattern_distribution_output_dir, level, col_id)
+			out_file = "{}/s_{}_l_{}_col_{}.csv".format(pattern_distribution_output_dir, stage, level, col_id)
 			with open(out_file, 'w') as fd:
 				# write header
 				header = sorted(col_p.keys())
@@ -168,24 +168,24 @@ class OutputManager(object):
 					fd.write(fdelim.join(current_row) + "\n")
 					row_count += 1
 
-			plot_file="{}/l_{}_col_{}.{}".format(pattern_distribution_output_dir, level, col_id, plot_file_format)
+			plot_file="{}/s_{}_l_{}_col_{}.{}".format(pattern_distribution_output_dir, stage, level, col_id, plot_file_format)
 			plot_pattern_distribution.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 	@staticmethod
-	def output_ngram_freq_masks(level, ngram_freq_masks, ngram_freq_masks_output_dir, plot_file_format="svg"):
+	def output_ngram_freq_masks(stage, level, ngram_freq_masks, ngram_freq_masks_output_dir, plot_file_format="svg"):
 		for col_id, values in ngram_freq_masks.items():
-			out_file = "{}/l_{}_col_{}.csv".format(ngram_freq_masks_output_dir, level, col_id)
+			out_file = "{}/s_{}_l_{}_col_{}.csv".format(ngram_freq_masks_output_dir, stage, level, col_id)
 			with open(out_file, 'w') as fd:
 				for v in values:
 					fd.write(v + "\n")
 
-			plot_file="{}/l_{}_col_{}.{}".format(ngram_freq_masks_output_dir, level, col_id, plot_file_format)
+			plot_file="{}/s_{}_l_{}_col_{}.{}".format(ngram_freq_masks_output_dir, stage, level, col_id, plot_file_format)
 			plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 	@staticmethod
-	def output_corr_coefs(level, corr_coefs, selected_corrs, corr_coefs_output_dir, fdelim=",", plot_file_format="svg"):
+	def output_corr_coefs(stage, level, corr_coefs, selected_corrs, corr_coefs_output_dir, fdelim=",", plot_file_format="svg"):
 		# correlation coefficients
-		out_file = "{}/l_{}.coefs.csv".format(corr_coefs_output_dir, level)
+		out_file = "{}/s_{}_l_{}.coefs.csv".format(corr_coefs_output_dir, stage, level)
 		columns = sorted(corr_coefs.keys())
 		with open(out_file, 'w') as fd:
 			header = fdelim.join(columns)
@@ -196,14 +196,14 @@ class OutputManager(object):
 					values.append("{:.6f}".format(corr_coefs[col1_id][col2_id]))
 				fd.write(fdelim.join(values) + "\n")
 
-		plot_file = "{}/l_{}.coefs.{}".format(corr_coefs_output_dir, level, plot_file_format)
+		plot_file = "{}/s_{}_l_{}.coefs.{}".format(corr_coefs_output_dir, stage, level, plot_file_format)
 		plot_correlation_coefficients.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 		# correlation graph
-		out_file = "{}/l_{}.graph.json".format(corr_coefs_output_dir, level)
+		out_file = "{}/s_{}_l_{}.graph.json".format(corr_coefs_output_dir, stage, level)
 		with open(out_file, 'w') as fd:
 			json.dump(selected_corrs, fd)
-		plot_file = "{}/l_{}.graph.svg".format(corr_coefs_output_dir, level)
+		plot_file = "{}/s_{}_l_{}.graph.svg".format(corr_coefs_output_dir, stage, level)
 		plot_correlation_graph(selected_corrs, plot_file)
 
 	@staticmethod
@@ -363,10 +363,10 @@ def init_pattern_selector(pattern_selector):
 	return ps_instance
 
 
-def output_iteration_results(args, it, in_columns, pattern_detectors, patterns, expr_nodes):
+def output_iteration_results(args, stage, it, in_columns, pattern_detectors, patterns, expr_nodes):
 	# output pattern distributions (for this level)
 	if args.pattern_distribution_output_dir is not None:
-		OutputManager.output_pattern_distribution(it, in_columns, patterns, args.pattern_distribution_output_dir)
+		OutputManager.output_pattern_distribution(stage, it, in_columns, patterns, args.pattern_distribution_output_dir)
 
 	# output ngram frequency masks (for this level)
 	if args.ngram_freq_masks_output_dir is not None:
@@ -376,7 +376,7 @@ def output_iteration_results(args, it, in_columns, pattern_detectors, patterns, 
 				print("debug: more that one NGramFreqSplit pattern detector found; using the first one")
 			ngram_freq_split = ngram_freq_split_pds[0]
 			ngram_freq_masks = ngram_freq_split.get_ngram_freq_masks(delim=",")
-			OutputManager.output_ngram_freq_masks(it, ngram_freq_masks, args.ngram_freq_masks_output_dir)
+			OutputManager.output_ngram_freq_masks(stage, it, ngram_freq_masks, args.ngram_freq_masks_output_dir)
 		else:
 			print("debug: no NGramFreqSplit pattern detector used")
 
@@ -389,14 +389,14 @@ def output_iteration_results(args, it, in_columns, pattern_detectors, patterns, 
 			col_corr = col_corr_pds[0]
 			corr_coefs, selected_corrs = col_corr.get_corr_coefs()
 			if len(corr_coefs.keys()) > 0:
-				OutputManager.output_corr_coefs(it, corr_coefs, selected_corrs, args.corr_coefs_output_dir)
+				OutputManager.output_corr_coefs(stage, it, corr_coefs, selected_corrs, args.corr_coefs_output_dir)
 			else:
 				print("debug: no columns used in ColumnCorrelation")
 		else:
 			print("debug: no ColumnCorrelation pattern detector used")
 
 
-def build_expression_tree_iteration(args, it, in_columns, pattern_detectors, pattern_selector, in_data_manager, expression_tree, pattern_log):
+def build_expression_tree_iteration(args, stage, it, in_columns, pattern_detectors, pattern_selector, in_data_manager, expression_tree, pattern_log):
 	# init engine
 	pd_engine = PatternDetectionEngine(in_columns, pattern_detectors)
 	# feed data to engine
@@ -418,7 +418,7 @@ def build_expression_tree_iteration(args, it, in_columns, pattern_detectors, pat
 	# end-debug
 
 	# output iteration results
-	output_iteration_results(args, it, in_columns, pattern_detectors, patterns, expr_nodes)
+	output_iteration_results(args, stage, it, in_columns, pattern_detectors, patterns, expr_nodes)
 
 	# stop if no more patterns can be applied
 	if len(expr_nodes) == 0:
@@ -457,7 +457,7 @@ def build_expression_tree(args, in_data_manager, columns):
 			pattern_detectors = init_pattern_detectors(it_stage["pattern_detectors"], in_columns, pattern_log, expression_tree, args.null)
 			pattern_selector = init_pattern_selector(it_stage["pattern_selector"])
 
-			res = build_expression_tree_iteration(args, it,
+			res = build_expression_tree_iteration(args, it_stage_idx, it,
 						in_columns, pattern_detectors, pattern_selector, in_data_manager,
 						expression_tree, pattern_log)
 			if res is None:
