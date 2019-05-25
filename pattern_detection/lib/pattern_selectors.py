@@ -302,9 +302,76 @@ class CorrelationPatternSelector(PatternSelector):
 		return list(res.values())
 
 	def select_patterns_cc(self, corr_cc, p_item, columns, nb_rows):
-		expression_nodes = []
+		# build adjacency list
+		nodes = {node_id: {"in": set(), "out": set()} for corr in corr_cc for node_id in corr[:2]}
+		for corr in corr_cc:
+			src, dst = corr[0], corr[1]
+			nodes[src]["out"].add(dst)
+			nodes[dst]["in"].add(src)
+		
+		def get_node_score(node_id):
+			in_d = len(nodes[node_id]["in"])
+			out_d = len(nodes[node_id]["out"])
+			min_p_in_d = min([len(nodes[p_id]["in"]) for p_id in nodes[node_id]["in"]])
+			return (out_d, min_p_in_d, in_d)
 
-		# TODO
+		def get_parent_score(node_id):
+			in_d = len(nodes[node_id]["in"])
+			out_d = len(nodes[node_id]["out"])
+			return (in_d, out_d)
+
+		def get_next_corr():
+			# select from nodes that have at leas one "in" node
+			if len([node_id for node_id in nodes if len(nodes[node_id]["in"]) > 0]) == 0:
+				return None
+			dst = min(nodes, key=get_node_score)
+			src = min(nodes[dst]["in"], key=get_parent_score)
+			return next(corr for corr in corr_cc if corr[0] == src and corr[1] == dst)
+
+		def update_nodes(corr):
+			src, dst = corr[0], corr[1]
+			# remove (_, dst) edges
+			for p_node in nodes[dst]["in"]:
+				if p_node != src:
+					nodes[p_node]["out"].remove(dst)
+			# remove (dst, _) edges
+			for p_node in nodes[dst]["out"]:
+				nodes[p_node]["in"].remove(dst)
+			# remove dst
+			del nodes[dst]
+			""" remove (_, src) edges
+			NOTE: for now, a node that determines another node cannot be determined;
+			see notes for more info """
+			for p_node in nodes[src]["in"]:
+				nodes[p_node]["out"].remove(src)
+			nodes[src]["in"].clear()
+
+		def get_expression_node(corr):
+			target_col_id = corr[1]
+			if target_col_id not in p_item:
+				raise Exception("Invalid target_col_id: {}".format(target_col_id))
+			col_p = p_item[target_col_id]
+			expr_n = ExpressionNode(
+				p_id=col_p["p_id"],
+				p_name=col_p["p_name"],
+				cols_in=col_p["in_columns"],
+				cols_in_consumed=col_p["in_columns_consumed"],
+				cols_out=col_p["res_columns"],
+				cols_ex=col_p["ex_columns"],
+				operator_info=col_p["operator_info"],
+				details=col_p["details"],
+				pattern_signature=col_p["pattern_signature"])
+			return expr_n
+
+		expression_nodes = []
+		while True:
+			corr = get_next_corr()
+			if corr is None:
+				break
+			print("selected corr: {}".format(corr))
+			update_nodes(corr)
+			expr_n = get_expression_node(corr)
+			expression_nodes.append(expr_n)
 
 		return expression_nodes
 
