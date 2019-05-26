@@ -129,10 +129,6 @@ class PatternDetector(object):
 	def get_signature(self):
 		return self.name
 
-	@classmethod
-	def is_null(cls, attr, null_value):
-		return attr == null_value
-
 	def feed_tuple(self, tpl):
 		self.row_count += 1
 
@@ -220,7 +216,7 @@ class ConstantPatternDetector(PatternDetector):
 		'''
 		col = self.columns[idx]
 
-		if self.is_null(attr, self.null_value):
+		if attr == self.null_value:
 			col["nulls"].append(self.row_count-1)
 			return True
 
@@ -307,7 +303,7 @@ class ConstantPatternDetector(PatternDetector):
 		def operator(attrs):
 			val = attrs[0]
 
-			if cls.is_null(val, null_value):
+			if val == null_value:
 				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
 
 			constant = operator_info["constant"]
@@ -363,7 +359,7 @@ class DictPattern(PatternDetector):
 		'''
 		col = self.columns[idx]
 
-		if self.is_null(attr, self.null_value):
+		if attr == self.null_value:
 			col["nulls"].append(self.row_count-1)
 			return True
 
@@ -433,7 +429,7 @@ class DictPattern(PatternDetector):
 		return float(valid_cnt) / total_cnt
 
 	def build_pattern_data(self, col):
-		res_columns = []
+		res_columns, ex_columns = [], []
 		coverage = self.compute_coverage(col)
 		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
 
@@ -458,6 +454,10 @@ class DictPattern(PatternDetector):
 		ncol = Column(ncol_col_id, ncol_name, ncol_datatype)
 		res_columns.append(ncol)
 
+		# exception column info
+		ecol = OutputColumnManager.get_exception_col(col["info"])
+		ex_columns.append(ecol)
+
 		# pattern data
 		p_item = {
 			"p_id": "{}:default".format(self.name),
@@ -468,7 +468,7 @@ class DictPattern(PatternDetector):
 			"in_columns": [col["info"]],
 			"in_columns_consumed": [col["info"]],
 			"res_columns": res_columns,
-			"ex_columns": [],
+			"ex_columns": ex_columns,
 			"operator_info": operator_info,
 			"details": dict(),
 			"pattern_signature": self.get_signature()
@@ -498,7 +498,7 @@ class DictPattern(PatternDetector):
 		def operator(attrs):
 			val = attrs[0]
 
-			if cls.is_null(val, null_value):
+			if val == null_value:
 				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
 
 			map_obj = operator_info["map"]
@@ -537,7 +537,7 @@ class StringPatternDetector(PatternDetector):
 		Returns:
 			handled: boolean value indicating whether the attr was handled by this function or not
 		'''
-		if self.is_null(attr, self.null_value):
+		if attr == self.null_value:
 			self.columns[idx]["nulls"].append(self.row_count-1)
 			return True
 		return False
@@ -669,7 +669,7 @@ class NumberAsString(StringPatternDetector):
 		'''
 		def operator(attrs):
 			val, c_out = attrs[0], cols_out[0]
-			if cls.is_null(val, null_value):
+			if val == null_value:
 				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
 			# NOTE: this filters strings that look like numbers in scientific notation
 			if not NumericDatatypeAnalyzer.is_supported_number(val):
@@ -932,7 +932,7 @@ class CharSetSplit(StringPatternDetector):
 
 		def operator(attrs):
 			val = attrs[0]
-			if cls.is_null(val, null_value):
+			if val == null_value:
 				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
 			attrs_out = cls.split_attr(val, operator_info["pattern_string"], char_sets, default_placeholder, default_inv_charset)
 			return attrs_out
@@ -1088,7 +1088,7 @@ class ColumnCorrelation(PatternDetector):
 	def handle_attr(self, attr, idx):
 		col = self.columns[idx]
 
-		if self.is_null(attr, self.null_value):
+		if attr == self.null_value:
 			col["nulls"].append(self.row_count-1)
 
 		# store the attributes for the evaluate() step
@@ -1240,7 +1240,7 @@ class ColumnCorrelation(PatternDetector):
 			target_val, source_val = attrs[0], attrs[1]
 			corr_map = operator_info["corr_map"]
 
-			if not source_val not in corr_map:
+			if source_val not in corr_map:
 				raise OperatorException("[{}] source_val not in correlation map: source_val={}".format(cls.__name__, source_val))
 			if corr_map[source_val] != target_val:
 				raise OperatorException("[{}] (source_val, target_val) does not match correlation map".format(cls.__name__))

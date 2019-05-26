@@ -209,6 +209,7 @@ class ExpressionNode(object):
 	def to_dict(self):
 		return {
 			"p_id": self.p_id,
+			"p_name": self.p_name,
 			"cols_in": [c.to_dict() for c in self.cols_in],
 			"cols_in_consumed": [c.to_dict() for c in self.cols_in_consumed],
 			"cols_out": [c.to_dict() for c in self.cols_out],

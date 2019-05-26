@@ -19,7 +19,7 @@ import plot_pattern_distribution, plot_ngram_freq_masks, plot_correlation_coeffi
 # TODO: read this from a config file
 iteration_stages = [
 {
-	"max_it": 3,
+	"max_it": 2,
 	"pattern_detectors": {
 		"ConstantPatternDetector": {"min_constant_ratio": 0.9},
 		"DictPattern": {"max_dict_size": 64 * 1024},
