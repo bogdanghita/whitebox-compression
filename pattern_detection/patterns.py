@@ -5,6 +5,10 @@ from statistics import mean, median
 import numpy as np
 from collections import Counter, defaultdict
 from overrides import overrides
+
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(1, SCRIPT_DIR)
+
 from pattern_detection.lib.util import *
 from pattern_detection.lib.prefix_tree import PrefixTree
 from pattern_detection.lib.datatype_analyzer import *
