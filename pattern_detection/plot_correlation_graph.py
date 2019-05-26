@@ -9,20 +9,26 @@ from lib.util import *
 from lib.expression_tree import *
 
 
+EDGE_COLOR = {
+	True: "red",
+	False: "black"
+}
+
+
 def get_vertex(col_id):
 	content = col_id
 	return pydot.Node(content, style="filled")
 
-def get_edge(source_col_id, target_col_id, corr_coef):
+def get_edge(source_col_id, target_col_id, corr_coef, selected):
 	label = "{:.2f}".format(corr_coef)
-	return pydot.Edge(source_col_id, target_col_id, label=label)
+	return pydot.Edge(source_col_id, target_col_id, label=label, color=EDGE_COLOR[selected])
 
 
 def plot_correlation_graph(corrs, out_file):
 	graph = pydot.Dot(graph_type='digraph')
 
 	vertices = {}
-	for (source_col_id, target_col_id, corr_coef) in corrs:
+	for ((source_col_id, target_col_id, corr_coef), selected) in corrs:
 		source_vertex, target_vertex = get_vertex(source_col_id), get_vertex(target_col_id)
 		if source_col_id not in vertices:
 			graph.add_node(source_vertex)
@@ -30,7 +36,7 @@ def plot_correlation_graph(corrs, out_file):
 		if target_col_id not in vertices:
 			graph.add_node(target_vertex)
 			vertices[target_col_id] = target_vertex
-		edge = get_edge(source_col_id, target_col_id, corr_coef)
+		edge = get_edge(source_col_id, target_col_id, corr_coef, selected)
 		graph.add_edge(edge)
 
 	graph.write_svg(out_file)
@@ -41,7 +47,7 @@ def parse_args():
 		description="""Graph visualization of column correlations."""
 	)
 
-	parser.add_argument('file', help='Selected correlations file')
+	parser.add_argument('file', help='Correlations file')
 	parser.add_argument('--out-file', dest='out_file', type=str,
 		help="Output file to save visualization to",
 		required=True)

@@ -387,7 +387,7 @@ class CorrelationPatternSelector(PatternSelector):
 			corr = get_next_corr()
 			if corr is None:
 				break
-			print("selected corr: {}".format(corr))
+			# print("selected corr: {}".format(corr))
 			update_nodes(corr)
 			expr_n = get_expression_node(corr)
 			expression_nodes.append(expr_n)
@@ -400,10 +400,10 @@ class CorrelationPatternSelector(PatternSelector):
 		p_item = patterns[ColumnCorrelation.get_p_name()]
 
 		corrs = [(col_p_item["details"]["src_col_id"], col_id, col_p_item["details"]["corr_coef"]) for col_id, col_p_list in p_item["columns"].items() for col_p_item in col_p_list]
-		print(corrs)
+		# print(corrs)
 
 		corr_cc_list = self.get_connected_components(corrs)
-		print(corr_cc_list)
+		# print(corr_cc_list)
 
 		expression_nodes = []
 		for corr_cc in corr_cc_list:

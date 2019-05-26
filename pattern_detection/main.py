@@ -183,7 +183,7 @@ class OutputManager(object):
 			plot_ngram_freq_masks.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
 	@staticmethod
-	def output_corr_coefs(stage, level, corr_coefs, selected_corrs, corr_coefs_output_dir, fdelim=",", plot_file_format="svg"):
+	def output_corr_coefs(stage, level, corr_coefs, corrs, expr_nodes, corr_coefs_output_dir, fdelim=",", plot_file_format="svg"):
 		# correlation coefficients
 		out_file = "{}/s_{}_l_{}.coefs.csv".format(corr_coefs_output_dir, stage, level)
 		columns = sorted(corr_coefs.keys())
@@ -199,12 +199,27 @@ class OutputManager(object):
 		plot_file = "{}/s_{}_l_{}.coefs.{}".format(corr_coefs_output_dir, stage, level, plot_file_format)
 		plot_correlation_coefficients.main(in_file=out_file, out_file=plot_file, out_file_format=plot_file_format)
 
+		# mark selected corrs
+		corrs_res = []
+		for corr in corrs:
+			src, dst = corr[0], corr[1]
+			# check if corr is in the expr_nodes
+			for expr_n in expr_nodes:
+				if (expr_n.p_name == ColumnCorrelation.get_p_name() and 
+					src == expr_n.details["src_col_id"] and 
+					dst == expr_n.cols_in_consumed[0].col_id):
+					selected = True
+					break
+			else:
+				selected = False
+			corrs_res.append((corr, selected))
+
 		# correlation graph
 		out_file = "{}/s_{}_l_{}.graph.json".format(corr_coefs_output_dir, stage, level)
 		with open(out_file, 'w') as fd:
-			json.dump(selected_corrs, fd)
+			json.dump(corrs_res, fd)
 		plot_file = "{}/s_{}_l_{}.graph.svg".format(corr_coefs_output_dir, stage, level)
-		plot_correlation_graph(selected_corrs, plot_file)
+		plot_correlation_graph(corrs_res, plot_file)
 
 	@staticmethod
 	def output_expression_tree(expression_tree, output_dir, plot=True):
@@ -285,66 +300,6 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager, mask):
 
 
 def init_pattern_detectors(pattern_detectors, in_columns, pattern_log, expression_tree, null_value):
-	# TODO: aici
-
-	# pd_obj_id = 0
-	# constant_pattern_detector = ConstantPatternDetector(
-	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-	# 	min_constant_ratio=MIN_CONSTANT_RATIO
-	# 	)
-	#
-	# pd_obj_id += 1
-	# dict_pattern = DictPattern(
-	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-	# 	max_dict_size=MAX_DICT_SIZE_B
-	# 	)
-	#
-	# pd_obj_id += 1
-	# number_as_string = NumberAsString(
-	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value
-	# 	)
-	#
-	# pd_obj_id += 1
-	# string_common_prefix = StringCommonPrefix(
-	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value
-	# 	)
-	#
-	# pd_obj_id += 1
-	# char_set_split = CharSetSplit(
-	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-	# 	default_placeholder="?",
-	# 	char_sets=[
-	# 		{"name": "digits", "placeholder": "D", "char_set": set(map(str, range(0,10)))},
-	# 		# {"name": "letters", "placeholder": "L", "char_set": set(string.ascii_lowercase + string.ascii_uppercase)},
-	# 		# TODO: play around with the char sets here
-	# 	],
-	# 	drop_single_char_pattern=True
-	# 	)
-	#
-	# pd_obj_id += 1
-	# ngram_freq_split = NGramFreqSplit(
-	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-	# 	n=3
-	# 	)
-	#
-	# pd_obj_id += 1
-	# column_correlation = ColumnCorrelation(
-	# 	pd_obj_id, in_columns, pattern_log, expression_tree, null_value,
-	# 	min_corr_coef=MIN_CORR_COEF
-	# 	)
-	#
-	# # NOTE: don't forget to increment pd_obj_id before adding a new pattern
-	#
-	# pd_instances = [
-	# 	constant_pattern_detector,
-	# 	dict_pattern,
-	# 	# number_as_string,
-	# 	# string_common_prefix,
-	# 	# char_set_split,
-	# 	# ngram_freq_split,
-	# 	column_correlation
-	# ]
-
 	pd_instances = []
 
 	for pd_obj_id, (pd_name, pd_params) in enumerate(pattern_detectors.items()):
@@ -387,9 +342,9 @@ def output_iteration_results(args, stage, it, in_columns, pattern_detectors, pat
 			if len(col_corr_pds) != 1:
 				print("debug: more that one ColumnCorrelation pattern detector found; using the first one")
 			col_corr = col_corr_pds[0]
-			corr_coefs, selected_corrs = col_corr.get_corr_coefs()
+			corr_coefs, corrs = col_corr.get_corr_coefs()
 			if len(corr_coefs.keys()) > 0:
-				OutputManager.output_corr_coefs(stage, it, corr_coefs, selected_corrs, args.corr_coefs_output_dir)
+				OutputManager.output_corr_coefs(stage, it, corr_coefs, corrs, expr_nodes, args.corr_coefs_output_dir)
 			else:
 				print("debug: no columns used in ColumnCorrelation")
 		else:
