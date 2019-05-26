@@ -5,10 +5,10 @@ from statistics import mean, median
 import numpy as np
 from collections import Counter, defaultdict
 from overrides import overrides
-from lib.util import *
-from lib.prefix_tree import PrefixTree
-from lib.datatype_analyzer import *
-from lib.nominal import *
+from pattern_detection.lib.util import *
+from pattern_detection.lib.prefix_tree import PrefixTree
+from pattern_detection.lib.datatype_analyzer import *
+from pattern_detection.lib.nominal import *
 
 
 class OperatorException(Exception):
@@ -174,6 +174,10 @@ class PatternDetector(object):
 		'''
 		raise Exception("Not implemented")
 
+	@classmethod
+	def get_metadata_size(cls, operator_info):
+		return 0
+
 
 class ConstantPatternDetector(PatternDetector):
 	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value,
@@ -257,7 +261,7 @@ class ConstantPatternDetector(PatternDetector):
 		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
 
 		# operator info
-		operator_info = dict(name="map", constant=constant)
+		operator_info = dict(name="constant", constant=constant)
 
 		# exception column info
 		ecol = OutputColumnManager.get_exception_col(col["info"])
@@ -313,6 +317,11 @@ class ConstantPatternDetector(PatternDetector):
 			return []
 
 		return operator
+
+	@classmethod
+	def get_metadata_size(cls, operator_info):
+		constant = operator_info["constant"]
+		return DatatypeAnalyzer.get_size_disk(constant)
 
 
 class DictPattern(PatternDetector):
@@ -513,6 +522,11 @@ class DictPattern(PatternDetector):
 
 		return operator
 
+	@classmethod
+	def get_metadata_size(cls, operator_info):
+		map_obj = operator_info["map"]
+		return sum([DatatypeAnalyzer.get_size_disk(k) for k in map_obj.keys()])
+
 
 class StringPatternDetector(PatternDetector):
 	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value):
@@ -684,6 +698,11 @@ class NumberAsString(StringPatternDetector):
 			return attrs_out
 
 		return operator
+
+	@classmethod
+	def get_metadata_size(cls, operator_info):
+		# NOTE: this code should be updated when the format information will be stored
+		return 0
 
 
 class StringCommonPrefix(StringPatternDetector):
@@ -938,6 +957,14 @@ class CharSetSplit(StringPatternDetector):
 			return attrs_out
 
 		return operator
+
+	@classmethod
+	def get_metadata_size(cls, operator_info):
+		char_sets = operator_info["char_sets"]
+		size_B = 0
+		for ph, c_set in char_sets.items():
+			size_B += DatatypeAnalyzer.get_size_disk(ph) + sum([DatatypeAnalyzer.get_size_disk(c) for c in c_set])
+		return size_B
 
 
 class NGramFreqSplit(StringPatternDetector):
@@ -1267,6 +1294,12 @@ class ColumnCorrelation(PatternDetector):
 			# print(corr_coefs[source_col_id])
 
 		return corr_coefs, selected_corrs
+
+	@classmethod
+	def get_metadata_size(cls, operator_info):
+		corr_map = operator_info["corr_map"]
+		size_B = sum([DatatypeAnalyzer.get_size_disk(k) + DatatypeAnalyzer.get_size_disk(v) for k, v in corr_map.items()])
+		return size_B
 
 
 '''

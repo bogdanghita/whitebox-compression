@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 from decimal import *
 from lib.util import *
 
@@ -66,6 +67,23 @@ class DatatypeAnalyzer(object):
 
 	def get_datatype(self):
 		raise Exception("Not implemented")
+
+	@classmethod
+	def get_size_disk(cls, val):
+		"""
+		Returns: size of val on disk, in bytes
+		"""
+		if isinstance(val, str):
+			return len(val)
+		if isinstance(val, int):
+			# NOTE: 1 bit for sign
+			bits = nb_bits(abs(val)) + 1
+			return math.ceil(float(bits) / 8)
+		if isinstance(val, float):
+			# TODO: replace this with actual float size on disk
+			return len(str(val))
+
+		raise Exception("Unsupported datatype: {}".format(type(val)))
 
 
 class NumericDatatypeAnalyzer(DatatypeAnalyzer):

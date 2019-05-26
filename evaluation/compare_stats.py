@@ -5,10 +5,19 @@ import sys
 import argparse
 import json
 from lib.util import *
-from lib_pattern_detection.expression_tree import *
+from pattern_detection.patterns import *
+from pattern_detection.lib.expression_tree import *
 
 
-def compare_data_files(s_file1, s_file2, s_data1, s_data2, table_name="<table_name>"):
+def get_metadata_size(expr_tree):
+	metadata_size_B = 0
+	for node_id, expr_n in expr_tree.nodes.items():
+		size_B = get_pattern_detector(expr_n.p_id).get_metadata_size(expr_n.operator_info)
+		metadata_size_B += size_B
+	return metadata_size_B
+
+
+def compare_data_files(s_file1, s_file2, s_data1, s_data2, expr_tree_file=None, table_name="<table_name>"):
 	table_data_files = {
 		s_file1: s_data1["table"]["data_files"],
 		s_file2: s_data2["table"]["data_files"]
@@ -24,10 +33,20 @@ def compare_data_files(s_file1, s_file2, s_data1, s_data2, table_name="<table_na
 	for k,v in table_data_files[s_file2].items():
 		output += "{}: {}\n".format(k, v)
 
+	metadata_size_B = None
+	if expr_tree_file is not None:
+		expr_tree = read_expr_tree(expr_tree_file)
+		metadata_size_B = get_metadata_size(expr_tree)
+		output += "metadata_size_B: {}\nmetadata_size_human_readable: {}\n".format(metadata_size_B, sizeof_fmt(metadata_size_B))
+	else:
+		output += "metadata: no information available\n"
+
 	output += "\n[ratio]\n"
 	size_B1, size_B2 = table_data_files[s_file1]["size_B"], table_data_files[s_file2]["size_B"]
+	if metadata_size_B is not None:
+		size_B2 += metadata_size_B
 	size_B_ratio = float(size_B1) / size_B2 if size_B2 != 0 else float("inf")
-	output += "[%s] size_B(1)=%s, size_B(2)=%s, table_compression_ratio=%.2f" % (table_name, sizeof_fmt(size_B1), sizeof_fmt(size_B2), size_B_ratio)
+	output += "[%s] size(1)=%s, size(2)=%s, table_compression_ratio=%.2f" % (table_name, sizeof_fmt(size_B1), sizeof_fmt(size_B2), size_B_ratio)
 
 	return output
 
@@ -112,17 +131,23 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 				ex_size_B += col_size_B
 				ccs_output += "\ncol_id={}, col_name={}, null_ratio={}, size={}, ex_col={}".format(ex_col.col_id, col_name, null_ratio, sizeof_fmt(col_size_B), ex_col)
 
+			# metadata
+			ccs_output += "\n[metadata]"
+			metadata_size_B = get_metadata_size(cc_expr_tree)
+			ccs_output += "\nmetadata_size={}".format(sizeof_fmt(metadata_size_B))
+
 			# summary
-			total_out_size_B = out_size_B + ex_size_B
+			total_out_size_B = out_size_B + ex_size_B + metadata_size_B
 			compression_ratio = float(in_size_B) / total_out_size_B if total_out_size_B > 0 else float("inf")
 			ccs_output += "\n[summary] {}".format([(idx, cc_expr_tree.get_node(n_id).p_id) for idx, l in enumerate(cc_expr_tree.levels) for n_id in l])
-			ccs_output += "\ncc={cc}, compression_ratio={compression_ratio:.2f}, in_size_B={in_size}, total_out_size_B={total_out_size} (out_size={out_size}, ex_size={ex_size})".format(
+			ccs_output += "\ncc={cc}, compression_ratio={compression_ratio:.2f}, in_size={in_size}, total_out_size={total_out_size} (out_size={out_size}, ex_size={ex_size}, metadata_size={metadata_size})".format(
 					cc=cc_expr_tree.get_in_columns(),
 					compression_ratio=compression_ratio,
 					in_size=sizeof_fmt(in_size_B),
 					total_out_size=sizeof_fmt(total_out_size_B),
 					out_size=sizeof_fmt(out_size_B),
-					ex_size=sizeof_fmt(ex_size_B)
+					ex_size=sizeof_fmt(ex_size_B),
+					metadata_size=sizeof_fmt(metadata_size_B)
 				)
 
 			agg_in_size_B += in_size_B
@@ -153,7 +178,7 @@ def compare_stats(s_file1, s_file2, expr_tree_file, apply_expr_stats_file):
 
 	# data_files
 	try:
-		output_df = compare_data_files(s_file1, s_file2, s_data1, s_data2, table_name)
+		output_df = compare_data_files(s_file1, s_file2, s_data1, s_data2, expr_tree_file, table_name)
 		print(output_df)
 	except Exception as e:
 		print("error: unable to perform: compare_data_files; e={}".format(e))
