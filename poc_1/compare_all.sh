@@ -53,7 +53,7 @@ done
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 
 ================================================================================
-./poc_1/compare_all.sh $wbs_dir
+date; ./poc_1/compare_all.sh $wbs_dir; echo $?; date
 
 cat $wbs_dir/*/*.poc_1.compare.out | less
 cat $wbs_dir/*/*.poc_1_out/compare_stats/*.compare_stats.default-wc.out | grep -e "table_compression_ratio" -e "used_compression_ratio="

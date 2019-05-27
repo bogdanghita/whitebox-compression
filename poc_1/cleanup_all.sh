@@ -33,3 +33,12 @@ for wb in $testset_dir/*; do
 		rm -rf $wbs_dir/$wb/$table.corr_coefs
 	done
 done
+
+
+: <<'END_COMMENT'
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+
+================================================================================
+date; ./poc_1/cleanup_all.sh $wbs_dir; echo $?; date
+
+END_COMMENT

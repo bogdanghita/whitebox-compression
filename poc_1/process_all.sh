@@ -138,7 +138,7 @@ wait
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 
 ================================================================================
-./poc_1/process_all.sh $wbs_dir
+date; ./poc_1/process_all.sh $wbs_dir; echo $?; date
 
 cat $wbs_dir/*/*.poc_1.process.out | less
 
