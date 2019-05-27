@@ -973,10 +973,13 @@ class CharSetSplit(StringPatternDetector):
 
 class NGramFreqSplit(StringPatternDetector):
 	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value,
-				 n, case_sensitive=False):
+				 n,
+				 case_sensitive=True,
+				 min_attr_len=6):
 		StringPatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 		self.n = n
 		self.case_sensitive = case_sensitive
+		self.min_attr_len = min_attr_len
 		self.init_columns(columns)
 
 	@overrides
@@ -991,9 +994,9 @@ class NGramFreqSplit(StringPatternDetector):
 		# do not try this pattern again on the same column
 		if not self._select_column_norepeat(col):
 			return False
-		# # do not try this pattern if col is an output column of this exact same pattern
-		# if not self._select_column_norepeat_parent(col):
-		# 	return False
+		# do not try this pattern if col is an output column of this exact same pattern
+		if not self._select_column_norepeat_parent(col):
+			return False
 
 		return True
 
@@ -1006,7 +1009,24 @@ class NGramFreqSplit(StringPatternDetector):
 			"median_freq": 0
 		}
 		res["attrs"] = []
+		res["stats"] = {
+			"attr_len_min": float("inf"),
+			"attr_len_max": -float("inf"),
+			"attr_len_sum": 0
+		}
 		return res
+
+	def valid_column(self, col):
+		if self.row_count == 0:
+			return False
+		if len(col["ngrams"]["freqs"].keys()) == 0:
+			return False
+		# attr_len_avg = col["stats"]["attr_len_sum"] / self.row_count
+		# if attr_len_avg < self.min_attr_len:
+		# 	return False
+		if col["stats"]["attr_len_max"] < self.min_attr_len:
+			return False
+		return True
 
 	def get_ngrams(self, attr):
 		if not self.case_sensitive:
@@ -1046,6 +1066,13 @@ class NGramFreqSplit(StringPatternDetector):
 		# TODO: store these values globally, i.e. only once, to avoid storing them twice if more pattern detectors need to do this
 		col["attrs"].append(attr)
 
+		attr_len = len(attr)
+		if attr_len < col["stats"]["attr_len_min"]:
+			col["stats"]["attr_len_min"] = attr_len
+		if attr_len > col["stats"]["attr_len_max"]:
+			col["stats"]["attr_len_max"] = attr_len
+		col["stats"]["attr_len_sum"] += attr_len
+
 		return True
 
 	@overrides
@@ -1070,7 +1097,7 @@ class NGramFreqSplit(StringPatternDetector):
 	def get_ngram_freq_masks(self, delim=","):
 		res = {}
 		for col in self.columns.values():
-			if len(col["ngrams"]["freqs"].keys()) == 0:
+			if not self.valid_column(col):
 				continue
 			# NOTE-1: we want to return a generator, thus the usage of round brackets
 			# See: https://code-maven.com/list-comprehension-vs-generator-expression

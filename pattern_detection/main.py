@@ -17,24 +17,69 @@ import plot_pattern_distribution, plot_ngram_freq_masks, plot_correlation_coeffi
 
 
 # TODO: read this from a config file
+# iteration_stages = [
+# {
+# 	"max_it": 2,
+# 	"pattern_detectors": {
+# 		"ConstantPatternDetector": {"min_constant_ratio": 0.9},
+# 		"DictPattern": {"max_dict_size": 64 * 1024},
+# 		"CharSetSplit": {
+# 			"default_placeholder": "?",
+# 				"char_sets": [
+# 					{"name": "digits", "placeholder": "D", "char_set": {"0","1","2","3","4","5","6","7","8","9"}},
+# 				],
+# 				"drop_single_char_pattern": True
+# 		},
+# 		"NGramFreqSplit": {
+# 			"n": 3,
+# 			"case_sensitive": True,
+# 			"min_attr_len": 6
+# 		}
+# 	},
+# 	"pattern_selector": {
+# 		"type": "PriorityPatternSelector",
+# 		"params": {
+# 			"priorities": [["ConstantPatternDetector"], ["DictPattern"], ["CharSetSplit", "NGramFreqSplit"]],
+# 			"coverage_pattern_selector_args": {
+# 				"min_col_coverage": 0.2
+# 			}
+# 		}
+# 	}
+# },
+# {
+# 	"max_it": 1,
+# 	"pattern_detectors": {
+# 		"ColumnCorrelation": {"min_corr_coef": 0.9}
+# 	},
+# 	"pattern_selector": {
+# 		"type": "CorrelationPatternSelector",
+# 		"params": {}
+# 	}
+# },
+# {
+# 	"max_it": 1,
+# 	"pattern_detectors": {
+# 		"NumberAsString": {}
+# 	},
+# 	"pattern_selector": {
+# 		"type": "CoveragePatternSelector",
+# 		"params": {
+# 			"min_col_coverage": 0.2
+# 		}
+# 	}
+# }
+# ]
 iteration_stages = [
 {
 	"max_it": 2,
 	"pattern_detectors": {
 		"ConstantPatternDetector": {"min_constant_ratio": 0.9},
 		"DictPattern": {"max_dict_size": 64 * 1024},
-		"CharSetSplit": {
-			"default_placeholder": "?",
-				"char_sets": [
-					{"name": "digits", "placeholder": "D", "char_set": {"0","1","2","3","4","5","6","7","8","9"}},
-				],
-				"drop_single_char_pattern": True
-		}
 	},
 	"pattern_selector": {
 		"type": "PriorityPatternSelector",
 		"params": {
-			"priorities": [["ConstantPatternDetector"], ["DictPattern"], ["CharSetSplit"]],
+			"priorities": [["ConstantPatternDetector"], ["DictPattern"]],
 			"coverage_pattern_selector_args": {
 				"min_col_coverage": 0.2
 			}
@@ -44,22 +89,19 @@ iteration_stages = [
 {
 	"max_it": 1,
 	"pattern_detectors": {
-		"ColumnCorrelation": {"min_corr_coef": 0.9}
+		"NGramFreqSplit": {
+			"n": 3,
+			"case_sensitive": True,
+			"min_attr_len": 6
+		}
 	},
 	"pattern_selector": {
-		"type": "CorrelationPatternSelector",
-		"params": {}
-	}
-},
-{
-	"max_it": 1,
-	"pattern_detectors": {
-		"NumberAsString": {}
-	},
-	"pattern_selector": {
-		"type": "CoveragePatternSelector",
+		"type": "PriorityPatternSelector",
 		"params": {
-			"min_col_coverage": 0.2
+			"priorities": [["NGramFreqSplit"]],
+			"coverage_pattern_selector_args": {
+				"min_col_coverage": 0.2
+			}
 		}
 	}
 }
@@ -511,6 +553,11 @@ max_sample_size=$((1024*1024*10))
 wb=Generico
 table=Generico_2
 max_sample_size=$((1024*1024*10))
+================================================================================
+wb=CityMaxCapita
+table=CityMaxCapita_1
+max_sample_size=$((1024*1024*10))
+
 
 
 ================================================================================
