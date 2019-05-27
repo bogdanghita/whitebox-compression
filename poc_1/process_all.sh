@@ -21,10 +21,10 @@ wbs_dir="$1"
 
 
 generate_sample() {
-	echo "$(date) [generate_sample]"
-
 	wb="$1"
 	table="$2"
+
+	echo "[generate_sample][start] $(date) $wb $table"
 
 	sample_file=$wbs_dir/$wb/$table.sample.csv
 	if test -f "$sample_file"; then
@@ -36,13 +36,15 @@ generate_sample() {
 	dataset_nb_rows=$(cat $repo_wbs_dir/$wb/samples/$table.linecount)
 
 	$SCRIPT_DIR/../sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $sample_file $wbs_dir/$wb/$table.csv
+
+	echo "[generate_sample][end]   $(date) $wb $table"
 }
 
 generate_expression() {
-	echo "$(date) [generate_expression]"
-
 	wb="$1"
 	table="$2"
+
+	echo "[generate_expression][start] $(date) $wb $table"
 
 	sample_file=$wbs_dir/$wb/$table.sample.csv
 	pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
@@ -59,13 +61,15 @@ generate_expression() {
 	--ngram-freq-masks-output-dir $ngram_freq_masks_output_dir \
 	--corr-coefs-output-dir $corr_coefs_output_dir \
 	--expr-tree-output-dir $expr_tree_output_dir $sample_file
+
+	echo "[generate_expression][end]   $(date) $wb $table"
 }
 
 apply_expression() {
-	echo "$(date) [apply_expression]"
-
 	wb="$1"
 	table="$2"
+
+	echo "[apply_expression][start] $(date) $wb $table"
 
 	input_file=$wbs_dir/$wb/$table.csv
 	expr_tree_file=$wbs_dir/$wb/$table.expr_tree/expr_tree.json
@@ -75,18 +79,22 @@ apply_expression() {
 	mkdir -p $output_dir
 
 	time $SCRIPT_DIR/../pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
+
+	echo "[apply_expression][end]   $(date) $wb $table"
 }
 
 
 process() {
-	echo "$(date) [process]"
-
 	wb="$1"
 	table="$2"
+
+	echo "[process][start] $(date) $wb $table"
 
 	generate_sample $wb $table
 	generate_expression $wb $table
 	apply_expression $wb $table
+
+	echo "[process][end]   $(date) $wb $table"
 }
 
 
@@ -118,8 +126,8 @@ open_sem $nb_procs
 for wb in $testset_dir/*; do
 	for table in $(cat $wb); do
 		wb="$(basename $wb)"
-		echo $wb $table
 
+		echo "$(date) $wb $table"
 		run_with_lock process $wb $table &> $wbs_dir/$wb/$table.poc_1.process.out
 	done
 done

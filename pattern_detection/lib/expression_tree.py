@@ -187,6 +187,9 @@ class ExpressionTree(object):
 					unused_nodes.discard(n_node_id)
 			connected_components[cnt] = component
 
+		for cc_id, cc_components in connected_components.items():
+			print(cc_id, cc_components)
+
 		# merge first level expr_nodes that have common input columns
 		for col_id in self.get_in_columns():
 			col = self.columns[col_id]
@@ -196,14 +199,13 @@ class ExpressionTree(object):
 			component_id = _get_component_id(node_id)
 			if component_id is None:
 				raise Exception("No component for node_id={}".format(node_id))
-			component = connected_components[component_id]
 			for n_node_id in col["input_of"][1:]:
 				n_c_id = _get_component_id(n_node_id)
 				if n_c_id is None:
 					raise Exception("No component for n_node_id={}".format(n_node_id))
-				component = component.union(connected_components[n_c_id])
-				del connected_components[n_c_id]
-			connected_components[component_id] = component
+				if component_id != n_c_id:
+					connected_components[component_id] |= connected_components[n_c_id]
+					del connected_components[n_c_id]
 
 		# create an expression tree for each connected component
 		res = []

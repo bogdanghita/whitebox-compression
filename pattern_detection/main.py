@@ -205,8 +205,8 @@ class OutputManager(object):
 			src, dst = corr[0], corr[1]
 			# check if corr is in the expr_nodes
 			for expr_n in expr_nodes:
-				if (expr_n.p_name == ColumnCorrelation.get_p_name() and 
-					src == expr_n.details["src_col_id"] and 
+				if (expr_n.p_name == ColumnCorrelation.get_p_name() and
+					src == expr_n.details["src_col_id"] and
 					dst == expr_n.cols_in_consumed[0].col_id):
 					selected = True
 					break
@@ -506,6 +506,10 @@ max_sample_size=$((1024*1024*10))
 ================================================================================
 wb=Arade
 table=Arade_1
+max_sample_size=$((1024*1024*10))
+================================================================================
+wb=Generico
+table=Generico_2
 max_sample_size=$((1024*1024*10))
 
 
