@@ -66,14 +66,14 @@ plot_comparison() {
 }
 
 
-for wb in $testset_dir/*; do
-	for table in $(cat $wb); do
-		wb="$(basename $wb)"
-		echo $wb $table
-
-		compare $wb $table &> $wbs_dir/$wb/$table.poc_1.compare.out
-	done
-done
+# for wb in $testset_dir/*; do
+# 	for table in $(cat $wb); do
+# 		wb="$(basename $wb)"
+# 		echo $wb $table
+#
+# 		compare $wb $table &> $wbs_dir/$wb/$table.poc_1.compare.out
+# 	done
+# done
 
 plot_comparison
 

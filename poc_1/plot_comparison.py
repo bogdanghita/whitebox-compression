@@ -13,12 +13,18 @@ import matplotlib.pyplot as plt
 
 
 Y_LIM = (0, 20)
+DEFAULT_COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
+COLORS = {
+	"nocompression": DEFAULT_COLORS[0],
+	"default": DEFAULT_COLORS[1],
+	"wc": DEFAULT_COLORS[2]
+}
 
 
-def plot_barchart(x_ticks, series_list, series_labels,
+def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 				  x_label, y_label,
 				  out_file, out_file_format,
-				  y_lim=Y_LIM):
+				  y_lim=None):
 	n_groups = len(x_ticks)
 	figsize = max(8, n_groups / 6)
 
@@ -29,10 +35,11 @@ def plot_barchart(x_ticks, series_list, series_labels,
 	index = np.arange(n_groups)
 	bar_width = 0.35
 
-	for idx, (s, l) in enumerate(zip(series_list, series_labels)):
-		rects = plt.bar(index + (idx * bar_width), s, bar_width, label=l)
+	for idx, (s, l,c ) in enumerate(zip(series_list, series_labels, series_colors)):
+		rects = plt.bar(index + (idx * bar_width), s, bar_width, label=l, color=c)
 
-	plt.ylim(y_lim)
+	if y_lim is not None:
+		plt.ylim(y_lim)
 
 	plt.xlabel(x_label)
 	plt.ylabel(y_label)
@@ -43,15 +50,11 @@ def plot_barchart(x_ticks, series_list, series_labels,
 
 	plt.savefig(out_file, format=out_file_format)
 
-	# plt.close()
-
 
 def plot(data, out_dir, out_file_format="svg"):
 	data_items = sorted(data.items(), key=lambda x: x[0])
 
 	# all columns
-	size_out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
-	ratio_out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
 	table_series = []
 	size_nocompression_series = []
 	size_default_series, size_wc_series = [], []
@@ -63,15 +66,25 @@ def plot(data, out_dir, out_file_format="svg"):
 		size_wc_series.append(summary["nocompression_wc"]["total"]["size_target_B"])
 		ratio_default_series.append(summary["nocompression_default"]["total"]["compression_ratio"])
 		ratio_wc_series.append(summary["nocompression_wc"]["total"]["compression_ratio"])
+
 	# ratio
+	out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
 				  ["vectorwise default", "whitebox compression"],
+				  [COLORS["default"], COLORS["wc"]],
 				  "table", "compression ratio",
-				  ratio_out_file, out_file_format)
+				  out_file, out_file_format, y_lim=Y_LIM)
 
-	# used columns
-	# TODO
+	# sizes
+	out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
+	plot_barchart(table_series,
+				  [size_nocompression_series, size_default_series, size_wc_series],
+				  ["no compression", "vectorwise default", "whitebox compression"],
+				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
+				  "table", "table size",
+				  out_file, out_file_format)
+
 
 
 def parse_args():
