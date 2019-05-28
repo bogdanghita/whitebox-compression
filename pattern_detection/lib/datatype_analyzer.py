@@ -6,7 +6,7 @@ from lib.util import *
 
 
 MAX_DECIMAL_PRECISION = 18
-RANGE_TINYINT = (0, 255)
+RANGE_TINYINT = (-128, 127)
 RANGE_SMALLINT = (-32768, 32767)
 
 
@@ -100,7 +100,7 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 			"cast": NumericDatatypeCast.to_double
 		}
 	}
-	illegal_chars = ['e', 'E']
+	illegal_chars = ['e', 'E', '_']
 	unsupported_decimals = [Decimal("Infinity"), Decimal("-Infinity"), Decimal("NaN")]
 
 	def __init__(self):
