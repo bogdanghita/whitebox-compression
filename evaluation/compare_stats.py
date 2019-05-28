@@ -48,7 +48,14 @@ def compare_data_files(s_file1, s_file2, s_data1, s_data2, expr_tree_file=None, 
 	size_B_ratio = float(size_B1) / size_B2 if size_B2 != 0 else float("inf")
 	output += "[%s] size(1)=%s, size(2)=%s, table_compression_ratio=%.2f" % (table_name, sizeof_fmt(size_B1), sizeof_fmt(size_B2), size_B_ratio)
 
-	return output
+	summary_obj = {
+		"total": {
+			"size_baseline_B": size_B1,
+			"size_target_B": size_B2,
+			"compression_ratio": size_B_ratio
+		}
+	}
+	return (output, summary_obj)
 
 
 def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_stats_file, table_name="<table_name>"):
@@ -56,6 +63,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 		s_file1: {c["col_data"]["col_name"]: c for c in s_data1["columns"].values()},
 		s_file2: {c["col_data"]["col_name"]: c for c in s_data2["columns"].values()}
 	}
+	summary_obj = {}
 
 	expr_tree, out_columns_stats = None, None
 	if expr_tree_file is not None:
@@ -162,10 +170,17 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 					agg_compression_ratio=agg_compression_ratio)
 
 	output = agg_output + "\n" + ccs_output
-	return output
+	summary_obj = {
+		"used": {
+			"size_baseline_B": agg_in_size_B,
+			"size_target_B": agg_total_out_size_B,
+			"compression_ratio": agg_compression_ratio
+		}
+	}
+	return (output, summary_obj)
 
 
-def compare_stats(s_file1, s_file2, expr_tree_file, apply_expr_stats_file):
+def compare_stats(s_file1, s_file2, expr_tree_file, apply_expr_stats_file, summary_out_file=None):
 	with open(s_file1, 'r') as f1, open(s_file2, 'r') as f2:
 		s_data1 = json.load(f1)
 		s_data2 = json.load(f2)
@@ -178,17 +193,29 @@ def compare_stats(s_file1, s_file2, expr_tree_file, apply_expr_stats_file):
 
 	# data_files
 	try:
-		output_df = compare_data_files(s_file1, s_file2, s_data1, s_data2, expr_tree_file, table_name)
+		output_df, summary_obj_df = compare_data_files(s_file1, s_file2, s_data1, s_data2, expr_tree_file, table_name)
 		print(output_df)
 	except Exception as e:
 		print("error: unable to perform: compare_data_files; e={}".format(e))
+		summary_obj_df = {}
 
-	# expression nodes: in/out column comparison
+	# expression nodes: in/out connected components comparison
 	try:
-		output_cols = compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_stats_file, table_name)
-		print(output_cols)
+		output_ccs, summary_obj_ccs = compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_stats_file, table_name)
+		print(output_ccs)
 	except Exception as e:
 		print("error: unable to perform: compare_ccs; e={}".format(e))
+		summary_obj_ccs = {}
+
+	summary_obj = {
+		"baseline_f": s_file1,
+		"target_f": s_file2,
+		**summary_obj_df,
+		**summary_obj_ccs
+	}
+	if summary_out_file is not None:
+		with open(summary_out_file, 'w') as fp:
+			json.dump(summary_obj, fp)
 
 
 def parse_args():
@@ -204,6 +231,8 @@ def parse_args():
 		help="Path to expression nodes file used for transforming baseline into target. If provided, comparison is also done at column level")
 	parser.add_argument('--apply-expr-stats-file', dest='apply_expr_stats_file', type=str,
 		help="Path to stats file resulted after apply_expressions.py. Only useful if expr-tree-file is also provided")
+	parser.add_argument('--summary-out-file', dest='summary_out_file', type=str,
+		help="Path to output file to dump json formatted summary to")
 
 	return parser.parse_args()
 
@@ -212,7 +241,7 @@ def main():
 	args = parse_args()
 	print(args)
 
-	compare_stats(args.baseline_f, args.target_f, args.expr_tree_file, args.apply_expr_stats_file)
+	compare_stats(args.baseline_f, args.target_f, args.expr_tree_file, args.apply_expr_stats_file, args.summary_out_file)
 
 
 if __name__ == "__main__":
