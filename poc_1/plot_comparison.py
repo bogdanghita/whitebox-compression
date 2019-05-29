@@ -24,16 +24,19 @@ COLORS = {
 def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 				  x_label, y_label,
 				  out_file, out_file_format,
+				  title,
 				  y_lim=None):
 	n_groups = len(x_ticks)
 	figsize = max(8, n_groups / 6)
 
 	fig, ax = plt.subplots()
 
-	plt.figure(figsize=(1.5*figsize, figsize), dpi=100)
+	plt.figure(figsize=(2*figsize, figsize), dpi=100)
+
+
 
 	index = np.arange(n_groups)
-	bar_width = 0.35
+	bar_width = 0.3
 
 	for idx, (s, l,c ) in enumerate(zip(series_list, series_labels, series_colors)):
 		rects = plt.bar(index + (idx * bar_width), s, bar_width, label=l, color=c)
@@ -45,6 +48,7 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 	plt.ylabel(y_label)
 	plt.xticks(index + ((len(series_list)-1) * bar_width), x_ticks, rotation=270)
 	plt.legend()
+	plt.title(title)
 
 	plt.tight_layout()
 
@@ -54,6 +58,9 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 def plot(data, out_dir, out_file_format="svg"):
 	data_items = sorted(data.items(), key=lambda x: x[0])
 
+	def to_gib(b):
+		return float(b) / 1024 / 1024 / 1024
+
 	# all columns
 	table_series = []
 	size_nocompression_series = []
@@ -61,9 +68,9 @@ def plot(data, out_dir, out_file_format="svg"):
 	ratio_default_series, ratio_wc_series = [], []
 	for (wc, table), summary in data_items:
 		table_series.append(table)
-		size_nocompression_series.append(summary["nocompression_default"]["total"]["size_baseline_B"])
-		size_default_series.append(summary["nocompression_default"]["total"]["size_target_B"])
-		size_wc_series.append(summary["nocompression_wc"]["total"]["size_target_B"])
+		size_nocompression_series.append(to_gib(summary["nocompression_default"]["total"]["size_baseline_B"]))
+		size_default_series.append(to_gib(summary["nocompression_default"]["total"]["size_target_B"]))
+		size_wc_series.append(to_gib(summary["nocompression_wc"]["total"]["size_target_B"]))
 		ratio_default_series.append(summary["nocompression_default"]["total"]["compression_ratio"])
 		ratio_wc_series.append(summary["nocompression_wc"]["total"]["compression_ratio"])
 
@@ -74,7 +81,8 @@ def plot(data, out_dir, out_file_format="svg"):
 				  ["vectorwise default", "whitebox compression"],
 				  [COLORS["default"], COLORS["wc"]],
 				  "table", "compression ratio",
-				  out_file, out_file_format, y_lim=Y_LIM)
+				  out_file, out_file_format,
+				  title="Compression ratio")
 
 	# sizes
 	out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
@@ -82,9 +90,30 @@ def plot(data, out_dir, out_file_format="svg"):
 				  [size_nocompression_series, size_default_series, size_wc_series],
 				  ["no compression", "vectorwise default", "whitebox compression"],
 				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
-				  "table", "table size",
-				  out_file, out_file_format)
+				  "table", "table size (GiB)",
+				  out_file, out_file_format,
+				  title="Total table size")
 
+	# used columns
+	table_series = []
+	size_default_series, size_wc_series = [], []
+	for (wc, table), summary in data_items:
+		# NOTE: filter cases where VectorWise put multiple columns in the same file
+		if "used" not in summary["default_wc"]:
+			continue
+		table_series.append(table)
+		size_default_series.append(to_gib(summary["default_wc"]["used"]["size_baseline_B"]))
+		size_wc_series.append(to_gib(summary["default_wc"]["used"]["size_target_B"]))
+
+	# used size
+	out_file = os.path.join(out_dir, "size_used.{}".format(out_file_format))
+	plot_barchart(table_series,
+				  [size_default_series, size_wc_series],
+				  ["vectorwise default", "whitebox compression"],
+				  [COLORS["default"], COLORS["wc"]],
+				  "table", "total size of columns present in the expression tree (GiB)",
+				  out_file, out_file_format,
+				  title="Used columns size")
 
 
 def parse_args():
