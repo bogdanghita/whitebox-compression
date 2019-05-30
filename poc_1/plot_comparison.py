@@ -33,8 +33,6 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 
 	plt.figure(figsize=(2*figsize, figsize), dpi=100)
 
-
-
 	index = np.arange(n_groups)
 	bar_width = 0.3
 

@@ -187,9 +187,6 @@ class ExpressionTree(object):
 					unused_nodes.discard(n_node_id)
 			connected_components[cnt] = component
 
-		for cc_id, cc_components in connected_components.items():
-			print(cc_id, cc_components)
-
 		# merge first level expr_nodes that have common input columns
 		for col_id in self.get_in_columns():
 			col = self.columns[col_id]

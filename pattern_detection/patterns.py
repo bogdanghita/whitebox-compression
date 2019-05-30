@@ -602,8 +602,10 @@ class NumberAsString(StringPatternDetector):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
 		if handled:
 			return True
-		if not NumericDatatypeAnalyzer.is_supported_number(attr):
+		res = NumericDatatypeAnalyzer.cast_preview(attr)
+		if res is None:
 			return True
+		# n_val, prefix, suffix = res
 		try:
 			self.columns[idx]["ndt_analyzer"].feed_attr(attr)
 		except Exception as e:
@@ -640,6 +642,7 @@ class NumberAsString(StringPatternDetector):
 			pd_id=self.pd_obj_id,
 			p_id=0,
 			out_col_idx=0)
+		# TODO: add prefix and suffix columns
 
 		ncol_datatype = col["ndt_analyzer"].get_datatype()
 		ncol_datatype.nullable = True
@@ -689,16 +692,20 @@ class NumberAsString(StringPatternDetector):
 			val, c_out = attrs[0], cols_out[0]
 			if val == null_value:
 				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
-			# NOTE: this filters strings that look like numbers in scientific notation
-			if not NumericDatatypeAnalyzer.is_supported_number(val):
+
+			# try cast
+			preview_res = NumericDatatypeAnalyzer.cast_preview(val)
+			if preview_res is None:
 				raise OperatorException("[{}] value is not numeric".format(cls.__name__))
+
 			# check if value matches the the datatype of the output column; raise exception if not
 			try:
 				n_val = NumericDatatypeAnalyzer.cast(val, c_out.datatype)
 			except Exception as e:
 				raise OperatorException("[{}] value does not match datatype: value={}, datatype={}, err={}".format(cls.__name__, val, c_out.datatype, e))
-			# NOTE: [?] in the future maybe return n_val instead of val
-			attrs_out = [val]
+
+			# numeric value, prefix, suffix
+			attrs_out = [n_val, preview_res[1], preview_res[2]]
 			return attrs_out
 
 		return operator

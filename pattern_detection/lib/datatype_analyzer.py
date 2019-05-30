@@ -158,18 +158,42 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 		return n_val
 
 	@classmethod
-	def is_supported_number(cls, val):
+	def cast_preview(cls, val):
 		''' Check if val is numeric
 		NOTE: values that look like numbers in scientific notation are not considered valid (for now)
+		Returns: numeric value if supported, None otherwise
 		'''
 		for c in val:
 			if c in cls.illegal_chars:
-				return False
+				return None
+
+		""" check if int
+		NOTE: if float, the int() cast will fail
+		"""
 		try:
-			float(val)
-			return True
+			n_val = int(val)
+		except:
+			pass
+		# check if float
+		try:
+			n_val = float(val)
 		except ValueError as e:
-			return False
+			return None
+
+		# check format preserving
+		str_n_val = cls.str(n_val)
+		if val.find(str_n_val) < 0:
+			return None
+
+		# numeric value, prefix, suffix
+		return n_val, val[:pos], val[pos+len(str_n_val):]
+
+	@classmethod
+	def str(cls, val):
+		""" Casts numberic value to string
+		NOTE: in the future we may want to have a custom str() implementation
+		"""
+		return str(val)
 
 	@classmethod
 	def is_scientific_notation(cls, attr):
