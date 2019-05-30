@@ -595,6 +595,8 @@ class NumberAsString(StringPatternDetector):
 	def empty_col_item(cls, col):
 		res = StringPatternDetector.empty_col_item(col)
 		res["ndt_analyzer"] = NumericDatatypeAnalyzer()
+		res["max_prefix_len"] = 0
+		res["max_suffix_len"] = 0
 		return res
 
 	@overrides
@@ -602,15 +604,24 @@ class NumberAsString(StringPatternDetector):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
 		if handled:
 			return True
-		res = NumericDatatypeAnalyzer.cast_preview(attr)
-		if res is None:
+		cast_res = NumericDatatypeAnalyzer.cast_preview(attr)
+		if cast_res is None:
 			return True
-		# n_val, prefix, suffix = res
+
+		col = self.columns[idx]
 		try:
-			self.columns[idx]["ndt_analyzer"].feed_attr(attr)
+			col["ndt_analyzer"].feed_attr(attr)
 		except Exception as e:
 			return True
-		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
+
+		n_val, prefix, suffix = cast_res
+		if len(prefix) > col["max_prefix_len"]:
+			col["max_prefix_len"] = len(prefix)
+		if len(suffix) > col["max_suffix_len"]:
+			col["max_suffix_len"] = len(suffix)
+
+		col["patterns"]["default"]["rows"].append(self.row_count-1)
+
 		return True
 
 	def compute_coverage(self, col):
@@ -629,25 +640,51 @@ class NumberAsString(StringPatternDetector):
 		# operator info
 		operator_info = dict(name="identity")
 
-		# new column info
-		# ncol_col_id = str(col["info"].col_id) + "_0"
-		ncol_col_id = OutputColumnManager.get_output_col_id(
+		# value column info
+		vcol_col_id = OutputColumnManager.get_output_col_id(
 			in_col_id=col["info"].col_id,
 			pd_id=self.pd_obj_id,
 			p_id=0,
 			out_col_idx=0)
-		# ncol_name = str(col["info"].name) + "_0"
-		ncol_name = OutputColumnManager.get_output_col_name(
+		vcol_name = OutputColumnManager.get_output_col_name(
 			in_col_name=col["info"].name,
 			pd_id=self.pd_obj_id,
 			p_id=0,
 			out_col_idx=0)
-		# TODO: add prefix and suffix columns
+		vcol_datatype = col["ndt_analyzer"].get_datatype()
+		vcol_datatype.nullable = True
+		vcol = Column(vcol_col_id, vcol_name, vcol_datatype)
+		res_columns.append(vcol)
 
-		ncol_datatype = col["ndt_analyzer"].get_datatype()
-		ncol_datatype.nullable = True
-		ncol = Column(ncol_col_id, ncol_name, ncol_datatype)
-		res_columns.append(ncol)
+		# prefix column info
+		pcol_col_id = OutputColumnManager.get_output_col_id(
+			in_col_id=col["info"].col_id,
+			pd_id=self.pd_obj_id,
+			p_id=0,
+			out_col_idx=1)
+		pcol_name = OutputColumnManager.get_output_col_name(
+			in_col_name=col["info"].name,
+			pd_id=self.pd_obj_id,
+			p_id=0,
+			out_col_idx=1)
+		pcol_datatype = DataType("varchar", nullable=True, params=[col["max_prefix_len"]])
+		pcol = Column(pcol_col_id, pcol_name, pcol_datatype)
+		res_columns.append(pcol)
+
+		# suffix column info
+		scol_col_id = OutputColumnManager.get_output_col_id(
+			in_col_id=col["info"].col_id,
+			pd_id=self.pd_obj_id,
+			p_id=0,
+			out_col_idx=2)
+		scol_name = OutputColumnManager.get_output_col_name(
+			in_col_name=col["info"].name,
+			pd_id=self.pd_obj_id,
+			p_id=0,
+			out_col_idx=2)
+		scol_datatype = DataType("varchar", nullable=True, params=[col["max_suffix_len"]])
+		scol = Column(scol_col_id, scol_name, scol_datatype)
+		res_columns.append(scol)
 
 		# exception column info
 		ecol = OutputColumnManager.get_exception_col(col["info"])
@@ -689,7 +726,7 @@ class NumberAsString(StringPatternDetector):
 			  datatype
 		'''
 		def operator(attrs):
-			val, c_out = attrs[0], cols_out[0]
+			val, c_out, c_prefix, c_suffix = attrs[0], cols_out
 			if val == null_value:
 				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
 
@@ -697,6 +734,12 @@ class NumberAsString(StringPatternDetector):
 			preview_res = NumericDatatypeAnalyzer.cast_preview(val)
 			if preview_res is None:
 				raise OperatorException("[{}] value is not numeric".format(cls.__name__))
+			prefix, suffix = preview_res[1], preview_res[2]
+
+			# check prefix & suffix len
+			if (len(prefix) > c_prefix.datatype.params[0] or 
+				len(suffix) > c_suffix.datatype.params[0]):
+				raise OperatorException("[{}] format does not match datatype: value={}, datatype={}, err={}".format(cls.__name__, val, c_out.datatype, e))
 
 			# check if value matches the the datatype of the output column; raise exception if not
 			try:
@@ -705,7 +748,7 @@ class NumberAsString(StringPatternDetector):
 				raise OperatorException("[{}] value does not match datatype: value={}, datatype={}, err={}".format(cls.__name__, val, c_out.datatype, e))
 
 			# numeric value, prefix, suffix
-			attrs_out = [n_val, preview_res[1], preview_res[2]]
+			attrs_out = [n_val, prefix, suffix]
 			return attrs_out
 
 		return operator
