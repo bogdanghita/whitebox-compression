@@ -756,7 +756,7 @@ class NumberAsString(StringPatternDetector):
 			# check prefix & suffix len
 			if (len(prefix) > int(c_prefix.datatype.params[0]) or 
 				len(suffix) > int(c_suffix.datatype.params[0])):
-				raise OperatorException("[{}] format does not match datatype: value={}, datatype={}, err={}".format(cls.__name__, val, c_out.datatype, e))
+				raise OperatorException("[{}] format does not match datatype: value={}, datatype={}".format(cls.__name__, val, c_out.datatype))
 
 			# check if value matches the the datatype of the output column; raise exception if not
 			try:
