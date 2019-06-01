@@ -74,7 +74,7 @@ class DatatypeAnalyzer(object):
 		Returns: size of val on disk, in bytes
 		"""
 		if isinstance(val, str):
-			return len(val)
+			return max(1, len(val))
 		if isinstance(val, int):
 			# NOTE: 1 bit for sign
 			bits = nb_bits(abs(val)) + 1
@@ -170,19 +170,22 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 		""" check if int
 		NOTE: if float, the int() cast will fail
 		"""
+		n_val = None
 		try:
 			n_val = int(val)
 		except:
 			pass
 		# check if float
-		try:
-			n_val = float(val)
-		except ValueError as e:
-			return None
+		if n_val is None:
+			try:
+				n_val = float(val)
+			except ValueError as e:
+				return None
 
 		# check format preserving
 		str_n_val = cls.str(n_val)
-		if val.find(str_n_val) < 0:
+		pos = val.find(str_n_val)
+		if pos < 0:
 			return None
 
 		# numeric value, prefix, suffix

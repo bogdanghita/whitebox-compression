@@ -22,7 +22,7 @@ iteration_stages = [
 	"max_it": 2,
 	"pattern_detectors": {
 		"ConstantPatternDetector": {"min_constant_ratio": 0.9},
-		"DictPattern": {"max_dict_size": 64 * 1024},
+		"DictPattern": {"max_dict_size": 64 * 1024, "max_key_ratio": 0.1},
 		"CharSetSplit": {
 			"default_placeholder": "?",
 				"char_sets": [
@@ -62,8 +62,38 @@ iteration_stages = [
 			"min_col_coverage": 0.2
 		}
 	}
+},
+{
+	"max_it": 1,
+	"pattern_detectors": {
+		"ConstantPatternDetector": {"min_constant_ratio": 0.9},
+		"DictPattern": {"max_dict_size": 64 * 1024, "max_key_ratio": 0.1},
+	},
+	"pattern_selector": {
+		"type": "PriorityPatternSelector",
+		"params": {
+			"priorities": [["ConstantPatternDetector"], ["DictPattern"]],
+			"coverage_pattern_selector_args": {
+				"min_col_coverage": 0.2
+			}
+		}
+	}
 }
 ]
+# iteration_stages = [
+# {
+# 	"max_it": 1,
+# 	"pattern_detectors": {
+# 		"NumberAsString": {}
+# 	},
+# 	"pattern_selector": {
+# 		"type": "CoveragePatternSelector",
+# 		"params": {
+# 			"min_col_coverage": 0.2
+# 		}
+# 	}
+# }
+# ]
 
 
 class PatternDetectionEngine(object):
@@ -120,6 +150,7 @@ class OutputManager(object):
 					# debug
 					if pd["name"] == "DictPattern":
 						print("nb_keys={}".format(len(p["operator_info"]["map"].keys())))
+						print("size_keys={}".format(sum([DatatypeAnalyzer.get_size_disk(key) for key in p["operator_info"]["map"].keys()])))
 					# end-debug
 
 	@staticmethod

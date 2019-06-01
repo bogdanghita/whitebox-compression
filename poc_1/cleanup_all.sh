@@ -2,7 +2,6 @@
 
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 WORKING_DIR="$(pwd)"
-repo_wbs_dir=$SCRIPT_DIR/../../public_bi_benchmark-master_project/benchmark
 testset_dir=$SCRIPT_DIR/../testsets/testset_unique_schema_2
 
 

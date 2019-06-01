@@ -330,9 +330,10 @@ class ConstantPatternDetector(PatternDetector):
 
 class DictPattern(PatternDetector):
 	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value,
-				 max_dict_size):
+				 max_dict_size, max_key_ratio):
 		PatternDetector.__init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value)
 		self.max_dict_size = max_dict_size
+		self.max_key_ratio = max_key_ratio
 		self.init_columns(columns)
 
 	@overrides
@@ -394,20 +395,24 @@ class DictPattern(PatternDetector):
 		nb_keys = len(counter.keys())
 		nb_elems = sum(counter.values())
 
+		# print(col_item["info"].col_id, nb_keys, nb_elems, float(nb_keys) / nb_elems)
+
 		# check number of keys
-		if nb_keys >= RANGE_SMALLINT[1]:
+		if (nb_keys >= RANGE_SMALLINT[1] or
+			float(nb_keys) / nb_elems > self.max_key_ratio):
 			return False
 
 		# NOTE: for now we only consider varchar columns; thus, keys are strings
 
 		# check dict size
-		size_keys = sum([len(key) for key in counter.keys()])
+		size_keys = sum([DatatypeAnalyzer.get_size_disk(key) for key in counter.keys()])
 		if size_keys > self.max_dict_size:
 			return False
 
 		# check total size of input vs total size of output
-		size_out_col = nb_bits(size_keys-1) * nb_elems
-		size_in_col = sum([len(key) * count for key, count in counter.items()])
+		required_bits = nb_bits(nb_keys-1)
+		size_out_col = float(required_bits) / 8 * nb_elems
+		size_in_col = sum([DatatypeAnalyzer.get_size_disk(key) * count for key, count in counter.items()])
 		'''
 		NOTE: we do not take into account the size of the dict, because the relation:
 			size_in_col < size_out_col + size_keys
@@ -493,6 +498,10 @@ class DictPattern(PatternDetector):
 		res = dict()
 
 		for idx, col in self.columns.items():
+			if col["info"].col_id == "41__2_0_1__0_0_1":
+				# print(col["patterns"]["default"]["rows"])
+				print(col["counter"])
+
 			if len(col["patterns"]["default"]["rows"]) == 0:
 				continue
 			if len(col["counter"].keys()) == 0:
@@ -604,11 +613,14 @@ class NumberAsString(StringPatternDetector):
 		handled = StringPatternDetector.handle_attr(self, attr, idx)
 		if handled:
 			return True
+
 		cast_res = NumericDatatypeAnalyzer.cast_preview(attr)
+
 		if cast_res is None:
 			return True
 
 		col = self.columns[idx]
+
 		try:
 			col["ndt_analyzer"].feed_attr(attr)
 		except Exception as e:
@@ -619,6 +631,11 @@ class NumberAsString(StringPatternDetector):
 			col["max_prefix_len"] = len(prefix)
 		if len(suffix) > col["max_suffix_len"]:
 			col["max_suffix_len"] = len(suffix)
+
+		# debug
+		# if col["info"].col_id == "41__2_0_1":
+		# 	print("{}|{}|{}|{}|".format(attr, n_val, prefix, suffix))
+		# end-debug
 
 		col["patterns"]["default"]["rows"].append(self.row_count-1)
 
@@ -638,7 +655,7 @@ class NumberAsString(StringPatternDetector):
 		null_coverage = 0 if self.row_count == 0 else len(col["nulls"]) / self.row_count
 
 		# operator info
-		operator_info = dict(name="identity")
+		operator_info = dict(name="to_number")
 
 		# value column info
 		vcol_col_id = OutputColumnManager.get_output_col_id(
@@ -667,7 +684,7 @@ class NumberAsString(StringPatternDetector):
 			pd_id=self.pd_obj_id,
 			p_id=0,
 			out_col_idx=1)
-		pcol_datatype = DataType("varchar", nullable=True, params=[col["max_prefix_len"]])
+		pcol_datatype = DataType("varchar", nullable=True, params=[str(max(1, col["max_prefix_len"]))])
 		pcol = Column(pcol_col_id, pcol_name, pcol_datatype)
 		res_columns.append(pcol)
 
@@ -682,7 +699,7 @@ class NumberAsString(StringPatternDetector):
 			pd_id=self.pd_obj_id,
 			p_id=0,
 			out_col_idx=2)
-		scol_datatype = DataType("varchar", nullable=True, params=[col["max_suffix_len"]])
+		scol_datatype = DataType("varchar", nullable=True, params=[str(max(1, col["max_suffix_len"]))])
 		scol = Column(scol_col_id, scol_name, scol_datatype)
 		res_columns.append(scol)
 
@@ -726,7 +743,7 @@ class NumberAsString(StringPatternDetector):
 			  datatype
 		'''
 		def operator(attrs):
-			val, c_out, c_prefix, c_suffix = attrs[0], cols_out
+			val, c_out, c_prefix, c_suffix = attrs[0], *cols_out
 			if val == null_value:
 				raise OperatorException("[{}] null value is not supported".format(cls.__name__))
 
@@ -737,8 +754,8 @@ class NumberAsString(StringPatternDetector):
 			prefix, suffix = preview_res[1], preview_res[2]
 
 			# check prefix & suffix len
-			if (len(prefix) > c_prefix.datatype.params[0] or 
-				len(suffix) > c_suffix.datatype.params[0]):
+			if (len(prefix) > int(c_prefix.datatype.params[0]) or 
+				len(suffix) > int(c_suffix.datatype.params[0])):
 				raise OperatorException("[{}] format does not match datatype: value={}, datatype={}, err={}".format(cls.__name__, val, c_out.datatype, e))
 
 			# check if value matches the the datatype of the output column; raise exception if not
