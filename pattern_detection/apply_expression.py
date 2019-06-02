@@ -433,6 +433,7 @@ stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eva
 stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
 stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json
 apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json
+summary_out_file=$output_dir/$table.summary.json
 
 
 # [apply-expression]
@@ -452,7 +453,7 @@ cat $output_dir/$out_table.eval-vectorwise.json | less
 
 # [compare]
 # ./evaluation/compare_stats.py $stats_file_nocompression $stats_file_default
-./evaluation/compare_stats.py $stats_file_default $stats_file_wc --expr-tree-file $expr_tree_file --apply-expr-stats-file $apply_expr_stats_file
+./evaluation/compare_stats.py $stats_file_default $stats_file_wc --expr-tree-file $expr_tree_file --apply-expr-stats-file $apply_expr_stats_file --summary-out-file $summary_out_file
 
 
 ================================================================================
