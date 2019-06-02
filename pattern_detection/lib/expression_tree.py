@@ -226,6 +226,10 @@ class ExpressionTree(object):
 
 		return res
 
+	def get_topological_order(self):
+		# TODO
+		return []
+
 
 def read_expr_tree(expr_tree_file):
 	with open(expr_tree_file, 'r') as f:

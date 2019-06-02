@@ -5,8 +5,8 @@ import sys
 import argparse
 import json
 from lib.util import *
-from patterns import *
-from lib.expression_tree import ExpressionTree
+from pattern_detection.patterns import *
+from pattern_detection.lib.expression_tree import *
 
 
 class ValidationException(Exception):
@@ -46,7 +46,8 @@ def decompress(in_tpl):
 
 def validate(out_tpl, valid_tpl):
 	if len(out_tpl) != len(valid_tpl):
-		raise ValidationException("Tuple length mismatch")
+		raise ValidationException("Tuple length mismatch", 
+			diff=dict(out_len=len(out_tpl), valid_len=len(valid_tpl)))
 
 	diff = []
 	for idx, (out_attr, valid_attr) in enumerate(zip(out_tpl, valid_tpl)):
