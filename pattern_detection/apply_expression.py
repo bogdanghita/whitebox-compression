@@ -336,17 +336,15 @@ def main():
 		columns.append(Column(col_id, col_name, datatypes[idx]))
 
 	# load expression tree
-	with open(args.expr_tree_file, 'r') as f:
-		expr_tree_dict = json.load(f)
-		expression_tree = ExpressionTree.from_dict(expr_tree_dict)
+	expression_tree = read_expr_tree(args.expr_tree_file)
 	if len(expression_tree.levels) == 0:
 		raise Exception("Empty expression tree")
 
 	# debug
-	connected_components = expression_tree.get_connected_components()
-	print("[connected_components] len={}".format(len(connected_components)))
-	for cc_expr_tree in connected_components:
-		print(cc_expr_tree.levels)
+	# connected_components = expression_tree.get_connected_components()
+	# print("[connected_components] len={}".format(len(connected_components)))
+	# for cc_expr_tree in connected_components:
+	# 	print(cc_expr_tree.levels)
 	# end-debug
 
 	# init expression managers
