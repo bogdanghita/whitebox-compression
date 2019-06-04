@@ -188,13 +188,13 @@ class Column(object):
 
 
 class ExpressionNode(object):
-	def __init__(self, p_id, p_name, cols_in, cols_in_consumed, cols_out, cols_ex, operator_info, details, pattern_signature, parents=None, children=None):
+	def __init__(self, p_id, p_name, cols_in, cols_in_consumed, cols_out, operator_info, details, pattern_signature,
+				 parents=None, children=None):
 		self.p_id = p_id
 		self.p_name = p_name
 		self.cols_in = cols_in
 		self.cols_in_consumed = cols_in_consumed
 		self.cols_out = cols_out
-		self.cols_ex = cols_ex
 		self.operator_info = operator_info
 		self.details = details
 		self.pattern_signature = pattern_signature
@@ -204,7 +204,7 @@ class ExpressionNode(object):
 		self.children = children if children is not None else set()
 
 	def __repr__(self):
-		return "ExpressionNode(p_id=%r,p_name=%r,cols_in=%r,cols_in_consumed=%r,cols_out=%r,cols_ex=%r,operator_info=%r,details=%r,pattern_signature=%r,parents=%r,children=%r)" % (self.p_id, self.p_name, self.cols_in, self.cols_in_consumed, self.cols_out, self.cols_ex, self.operator_info, self.details, self.pattern_signature, self.parents, self.children)
+		return "ExpressionNode(p_id=%r,p_name=%r,cols_in=%r,cols_in_consumed=%r,cols_out=%r,operator_info=%r,details=%r,pattern_signature=%r,parents=%r,children=%r)" % (self.p_id, self.p_name, self.cols_in, self.cols_in_consumed, self.cols_out, self.operator_info, self.details, self.pattern_signature, self.parents, self.children)
 
 	def to_dict(self):
 		return {
@@ -213,7 +213,6 @@ class ExpressionNode(object):
 			"cols_in": [c.to_dict() for c in self.cols_in],
 			"cols_in_consumed": [c.to_dict() for c in self.cols_in_consumed],
 			"cols_out": [c.to_dict() for c in self.cols_out],
-			"cols_ex": [c.to_dict() for c in self.cols_ex],
 			"operator_info": self.operator_info,
 			"details": self.details,
 			"pattern_signature": self.pattern_signature,
@@ -227,7 +226,6 @@ class ExpressionNode(object):
 		res.cols_in = [Column.from_dict(c) for c in res.cols_in]
 		res.cols_in_consumed = [Column.from_dict(c) for c in res.cols_in_consumed]
 		res.cols_out = [Column.from_dict(c) for c in res.cols_out]
-		res.cols_ex = [Column.from_dict(c) for c in res.cols_ex]
 		res.parents = set(res.parents)
 		res.children = set(res.children)
 		return res
@@ -240,6 +238,39 @@ class ExpressionNode(object):
 	def deserialize(cls, in_str):
 		res_d = json.loads(in_str)
 		return cls.from_dict(res_d)
+
+
+class CompressionNode(ExpressionNode):
+	def __init__(self, p_id, p_name, cols_in, cols_in_consumed, cols_out, operator_info, details, pattern_signature,
+				 cols_ex,
+				 parents=None, children=None):
+		ExpressionNode.__init__(self, p_id, p_name, cols_in, cols_in_consumed, cols_out, operator_info, details, pattern_signature,
+								parents, children)
+		self.cols_ex = cols_ex
+
+	def __repr__(self):
+		return "ExpressionNode(p_id=%r,p_name=%r,cols_in=%r,cols_in_consumed=%r,cols_out=%r,cols_ex=%r,operator_info=%r,details=%r,pattern_signature=%r,parents=%r,children=%r)" % (self.p_id, self.p_name, self.cols_in, self.cols_in_consumed, self.cols_out, self.cols_ex, self.operator_info, self.details, self.pattern_signature, self.parents, self.children)
+
+	def to_dict(self):
+		out_d = ExpressionNode.to_dict(self)
+		out_d["cols_ex"] = [c.to_dict() for c in self.cols_ex]
+		return out_d
+
+	@classmethod
+	def from_dict(cls, in_d):
+		res = cls(**in_d)
+		res.cols_in = [Column.from_dict(c) for c in res.cols_in]
+		res.cols_in_consumed = [Column.from_dict(c) for c in res.cols_in_consumed]
+		res.cols_out = [Column.from_dict(c) for c in res.cols_out]
+		res.cols_ex = [Column.from_dict(c) for c in res.cols_ex]
+		res.parents = set(res.parents)
+		res.children = set(res.children)
+		return res
+
+
+class DecompressionNode(ExpressionNode):
+	def __init__(self, *args, **kwargs):
+		ExpressionNode.__init__(self, *args, **kwargs)
 
 
 class OutputColumnManager(object):

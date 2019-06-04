@@ -4,7 +4,7 @@ import itertools
 from copy import deepcopy
 from bitstring import *
 from overrides import overrides
-from lib.util import ExpressionNode
+from lib.util import *
 from patterns import *
 
 
@@ -73,22 +73,9 @@ class DummyPatternSelector(PatternSelector):
 				# TODO: maybe do something here
 				pass
 			else:
-				details = deepcopy(best_p["details"])
-				details.update({
-					"coverage": best_p["coverage"],
-					"null_coverage": best_p["null_coverage"]
-				})
-				exp_node = ExpressionNode(
-					p_id=best_p["p_id"],
-					p_name=best_p["p_name"],
-					cols_in=best_p["in_columns"],
-					cols_in_consumed=best_p["in_columns_consumed"],
-					cols_out=best_p["res_columns"],
-					cols_ex=best_p["ex_columns"],
-					operator_info=best_p["operator_info"],
-					details=details,
-					pattern_signature=best_p["pattern_signature"])
-				expression_nodes.append(exp_node)
+				pd = get_pattern_detector(col_p["p_id"])
+				expr_n = pd.get_compression_node(col_p)
+				expression_nodes.append(expr_n)
 
 		return expression_nodes
 
@@ -188,17 +175,9 @@ class CoveragePatternSelector(PatternSelector):
 					"coverage": col_p["coverage"],
 					"null_coverage": col_p["null_coverage"]
 				})
-				exp_node = ExpressionNode(
-					p_id=col_p["p_id"],
-					p_name=col_p["p_name"],
-					cols_in=col_p["in_columns"],
-					cols_in_consumed=col_p["in_columns_consumed"],
-					cols_out=col_p["res_columns"],
-					cols_ex=col_p["ex_columns"],
-					operator_info=col_p["operator_info"],
-					details=details,
-					pattern_signature=col_p["pattern_signature"])
-				expression_nodes.append(exp_node)
+				pd = get_pattern_detector(col_p["p_id"])
+				expr_n = pd.get_compression_node(col_p)
+				expression_nodes.append(expr_n)
 
 		return expression_nodes
 
@@ -293,7 +272,7 @@ class CorrelationPatternSelector(PatternSelector):
 				continue
 			ccs[src_cc] |= ccs[dst_cc]
 			del ccs[dst_cc]
-		
+
 		res = {cc:[] for cc in ccs.keys()}
 		for edge in corrs:
 			cc = get_cc(edge[0])
@@ -308,7 +287,7 @@ class CorrelationPatternSelector(PatternSelector):
 			src, dst = corr[0], corr[1]
 			nodes[src]["out"].add(dst)
 			nodes[dst]["in"].add(src)
-		
+
 		def get_corr(src, dst):
 			for corr in corr_cc:
 				if corr[0] == src and corr[1] == dst:
@@ -365,21 +344,8 @@ class CorrelationPatternSelector(PatternSelector):
 					break
 			else:
 				raise Exception("Invalid source_col_id: {}".format(source_col_id))
-			details = deepcopy(col_p["details"])
-			details.update({
-				"coverage": col_p["coverage"],
-				"null_coverage": col_p["null_coverage"]
-			})
-			expr_n = ExpressionNode(
-				p_id=col_p["p_id"],
-				p_name=col_p["p_name"],
-				cols_in=col_p["in_columns"],
-				cols_in_consumed=col_p["in_columns_consumed"],
-				cols_out=col_p["res_columns"],
-				cols_ex=col_p["ex_columns"],
-				operator_info=col_p["operator_info"],
-				details=details,
-				pattern_signature=col_p["pattern_signature"])
+			pd = get_pattern_detector(col_p["p_id"])
+			expr_n = pd.get_compression_node(col_p)
 			return expr_n
 
 		expression_nodes = []

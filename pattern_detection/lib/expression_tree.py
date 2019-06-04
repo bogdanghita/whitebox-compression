@@ -8,15 +8,23 @@ from lib.util import *
 class ExpressionTree(object):
 	"""
 	NOTES:
-	1) multiple expression nodes can have the same column as input; this is the case of multiple patterns on the same column
-	2) a non-exception column can only be the output column of a single expression node
-	3) an exception column can be the output columns of multiple expression nodes (those that took the in_col as input)
-	4) column rules:
+	General:
+	1) column rules:
 		- "output_of" is [] (empty): it is an input column
 		- "input_of" is [] (empty): it is an output column
 		- both "input_of" and "output_of" are None: not used in any expression node in the tree (both input and output column)
+	Compression:
+	1) multiple expression nodes can have the same column as input; this is the case of multiple patterns on the same column
+	2) a non-exception column can only be the output column of a single expression node
+	3) an exception column can be the output column of multiple expression nodes (those that took the in_col as input)
+	Decompression:
+	1) multiple expression nodes can have the same column as output; this is the case of multiple patterns on the same column
+	2) a non-exception column can only be the input column of a single expression node
+	3-1) all exception columns are input columns
+	3-2) no exception column is input of a decompression node
+	3-3) exception columns are not considered output columns
 	"""
-	def __init__(self, in_columns):
+	def __init__(self, in_columns, tree_type):
 		self.levels = []
 		self.nodes = {}
 		""" nodes item format: node_id (str): expr_n (ExpressionNode) """
@@ -26,6 +34,8 @@ class ExpressionTree(object):
 				"output_of": node_id (str), # this column is output of node_id
 				"input_of": node_id (str) # this column is input for node_id
 			} """
+		self.type = tree_type
+		self.node_class = self.get_node_class()
 		# add input columns
 		for in_col in in_columns:
 			self.columns[in_col.col_id] = {
@@ -34,8 +44,17 @@ class ExpressionTree(object):
 				"input_of": []
 			}
 
+	def get_node_class(self):
+		if self.type == "compression":
+			return CompressionNode
+		elif self.type == "decompression":
+			return DecompressionNode
+		else:
+			raise Exception("Invalid tree_type: {}".format(self.type))
+
 	def to_dict(self):
 		res = {
+			"type": self.type,
 			"levels": deepcopy(self.levels),
 			"nodes": {},
 			"columns": {},
@@ -53,13 +72,13 @@ class ExpressionTree(object):
 
 	@classmethod
 	def from_dict(cls, expr_tree_dict):
-		json.dumps(expr_tree_dict, indent=2)
+		# json.dumps(expr_tree_dict, indent=2)
 
 		in_columns = [Column.from_dict(expr_tree_dict["columns"][col_id]["col_info"]) for col_id in expr_tree_dict["in_columns"]]
-		expr_tree = cls(in_columns)
+		expr_tree = cls(in_columns, expr_tree_dict["type"])
 
 		for level in expr_tree_dict["levels"]:
-			expr_nodes = [ExpressionNode.from_dict(expr_tree_dict["nodes"][node_id]) for node_id in level]
+			expr_nodes = [self.node_class.from_dict(expr_tree_dict["nodes"][node_id]) for node_id in level]
 			expr_tree.add_level(expr_nodes)
 
 		return expr_tree
@@ -96,23 +115,27 @@ class ExpressionTree(object):
 
 			# add output columns; fill in "output_of"
 			for out_col in expr_n.cols_out:
-				if out_col.col_id in self.columns:
-					raise Exception("Duplicate output column: out_col={}".format(out_col))
-				self.columns[out_col.col_id] = {
-					"col_info": deepcopy(out_col),
-					"output_of": [node_id],
-					"input_of": []
-				}
-
-			# add exception columns; append to "output_of"
-			for ex_col in expr_n.cols_ex:
-				if ex_col.col_id not in self.columns:
-					self.columns[ex_col.col_id] = {
-						"col_info": deepcopy(ex_col),
+				if out_col.col_id not in self.columns:
+					self.columns[out_col.col_id] = {
+						"col_info": deepcopy(out_col),
 						"output_of": [],
 						"input_of": []
 					}
-				self.columns[ex_col.col_id]["output_of"].append(node_id)
+				if (len(self.columns[out_col.col_id]["output_of"]) > 0 and
+					self.node_class == CompressionNode):
+					raise Exception("Duplicate output column: out_col={}".format(out_col))
+				self.columns[out_col.col_id]["output_of"].append(node_id)
+
+			# if CompressionNode: add exception columns; append to "output_of"
+			if self.node_class == CompressionNode:
+				for ex_col in expr_n.cols_ex:
+					if ex_col.col_id not in self.columns:
+						self.columns[ex_col.col_id] = {
+							"col_info": deepcopy(ex_col),
+							"output_of": [],
+							"input_of": []
+						}
+					self.columns[ex_col.col_id]["output_of"].append(node_id)
 
 		# add new level
 		self.levels.append(level)
@@ -134,14 +157,23 @@ class ExpressionTree(object):
 		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0, self.columns.keys())))
 
 	def get_out_columns(self):
-		# columns that are not consumed by any node
+		"""
+		Compression:
+			columns that are not consumed by any node
+		Decompression:
+			same as Compression, but excluding exception columns
+		"""
 		res = []
 		for col_id, col_item in self.columns.items():
 			for node_id in col_item["input_of"]:
 				if col_id in {cic_col.col_id for cic_col in self.nodes[node_id].cols_in_consumed}:
 					break
 			else:
-				res.append(col_id)
+				if (self.node_class == CompressionNode or
+					(self.node_class == DecompressionNode and
+					 not OutputColumnManager.is_exception_col(col_item["col_info"]))
+				   ):
+					res.append(col_id)
 		return sorted(res)
 
 
@@ -219,7 +251,7 @@ class ExpressionTree(object):
 			in_columns_unique_ids = {col.col_id for expr_node in expr_node_levels[0] for col in expr_node.cols_in}
 			in_columns = [self.columns[col_id]["col_info"] for col_id in in_columns_unique_ids]
 			# print([col.col_id for col in in_columns])
-			expr_tree = ExpressionTree(in_columns)
+			expr_tree = ExpressionTree(in_columns, self.type)
 			for expr_nodes in expr_node_levels:
 				expr_tree.add_level(expr_nodes)
 			res.append(expr_tree)

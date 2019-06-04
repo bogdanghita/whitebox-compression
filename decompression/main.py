@@ -40,13 +40,29 @@ def parse_args():
 
 
 def decompress(in_tpl):
+	"""
+	Input:
+		- decompression nodes in topological order
+		- (orig_col, ex_col) pairs
+		- in tuple
+
+	NOTE-1:
+		- for each ex_col, if value is not null, fill in orig_col
+		- for each dec_node, if orig_col(s) are not already filled, apply operator_dec(operator_dec_info)
+	NOTE-2:
+		- find a reliable way to check if an orig_col is already filled:
+			- just checking for null might not be enough
+			- the evaluation of the dec_node may have resulted in null
+			- see if this is problematic and whether you need to separately keep track of which columns were filled
+	"""
+
 	# TODO
 	return in_tpl
 
 
 def validate(out_tpl, valid_tpl):
 	if len(out_tpl) != len(valid_tpl):
-		raise ValidationException("Tuple length mismatch", 
+		raise ValidationException("Tuple length mismatch",
 			diff=dict(out_len=len(out_tpl), valid_len=len(valid_tpl)))
 
 	diff = []
@@ -117,17 +133,17 @@ def main():
 	args = parse_args()
 	print(args)
 
-	# load expression tree
-	expression_tree = read_expr_tree(args.expr_tree_file)
-	if len(expression_tree.levels) == 0:
-		print("debug: empty expression tree")
+	# load decompression tree
+	decompression_tree = read_expr_tree(args.expr_tree_file)
+	if len(decompression_tree.levels) == 0:
+		print("debug: empty decompression tree")
 		return
 
 	# get topological order for evalution
-	topological_order = expression_tree.get_topological_order()
+	topological_order = decompression_tree.get_topological_order()
 	print(json.dumps(topological_order, indent=2))
-	
-	""" TODO: pass expression tree information to the driver loop function
+
+	""" TODO: pass decompression tree information to the driver loop function
 		- topological order
 		- inverse operators
 		- [?] other
@@ -176,7 +192,7 @@ wb=Generico
 table=Generico_2
 
 ================================================================================
-expr_tree_file=$wbs_dir/$wb/$table.expr_tree/expr_tree.json
+expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
 output_file=$wbs_dir/$wb/$table.poc_1_out/$table.decompressed.csv
 validation_file=$wbs_dir/$wb/$table.csv
 input_file=$wbs_dir/$wb/$table.poc_1_out/${table}_out.csv

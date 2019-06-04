@@ -417,7 +417,7 @@ table=Generico_2
 
 ================================================================================
 input_file=$wbs_dir/$wb/$table.csv
-expr_tree_file=$wbs_dir/$wb/$table.expr_tree/expr_tree.json
+expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
 output_dir=$wbs_dir/$wb/$table.poc_1_out
 out_table="${table}_out"
 

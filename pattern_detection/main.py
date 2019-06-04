@@ -253,13 +253,15 @@ class OutputManager(object):
 		plot_correlation_graph(corrs_res, plot_file)
 
 	@staticmethod
-	def output_expression_tree(expression_tree, output_dir, plot=True):
-		expr_tree_out_file = os.path.join(output_dir, "expr_tree.json")
-		with open(expr_tree_out_file, 'w') as f:
-			json.dump(expression_tree.to_dict(), f, indent=2)
+	def output_expression_trees(compression_tree, decompression_tree, output_dir, plot=True):
+		c_tree_out_file, dec_tree_out_file = os.path.join(output_dir, "c_tree.json"), os.path.join(output_dir, "dec_tree.json")
+		with open(c_tree_out_file, 'w') as c_f, open(dec_tree_out_file, 'w') as dec_f:
+			json.dump(compression_tree.to_dict(), c_f, indent=2)
+			json.dump(decompression_tree.to_dict(), dec_f, indent=2)
 		if plot:
-			expr_tree_plot_file = os.path.join(output_dir, "expr_tree.svg")
-			plot_expression_tree(expression_tree, expr_tree_plot_file)
+			c_tree_plot_file, dec_tree_plot_file = os.path.join(output_dir, "c_tree.svg"), os.path.join(output_dir, "dec_tree.svg")
+			plot_expression_tree(compression_tree, c_tree_plot_file)
+			plot_expression_tree(decompression_tree, dec_tree_plot_file)
 
 
 def parse_args():
@@ -382,7 +384,7 @@ def output_iteration_results(args, stage, it, in_columns, pattern_detectors, pat
 			print("debug: no ColumnCorrelation pattern detector used")
 
 
-def build_expression_tree_iteration(args, stage, it, in_columns, pattern_detectors, pattern_selector, in_data_manager, expression_tree, pattern_log):
+def build_compression_tree_iteration(args, stage, it, in_columns, pattern_detectors, pattern_selector, in_data_manager, expression_tree, pattern_log):
 	# init engine
 	pd_engine = PatternDetectionEngine(in_columns, pattern_detectors)
 	# feed data to engine
@@ -430,9 +432,9 @@ def build_expression_tree_iteration(args, stage, it, in_columns, pattern_detecto
 	return (out_columns, out_data_manager)
 
 
-def build_expression_tree(args, in_data_manager, columns):
+def build_compression_tree(args, in_data_manager, columns):
 	in_columns = deepcopy(columns)
-	expression_tree = ExpressionTree(in_columns)
+	expression_tree = ExpressionTree(in_columns, tree_type="compression")
 	pattern_log = PatternLog()
 
 	for it_stage_idx, it_stage in enumerate(iteration_stages):
@@ -443,7 +445,7 @@ def build_expression_tree(args, in_data_manager, columns):
 			pattern_detectors = init_pattern_detectors(it_stage["pattern_detectors"], in_columns, pattern_log, expression_tree, args.null)
 			pattern_selector = init_pattern_selector(it_stage["pattern_selector"])
 
-			res = build_expression_tree_iteration(args, it_stage_idx, it,
+			res = build_compression_tree_iteration(args, it_stage_idx, it,
 						in_columns, pattern_detectors, pattern_selector, in_data_manager,
 						expression_tree, pattern_log)
 			if res is None:
@@ -457,6 +459,25 @@ def build_expression_tree(args, in_data_manager, columns):
 			print("stop iteration: max_it={} reached".format(it_stage["max_it"]))
 
 	return expression_tree
+
+
+def build_decompression_tree(c_tree):
+	# NOTE: no reason to add exception columns to the decompression tree
+	in_columns = [c_tree.get_column(col_id)["col_info"] for col_id in c_tree.get_out_columns()
+					if not OutputColumnManager.is_exception_col(c_tree.get_column(col_id)["col_info"])]
+	dec_tree = ExpressionTree(in_columns, "decompression")
+
+	# add levels in reverse order
+	for level in c_tree.levels[::-1]:
+		dec_nodes = []
+		for node_id in level:
+			c_n = c_tree.nodes[node_id]
+			pd = get_pattern_detector(c_n.p_id)
+			dec_n = pd.get_decompression_node(c_n)
+			dec_nodes.append(dec_n)
+		dec_tree.add_level(dec_nodes)
+
+	return dec_tree
 
 
 def main():
@@ -489,29 +510,33 @@ def main():
 	finally:
 		fd.close()
 
-	# build expression tree
-	expression_tree = build_expression_tree(args, in_data_manager, columns)
+	# build compression tree
+	compression_tree = build_compression_tree(args, in_data_manager, columns)
+	# build decompression tree
+	decompression_tree = build_decompression_tree(compression_tree)
 
 	# debug
 	print("\n[levels]")
-	for idx, level in enumerate(expression_tree.get_node_levels()):
+	for idx, level in enumerate(compression_tree.get_node_levels()):
 		print("level_{}={}".format(idx+1, level))
 		# for node_id in level:
-		# 	node = expression_tree.get_node(node_id)
+		# 	node = compression_tree.get_node(node_id)
 		# 	print("node_id={}, node={}".format(node_id, node))
 	# print("[all_columns]")
-	# for col_id in expression_tree.columns:
-	# 	print(expression_tree.get_column(col_id))
+	# for col_id in compression_tree.columns:
+	# 	print(compression_tree.get_column(col_id))
 	print("[in_columns]")
-	print(expression_tree.get_in_columns())
+	print(compression_tree.get_in_columns())
 	print("[out_columns]")
-	print(expression_tree.get_out_columns())
+	print(compression_tree.get_out_columns())
 	print("[unused_columns]")
-	print(expression_tree.get_unused_columns())
+	print(compression_tree.get_unused_columns())
 	# end-debug
 
-	# output expression tree
-	OutputManager.output_expression_tree(expression_tree, args.expr_tree_output_dir, plot=True)
+	# output expression trees
+	OutputManager.output_expression_trees(compression_tree, decompression_tree, args.expr_tree_output_dir, plot=True)
+
+
 
 
 if __name__ == "__main__":
@@ -565,7 +590,7 @@ time ./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.
 $wbs_dir/$wb/$table.sample.csv
 
 #[plot-expr-tree]
-expr_tree_file=$expr_tree_output_dir/expr_tree.json
+expr_tree_file=$expr_tree_output_dir/c_tree.json
 expr_tree_plot_file=$expr_tree_output_dir/expr_tree_manual.svg
 ./pattern_detection/plot_expression_tree.py --out-file $expr_tree_plot_file $expr_tree_file
 

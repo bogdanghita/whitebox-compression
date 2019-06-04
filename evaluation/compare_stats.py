@@ -272,7 +272,7 @@ out_table="${table}_out"
 stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
 stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
 stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json
-expr_tree_file=$wbs_dir/$wb/$table.expr_tree/expr_tree.json
+expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
 apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json
 
 ./evaluation/compare_stats.py $stats_file_nocompression $stats_file_default
@@ -294,7 +294,7 @@ for wb in $testset_dir/*; do \
     stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json; \
     stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json; \
     stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json; \
-    expr_tree_file=$wbs_dir/$wb/$table.expr_tree/expr_tree.json; \
+    expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json; \
     apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json; \
     output_dir=$wbs_dir/$wb/$table.poc_1_out/compare_stats; \
 \

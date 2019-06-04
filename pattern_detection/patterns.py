@@ -160,6 +160,7 @@ class PatternDetector(object):
 				)
 
 		NOTE-1: input columns can either be consumed or not; a consumed input column will be transformed and no longer be an output column of the expression tree; a column that is NOT consumed wis used just as a form of metadata for the transformation of other consumed columns AND will still remain and output column of the expression tree
+		NOTE-2: in_columns = <consumed_columns> + <unconsumed_columns> (i.e. first the consumed columns, then the unconsumend columns)
 		'''
 		return dict()
 
@@ -169,7 +170,7 @@ class PatternDetector(object):
 		Returns: a function with the following signature:
 				 params: attrs
 				 returns: attrs_out
-				 raises: Exception if attrs are invalid (i.e. pattern and/or params are not applicable)
+				 raises: OperatorException if attrs are invalid (i.e. pattern and/or params are not applicable)
 				 properties:
 				 	len(attrs) = len(cols_in)
 					len(attrs_out) = len(cols_out)
@@ -181,6 +182,90 @@ class PatternDetector(object):
 	@classmethod
 	def get_metadata_size(cls, operator_info):
 		return 0
+
+	@classmethod
+	def get_operator_dec_info(cls, operator_info):
+		'''
+		Params:
+			operator_info: compression operator info
+		Returns:
+			operator_dec_info: decompression operator info
+		'''
+		raise Exception("Not implemented")
+
+	@classmethod
+	def get_operator_dec(cls, cols_in, cols_out, operator_dec_info, null_value):
+		'''
+		Params:
+			cols_in: input columns of the decompression operator
+			cols_out: output columns of the decompression operator
+			operator_info: decompression operator info
+			null_value: null value
+
+		Returns: a function with the following signature:
+				 params: attrs
+				 returns: attrs_out
+				 raises: OperatorException if attrs are invalid (i.e. pattern and/or params are not applicable)
+				 properties:
+				 	len(attrs) = len(cols_in)
+					len(attrs_out) = len(cols_out)
+				 note-1: function assumes that the above properties are satisfied & does not check them
+				 note-2: get_operator() function is meant to be called only in the initialization phase, not for every tuple; e.g. call get_operator once for each expression node and save the returned operator, then use it as many times as you want
+
+		NOTE: see cls.get_decompression_node() for more info about the parameters
+		'''
+		raise Exception("Not implemented")
+
+	@classmethod
+	def get_compression_node(cls, pd_item):
+		"""
+		Params:
+			pd_item: pattern detection item resulted after the pattern detection phase
+		"""
+		details = deepcopy(pd_item["details"])
+		details.update({
+			"coverage": pd_item["coverage"],
+			"null_coverage": pd_item["null_coverage"]
+		})
+
+		expr_n = CompressionNode(
+			p_id=pd_item["p_id"],
+			p_name=pd_item["p_name"],
+			cols_in=pd_item["in_columns"],
+			cols_in_consumed=pd_item["in_columns_consumed"],
+			cols_out=pd_item["res_columns"],
+			cols_ex=pd_item["ex_columns"],
+			operator_info=pd_item["operator_info"],
+			details=details,
+			pattern_signature=pd_item["pattern_signature"])
+		return expr_n
+
+	@classmethod
+	def get_decompression_node(cls, c_node):
+		"""
+		Params:
+			c_node: CompressionNode
+
+		NOTE: see NOTE-2 in cls.evaluate() for column order convention
+		"""
+		unconsumed_columns = [col for col in c_node.cols_in if col.col_id not in {col_c.col_id for col_c in c_node.cols_in_consumed}]
+		# output columns and unconsumed input columns of the compression node
+		cols_in = c_node.cols_out + unconsumed_columns
+		# output columns of the compression node
+		cols_in_consumed = c_node.cols_out
+		# consumed input columns of the compression node
+		cols_out = c_node.cols_in_consumed
+
+		dec_n = DecompressionNode(
+			p_id=c_node.p_id,
+			p_name=c_node.p_name,
+			cols_in=cols_in,
+			cols_in_consumed=cols_in_consumed,
+			cols_out=cols_out,
+			operator_info=cls.get_operator_dec_info(c_node.operator_info),
+			details={},
+			pattern_signature=c_node.pattern_signature)
+		return dec_n
 
 
 class ConstantPatternDetector(PatternDetector):
@@ -326,6 +411,23 @@ class ConstantPatternDetector(PatternDetector):
 	def get_metadata_size(cls, operator_info):
 		constant = operator_info["constant"]
 		return DatatypeAnalyzer.get_size_disk(constant)
+
+	@classmethod
+	def get_operator_dec_info(cls, operator_info):
+		res = deepcopy(operator_info)
+		return res
+
+	@classmethod
+	def get_operator_dec(cls, cols_in, cols_out, operator_dec_info, null_value):
+		def operator(attrs):
+			in_val = attrs[0]
+			if in_val == null_value:
+				out_val = null_value
+			else:
+				out_val = operator_dec_info["constant"]
+			return [out_val]
+
+		return operator
 
 
 class DictPattern(PatternDetector):
@@ -539,6 +641,25 @@ class DictPattern(PatternDetector):
 	def get_metadata_size(cls, operator_info):
 		map_obj = operator_info["map"]
 		return sum([DatatypeAnalyzer.get_size_disk(k) for k in map_obj.keys()])
+
+	@classmethod
+	def get_operator_dec_info(cls, operator_info):
+		map_obj = [attr for attr, pos in sorted(operator_info["map"].items(), key=lambda x: x[1])]
+		res = dict(name="map", map=map_obj)
+		return res
+
+	@classmethod
+	def get_operator_dec(cls, cols_in, cols_out, operator_dec_info, null_value):
+		def operator(attrs):
+			in_val = attrs[0]
+			if in_val == null_value:
+				out_val = null_value
+			else:
+				pos = int(in_val)
+				out_val = operator_dec_info["map"][pos]
+			return [out_val]
+
+		return operator
 
 
 class StringPatternDetector(PatternDetector):
@@ -754,7 +875,7 @@ class NumberAsString(StringPatternDetector):
 			prefix, suffix = preview_res[1], preview_res[2]
 
 			# check prefix & suffix len
-			if (len(prefix) > int(c_prefix.datatype.params[0]) or 
+			if (len(prefix) > int(c_prefix.datatype.params[0]) or
 				len(suffix) > int(c_suffix.datatype.params[0])):
 				raise OperatorException("[{}] format does not match datatype: value={}, datatype={}".format(cls.__name__, val, c_out.datatype))
 
@@ -772,8 +893,24 @@ class NumberAsString(StringPatternDetector):
 
 	@classmethod
 	def get_metadata_size(cls, operator_info):
-		# NOTE: this code should be updated when the format information will be stored
+		# NOTE: format information is stored in additional output columns
 		return 0
+
+	@classmethod
+	def get_operator_dec_info(cls, operator_info):
+		return dict(name="format")
+
+	@classmethod
+	def get_operator_dec(cls, cols_in, cols_out, operator_dec_info, null_value):
+		def operator(attrs):
+			in_val, prefix, suffix = attrs
+			if in_val == null_value:
+				out_val = null_value
+			else:
+				out_val = "{}{}{}".format(prefix, in_val, suffix)
+			return [out_val]
+
+		return operator
 
 
 class StringCommonPrefix(StringPatternDetector):
@@ -1037,6 +1174,21 @@ class CharSetSplit(StringPatternDetector):
 			size_B += DatatypeAnalyzer.get_size_disk(ph) + sum([DatatypeAnalyzer.get_size_disk(c) for c in c_set])
 		return size_B
 
+	@classmethod
+	def get_operator_dec_info(cls, operator_info):
+		return dict(name="concat")
+
+	@classmethod
+	def get_operator_dec(cls, cols_in, cols_out, operator_dec_info, null_value):
+		def operator(attrs):
+			if null_value in attrs:
+				out_val = null_value
+			else:
+				out_val = "".join(attrs)
+			return [out_val]
+
+		return operator
+
 
 class NGramFreqSplit(StringPatternDetector):
 	def __init__(self, pd_obj_id, columns, pattern_log, expr_tree, null_value,
@@ -1203,7 +1355,7 @@ class ColumnCorrelation(PatternDetector):
 		[null-handling] also see notes-week_16
 		Let X and Y be 2 columns; let X determine Y; let X_val and Y_val be
 			values in X and Y on the same row;
-		- If X_val is null: Both in the detection and compression phase:
+		- If X_val is null: in all phases (detection, compression, decompression):
 			treat it like a normal value; i.e. nulls on col X can determine
 			values in col Y; they are taken into account when computing the
 			correlation coefficient the null value can appear on the map
@@ -1213,6 +1365,7 @@ class ColumnCorrelation(PatternDetector):
 				be stored in the exception column; but there is no penalty,
 				because even if it were not an exception, the exception column
 				will contain a null at that position
+			- Decompression: N/A
 		"""
 
 		for source_idx in self.columns.keys():
@@ -1347,6 +1500,29 @@ class ColumnCorrelation(PatternDetector):
 
 		return operator
 
+	@classmethod
+	def get_metadata_size(cls, operator_info):
+		corr_map = operator_info["corr_map"]
+		size_B = sum([DatatypeAnalyzer.get_size_disk(k) + DatatypeAnalyzer.get_size_disk(v) for k, v in corr_map.items()])
+		return size_B
+
+	@classmethod
+	def get_operator_dec_info(cls, operator_info):
+		return dict(name="map", map=operator_info["corr_map"])
+
+	@classmethod
+	def get_operator_dec(cls, cols_in, cols_out, operator_dec_info, null_value):
+		"""
+		[null-handling] see comment in feed_tuple()
+		"""
+
+		def operator(attrs):
+			source_val = attrs[0]
+			out_val = operator_dec_info["map"][source_val]
+			return [out_val]
+
+		return operator
+
 	def get_corr_coefs(self):
 		corr_coefs = defaultdict(dict)
 		selected_corrs = []
@@ -1365,12 +1541,6 @@ class ColumnCorrelation(PatternDetector):
 			# print(corr_coefs[source_col_id])
 
 		return corr_coefs, selected_corrs
-
-	@classmethod
-	def get_metadata_size(cls, operator_info):
-		corr_map = operator_info["corr_map"]
-		size_B = sum([DatatypeAnalyzer.get_size_disk(k) + DatatypeAnalyzer.get_size_disk(v) for k, v in corr_map.items()])
-		return size_B
 
 
 '''

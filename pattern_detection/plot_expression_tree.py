@@ -25,14 +25,27 @@ def get_col_vertex(col, col_type="default", is_out_col=False):
 	color = COL_VERTEX_COLOR["output"] if is_out_col else COL_VERTEX_COLOR["default"]
 	return pydot.Node(content, shape="box", style="filled", color=color, fillcolor=COL_VERTEX_FILLCOLOR[col_type])
 
-def get_node_vertex(node_id, expr_node):
-	p_id = expr_node.p_id.replace(":", " ")
+def get_compression_node_content(node_id, expr_node, p_id):
 	content = "[{node_id}]\n{p_id}\ncoverage={coverage:.2f}\nexceptions={exceptions:.2f}\nnulls={nulls:.2f}".format(
 		node_id=node_id,
 		p_id=p_id,
 		coverage=expr_node.details["coverage"],
 		exceptions=(1 - expr_node.details["coverage"] - expr_node.details["null_coverage"]),
 		nulls=expr_node.details["null_coverage"])
+	return content
+
+def get_decompression_node_content(node_id, expr_node, p_id):
+	content = "[{node_id}]\n{p_id}".format(
+		node_id=node_id,
+		p_id=p_id)
+	return content
+
+def get_node_vertex(node_id, expr_node):
+	p_id = expr_node.p_id.replace(":", " ")
+	if isinstance(expr_node, CompressionNode):
+		content = get_compression_node_content(node_id, expr_node, p_id)
+	else: # DecompressionNode
+		content = get_decompression_node_content(node_id, expr_node, p_id)
 	return pydot.Node(content, style="filled", fillcolor=EXPR_NODE_VERTEX_COLOR)
 
 def plot_expression_tree(expr_tree, out_file):
