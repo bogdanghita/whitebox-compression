@@ -78,7 +78,7 @@ class ExpressionTree(object):
 		expr_tree = cls(in_columns, expr_tree_dict["type"])
 
 		for level in expr_tree_dict["levels"]:
-			expr_nodes = [self.node_class.from_dict(expr_tree_dict["nodes"][node_id]) for node_id in level]
+			expr_nodes = [expr_tree.node_class.from_dict(expr_tree_dict["nodes"][node_id]) for node_id in level]
 			expr_tree.add_level(expr_nodes)
 
 		return expr_tree
@@ -259,8 +259,21 @@ class ExpressionTree(object):
 		return res
 
 	def get_topological_order(self):
-		# TODO
-		return []
+		unvisited_nodes = set(self.nodes.keys())
+		explored_nodes = []
+
+		def m_dfs(node_id):
+			for child_id in self.nodes[node_id].children:
+				if child_id not in unvisited_nodes:
+					continue
+				unvisited_nodes.remove(child_id)
+				m_dfs(child_id)
+			explored_nodes.append(node_id)
+
+		while len(unvisited_nodes) > 0:
+			m_dfs(unvisited_nodes.pop())
+
+		return explored_nodes[::-1]
 
 
 def read_expr_tree(expr_tree_file):

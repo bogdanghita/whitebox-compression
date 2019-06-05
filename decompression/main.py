@@ -143,6 +143,8 @@ def main():
 	topological_order = decompression_tree.get_topological_order()
 	print(json.dumps(topological_order, indent=2))
 
+	sys.exit(1)
+
 	""" TODO: pass decompression tree information to the driver loop function
 		- topological order
 		- inverse operators
@@ -192,7 +194,7 @@ wb=Generico
 table=Generico_2
 
 ================================================================================
-expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
+expr_tree_file=$wbs_dir/$wb/$table.expr_tree/dec_tree.json
 output_file=$wbs_dir/$wb/$table.poc_1_out/$table.decompressed.csv
 validation_file=$wbs_dir/$wb/$table.csv
 input_file=$wbs_dir/$wb/$table.poc_1_out/${table}_out.csv
