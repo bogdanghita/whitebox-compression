@@ -4,7 +4,7 @@ import os
 import sys
 import argparse
 import json
-from lib.expression_tree import ExpressionTree
+from lib.expression_tree import *
 from patterns import *
 from lib.util import *
 
@@ -17,16 +17,10 @@ class ExpressionManager(object):
 				- exactly one pattern: apply that one
 				- more than one pattern: choose one and apply it
 				- no pattern: add the attr to the exception column
-	NOTE-2: p_mask[i] value convention:
-			0:    out_col[i] is not used
-			1:    out_col[i] is used
-	NOTE-3: it is the operator's responsibility to handle null values and raise
+	NOTE-2: it is the operator's responsibility to handle null values and raise
 			exception if not supported; for now, they will be added to the
 			exceptions column; TODO: handle them better in the future
 	"""
-
-	ROW_MASK_CODE_NOT_USED = -2
-	ROW_MASK_CODE_EXCEPTION = -1
 
 	def __init__(self, in_columns, expr_nodes, null_value):
 		self.null_value = null_value
@@ -155,9 +149,9 @@ class ExpressionManager(object):
 			return False
 		return True
 
-	def apply_expressions(self, in_tpl, in_mask):
+	def apply_expressions(self, in_tpl):
 		out_tpl = [self.null_value] * len(self.out_columns)
-		out_mask = ["0"] * len(self.out_columns)
+		null_mask = ["1" if attr == self.null_value else "0" for attr in in_tpl]
 
 		if not self.is_valid_tuple(in_tpl):
 			return None
@@ -194,11 +188,10 @@ class ExpressionManager(object):
 			# use this expr_n
 			for in_col in expr_n.cols_in:
 				in_col_idx = self.in_columns_map[in_col.col_id]
-			# fill in out_tpl & mark out_col used in out_mask
+			# fill in out_tpl
 			for out_attr_idx, out_attr in enumerate(out_attrs):
 				out_col_idx = self.out_columns_map[expr_n.cols_out[out_attr_idx].col_id]
 				out_tpl[out_col_idx] = str(out_attr)
-				out_mask[out_col_idx] = "1"
 
 		# handle unused attrs
 		for in_col_idx, in_col in enumerate(self.in_columns):
@@ -214,48 +207,44 @@ class ExpressionManager(object):
 					out_col_idx = self.out_columns_map[in_col.col_id]
 				else: # exception
 					out_col_idx = self.out_columns_map[OutputColumnManager.get_exception_col_id(in_col.col_id)]
-				# add attr to out_tpl & mark out_col used in out_mask
+				# add attr to out_tpl
 				out_tpl[out_col_idx] = str(in_tpl[in_col_idx])
-				# mark used in out_mask only if used in previous level
-				if in_mask[in_col_idx] == "1":
-					out_mask[out_col_idx] = "1"
 
 		# count nulls for stats
 		for idx, attr in enumerate(out_tpl):
 			if attr == self.null_value:
 				self.out_columns_stats[idx]["null_count"] += 1
 
-		return (out_tpl, out_mask)
+		return (out_tpl, null_mask)
 
 
-def apply_expression_manager_list(tpl, mask, expr_manager_list):
+def apply_expression_manager_list(tpl, expr_manager_list):
 	# print("\n[in_tpl]", len(tpl), tpl)
-	# print("[mask]", len(mask), mask)
 
 	# apply all expression managers one after the other
 	for expr_manager in expr_manager_list:
 	# for idx, expr_manager in enumerate(expr_manager_list):
-		res = expr_manager.apply_expressions(tpl, mask)
+		res = expr_manager.apply_expressions(tpl)
 		if res is None:
 			return None
-		tpl, mask = res
+		# tpl, null_mask = res
 
 		# print("level: ", idx)
 		# print([col.col_id for col in expr_manager.get_out_columns()])
 		# print(len(tpl), tpl)
-		# print(len(mask), mask)
+		# print(len(null_mask), null_mask)
 		#
 		# for idx, col in enumerate(expr_manager.get_out_columns()):
-		# 	print(mask[idx], tpl[idx], col.col_id)
+		# 	print(null_mask[idx], tpl[idx], col.col_id)
 
 	# print("[out_tpl]", len(tpl), tpl)
-	# print("[out_mask]", len(mask), mask)
+	# print("[null_mask]", len(null_mask), null_mask)
 	# sys.exit(1)
 
 	return res
 
 
-def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_p_mask, in_mask):
+def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_null_mask):
 	total_tuple_count = 0
 	valid_tuple_count = 0
 
@@ -267,16 +256,16 @@ def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_p_mask, in_mask):
 
 		in_tpl = line.split(fdelim)
 
-		res = apply_expression_manager_list(in_tpl, in_mask, expr_manager_list)
+		res = apply_expression_manager_list(in_tpl, expr_manager_list)
 		if res is None:
 			continue
-		(out_tpl, p_mask) = res
+		(out_tpl, null_mask) = res
 		valid_tuple_count += 1
 
 		line_new = fdelim.join(out_tpl)
 		fd_out.write(line_new + "\n")
-		line_new = fdelim.join(p_mask)
-		fd_p_mask.write(line_new + "\n")
+		line_new = fdelim.join(null_mask)
+		fd_null_mask.write(line_new + "\n")
 
 		# debug: print progress
 		if total_tuple_count % 100000 == 0:
@@ -364,16 +353,15 @@ def main():
 
 	# apply expression tree and generate the new csv file
 	output_file = os.path.join(args.output_dir, "{}.csv".format(args.out_table_name))
-	p_mask_file = os.path.join(args.output_dir, "{}.p_mask.csv".format(args.out_table_name))
+	null_mask_file = os.path.join(args.output_dir, "{}.nulls.csv".format(args.out_table_name))
 	try:
 		if args.file is None:
 			fd_in = os.fdopen(os.dup(sys.stdin.fileno()))
 		else:
 			fd_in = open(args.file, 'r')
 		driver = FileDriver(fd_in)
-		with open(output_file, 'w') as fd_out, open(p_mask_file, 'w') as fd_p_mask:
-			in_mask = ["1"] * len(columns)
-			(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager_list, args.fdelim, fd_out, fd_p_mask, in_mask)
+		with open(output_file, 'w') as fd_out, open(null_mask_file, 'w') as fd_null_mask:
+			(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager_list, args.fdelim, fd_out, fd_null_mask)
 	finally:
 		try:
 			fd_in.close()

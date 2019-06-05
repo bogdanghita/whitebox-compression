@@ -22,6 +22,9 @@ def parse_args():
 
 	parser.add_argument('file', metavar='FILE', nargs='?',
 		help='CSV file to process. Stdin if none given')
+	parser.add_argument('--nulls-file', dest='nulls_file', type=str,
+		help="Path to null mask file",
+		required=True)
 	parser.add_argument('--expr-tree-file', dest='expr_tree_file', type=str,
 		help="Input file containing expression nodes",
 		required=True)
@@ -29,8 +32,7 @@ def parse_args():
 		help="Path to output file to write decompressed data to",
 		required=True)
 	parser.add_argument('--validation-file', dest='validation_file', type=str,
-		help="Original uncompressed file to check (de)compression correctness",
-		required=True)
+		help="Original uncompressed file to check (de)compression correctness")
 	parser.add_argument("-F", "--fdelim", dest="fdelim",
 		help="Use <fdelim> as delimiter between fields", default="|")
 	parser.add_argument("--null", dest="null", type=str,
@@ -39,7 +41,7 @@ def parse_args():
 	return parser.parse_args()
 
 
-def decompress(in_tpl):
+def decompress(in_tpl, null_mask, decompression_tree, topological_order, exception_columns):
 	"""
 	Input:
 		- decompression nodes in topological order
@@ -56,8 +58,14 @@ def decompress(in_tpl):
 			- see if this is problematic and whether you need to separately keep track of which columns were filled
 	"""
 
+	print(in_tpl)
+	print(null_mask)
+
+	out_tpl = []
 	# TODO
-	return in_tpl
+
+	print(out_tpl)
+	return out_tpl
 
 
 def validate(out_tpl, valid_tpl):
@@ -74,7 +82,8 @@ def validate(out_tpl, valid_tpl):
 		raise ValidationException("Attribute mismatch", diff=diff)
 
 
-def driver_loop(driver_in, fdelim, fd_out):
+def driver_loop(driver_in, driver_nulls, fdelim, fd_out,
+				decompression_tree, topological_order, exception_columns):
 	total_tuple_count = 0
 
 	while True:
@@ -85,7 +94,11 @@ def driver_loop(driver_in, fdelim, fd_out):
 
 		in_tpl = in_line.split(fdelim)
 
-		out_tpl = decompress(in_tpl)
+		nulls_line = driver_nulls.nextTuple()
+		null_mask = nulls_line.split(fdelim)
+
+		out_tpl = decompress(in_tpl, null_mask,
+							 decompression_tree, topological_order, exception_columns)
 
 		line_new = fdelim.join(out_tpl)
 		fd_out.write(line_new + "\n")
@@ -96,7 +109,8 @@ def driver_loop(driver_in, fdelim, fd_out):
 		# end-debug
 
 
-def driver_loop_valid(driver_in, driver_valid, fdelim, fd_out):
+def driver_loop_valid(driver_in, driver_nulls, driver_valid, fdelim, fd_out,
+					  decompression_tree, topological_order, exception_columns):
 	total_tuple_count = 0
 
 	while True:
@@ -112,7 +126,11 @@ def driver_loop_valid(driver_in, driver_valid, fdelim, fd_out):
 		in_tpl = in_line.split(fdelim)
 		valid_tpl = valid_line.split(fdelim)
 
-		out_tpl = decompress(in_tpl)
+		nulls_line = driver_nulls.nextTuple()
+		null_mask = nulls_line.split(fdelim)
+
+		out_tpl = decompress(in_tpl, null_mask,
+							 decompression_tree, topological_order, exception_columns)
 
 		try:
 			validate(out_tpl, valid_tpl)
@@ -139,17 +157,17 @@ def main():
 		print("debug: empty decompression tree")
 		return
 
+	# get ex_col dict:
+	exception_columns = {}
+	for col_id in decompression_tree.columns.keys():
+		ex_col_id = OutputColumnManager.get_exception_col_id(col_id)
+		if ex_col_id in decompression_tree.columns:
+			exception_columns[col_id] = ex_col_id
+	# print(exception_columns)
+
 	# get topological order for evalution
 	topological_order = decompression_tree.get_topological_order()
-	print(json.dumps(topological_order, indent=2))
-
-	sys.exit(1)
-
-	""" TODO: pass decompression tree information to the driver loop function
-		- topological order
-		- inverse operators
-		- [?] other
-	"""
+	# print(topological_order)
 
 	# apply decompression tree and generate the decompressed csv file
 	try:
@@ -158,13 +176,16 @@ def main():
 		else:
 			fd_in = open(args.file, 'r')
 		driver_in = FileDriver(fd_in)
-		with open(args.output_file, 'w') as fd_out:
+		with open(args.output_file, 'w') as fd_out, open(args.nulls_file, 'r') as fd_nulls:
+			driver_nulls = FileDriver(fd_nulls)
 			if args.validation_file is None:
-				driver_loop(driver_in, args.fdelim, fd_out)
+				driver_loop(driver_in, driver_nulls, args.fdelim, fd_out,
+							decompression_tree, topological_order, exception_columns)
 			else:
 				with open(args.validation_file, 'r') as fd_valid:
 					driver_valid = FileDriver(fd_valid)
-					driver_loop_valid(driver_in, driver_valid, args.fdelim, fd_out)
+					driver_loop_valid(driver_in, driver_nulls, driver_valid, args.fdelim, fd_out,
+									  decompression_tree, topological_order, exception_columns)
 	finally:
 		try:
 			fd_in.close()
@@ -198,6 +219,7 @@ expr_tree_file=$wbs_dir/$wb/$table.expr_tree/dec_tree.json
 output_file=$wbs_dir/$wb/$table.poc_1_out/$table.decompressed.csv
 validation_file=$wbs_dir/$wb/$table.csv
 input_file=$wbs_dir/$wb/$table.poc_1_out/${table}_out.csv
+nulls_file=$wbs_dir/$wb/$table.poc_1_out/${table}_out.nulls.csv
 
-./decompression/main.py --expr-tree-file $expr_tree_file --output-file $output_file --validation-file $validation_file $input_file
+./decompression/main.py --nulls-file $nulls_file --expr-tree-file $expr_tree_file --output-file $output_file --validation-file $validation_file $input_file
 """
