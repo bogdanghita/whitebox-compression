@@ -178,7 +178,7 @@ class ExpressionTree(object):
 
 
 	def get_unused_columns(self):
-		# NOTE: unconsumed columns have len(input_of) > 0
+		# NOTE: used but not consumed columns have len(input_of) > 0
 		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0 and len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
 
 	def _dfs(self, node_id, visited):

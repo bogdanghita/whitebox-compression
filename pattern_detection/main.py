@@ -260,8 +260,10 @@ class OutputManager(object):
 			json.dump(decompression_tree.to_dict(), dec_f, indent=2)
 		if plot:
 			c_tree_plot_file, dec_tree_plot_file = os.path.join(output_dir, "c_tree.svg"), os.path.join(output_dir, "dec_tree.svg")
-			plot_expression_tree(compression_tree, c_tree_plot_file)
-			plot_expression_tree(decompression_tree, dec_tree_plot_file)
+			plot_expression_tree(compression_tree, c_tree_plot_file,
+								 ignore_unused_columns=False)
+			plot_expression_tree(decompression_tree, dec_tree_plot_file,
+								 ignore_unused_columns=True)
 
 
 def parse_args():
@@ -462,9 +464,7 @@ def build_compression_tree(args, in_data_manager, columns):
 
 
 def build_decompression_tree(c_tree):
-	# NOTE: no reason to add exception columns to the decompression tree
-	in_columns = [c_tree.get_column(col_id)["col_info"] for col_id in c_tree.get_out_columns()
-					if not OutputColumnManager.is_exception_col(c_tree.get_column(col_id)["col_info"])]
+	in_columns = [c_tree.get_column(col_id)["col_info"] for col_id in c_tree.get_out_columns()]
 	dec_tree = ExpressionTree(in_columns, "decompression")
 
 	# add levels in reverse order
@@ -476,6 +476,10 @@ def build_decompression_tree(c_tree):
 			dec_n = pd.get_decompression_node(c_n)
 			dec_nodes.append(dec_n)
 		dec_tree.add_level(dec_nodes)
+
+	# validate: c_input_cols should be the same as dec_output_cols
+	if set(c_tree.get_in_columns()) != set(dec_tree.get_out_columns()):
+		raise Exception("Decompression tree construction failed")
 
 	return dec_tree
 

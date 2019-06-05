@@ -10,19 +10,20 @@ from lib.expression_tree import *
 
 
 COL_VERTEX_FILLCOLOR = {
-	"default": "#EEEEEE",
-	"exception": "#FFCDD2"
+	"default": "#FAFAFA",
+	"exception": "#FFEBEE"
 }
 COL_VERTEX_COLOR = {
-	"default": "black",
-	"output": "red"
+	"default": "#424242",
+	"input": "#1565C0",
+	"output": "#F57F17"
 }
-EXPR_NODE_VERTEX_COLOR = "#BBDEFB"
+EXPR_NODE_VERTEX_COLOR = "#EDE7F6"
 
 
-def get_col_vertex(col, col_type="default", is_out_col=False):
+def get_col_vertex(col, col_type="default", node_type="default"):
 	content = "[{}]\n{}\n{}".format(col.col_id, col.name, col.datatype.to_sql_str())
-	color = COL_VERTEX_COLOR["output"] if is_out_col else COL_VERTEX_COLOR["default"]
+	color = COL_VERTEX_COLOR[node_type]
 	return pydot.Node(content, shape="box", style="filled", color=color, fillcolor=COL_VERTEX_FILLCOLOR[col_type])
 
 def get_compression_node_content(node_id, expr_node, p_id):
@@ -35,9 +36,9 @@ def get_compression_node_content(node_id, expr_node, p_id):
 	return content
 
 def get_decompression_node_content(node_id, expr_node, p_id):
-	content = "[{node_id}]\n{p_id}".format(
+	content = "[{node_id}]\n{operator_name}".format(
 		node_id=node_id,
-		p_id=p_id)
+		operator_name=expr_node.operator_info["name"])
 	return content
 
 def get_node_vertex(node_id, expr_node):
@@ -48,17 +49,22 @@ def get_node_vertex(node_id, expr_node):
 		content = get_decompression_node_content(node_id, expr_node, p_id)
 	return pydot.Node(content, style="filled", fillcolor=EXPR_NODE_VERTEX_COLOR)
 
-def plot_expression_tree(expr_tree, out_file):
+def plot_expression_tree(expr_tree, out_file, ignore_unused_columns=False):
+	in_columns = set(expr_tree.get_in_columns())
 	out_columns = set(expr_tree.get_out_columns())
 	graph = pydot.Dot(graph_type='digraph')
 
 	# create vertices
+	unused_columns = expr_tree.get_unused_columns()
 	col_vertices = {}
 	for col_id, col_item in expr_tree.columns.items():
+		if ignore_unused_columns and col_id in unused_columns:
+			continue
 		col_type = "exception" if OutputColumnManager.is_exception_col(col_item["col_info"]) else "default"
+		node_type = "output" if col_id in out_columns else "input" if col_id in in_columns else "default"
 		c_vertex = get_col_vertex(col_item["col_info"],
 								  col_type=col_type,
-								  is_out_col=col_id in out_columns)
+								  node_type=node_type)
 		graph.add_node(c_vertex)
 		col_vertices[col_id] = c_vertex
 	expr_nodes_vertices = {}
