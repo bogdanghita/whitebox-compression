@@ -107,6 +107,10 @@ class ExpressionManager(object):
 	def get_out_columns(self):
 		return self.out_columns
 
+	def dump_out_header(self, fd, fdelim):
+		line = fdelim.join([col.name for col in self.get_out_columns()])
+		fd.write(line + "\n")
+
 	def dump_out_schema(self, fd, out_table_name):
 		line = "CREATE TABLE \"{}\"(".format(out_table_name)
 		fd.write(line + "\n")
@@ -343,12 +347,15 @@ def main():
 		expr_nodes = [expression_tree.get_node(node_id) for node_id in level]
 		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
 		expr_manager_list.append(expr_manager)
-		# out_columns become in_columns for the next level
+		# out_columns becomes in_columns for the next level
 		in_columns = expr_manager.get_out_columns()
 
-	# generate new schema file with output columns
-	schema_file = os.path.join(args.output_dir, "{}.table.sql".format(args.out_table_name))
-	with open(schema_file, 'w') as fd_s:
+	# generate header and schema files with output columns
+	out_header_file = os.path.join(args.output_dir, "{}.header.csv".format(args.out_table_name))
+	with open(out_header_file, 'w') as fd_h:
+		expr_manager_list[-1].dump_out_header(fd_h, args.fdelim)
+	out_schema_file = os.path.join(args.output_dir, "{}.table.sql".format(args.out_table_name))
+	with open(out_schema_file, 'w') as fd_s:
 		expr_manager_list[-1].dump_out_schema(fd_s, args.out_table_name)
 
 	# apply expression tree and generate the new csv file
