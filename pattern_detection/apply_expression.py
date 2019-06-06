@@ -231,7 +231,7 @@ def apply_expression_manager_list(tpl, expr_manager_list):
 		res = expr_manager.apply_expressions(tpl)
 		if res is None:
 			return None
-		# tpl, null_mask = res
+		tpl, null_mask = res
 
 		# print("level: ", idx)
 		# print([col.col_id for col in expr_manager.get_out_columns()])

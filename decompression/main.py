@@ -220,7 +220,7 @@ def driver_loop_valid(driver_in, driver_nulls, driver_valid, fdelim, fd_out,
 		if in_line is None and valid_line is None:
 			break
 		if not (in_line is not None and valid_line is not None):
-			print("error: validation error: number of rows do not match")
+			print("error: validation error: number of rows do not match; total_tuple_count={}".format(total_tuple_count))
 			break
 		total_tuple_count += 1
 

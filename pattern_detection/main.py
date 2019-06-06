@@ -314,7 +314,7 @@ def data_loop(data_manager, pd_engine, fdelim):
 		pd_engine.feed_tuple(tpl)
 
 
-def apply_expressions(expr_manager, in_data_manager, out_data_manager, mask):
+def apply_expressions(expr_manager, in_data_manager, out_data_manager):
 	total_tuple_count = 0
 	valid_tuple_count = 0
 
@@ -325,10 +325,10 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager, mask):
 			break
 		total_tuple_count += 1
 
-		res = expr_manager.apply_expressions(tpl, mask)
+		res = expr_manager.apply_expressions(tpl)
 		if res is None:
 			continue
-		(tpl_new, p_mask) = res
+		(tpl_new, null_mask) = res
 		valid_tuple_count += 1
 
 		out_data_manager.write_tuple(tpl_new)
@@ -423,8 +423,7 @@ def build_compression_tree_iteration(args, stage, it, in_columns, pattern_detect
 	expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
 	out_columns = expr_manager.get_out_columns()
 
-	c_mask = ["1"] * len(in_columns)
-	apply_expressions(expr_manager, in_data_manager, out_data_manager, c_mask)
+	apply_expressions(expr_manager, in_data_manager, out_data_manager)
 
 	# debug
 	# for oc in out_columns: print(oc.col_id)
