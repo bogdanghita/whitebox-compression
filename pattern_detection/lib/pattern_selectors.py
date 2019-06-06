@@ -30,6 +30,8 @@ class PatternSelector(object):
 		NOTE-1: a column can appear in multiple expression_nodes, each being applied only on a subset of its rows;
 				the key point here is that the subsets of rows will not overlap
 		TODO-1: take care to satisfy the above property
+		TODO-2: See rules for pattern selection in:
+				notes-week_16/Reconstruction/decompression/Rules
 
 		NOTE-2: some columns might not appear in any of the expression_nodes;
 				this means that they should not be processed with any of the given patterns

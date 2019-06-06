@@ -16,14 +16,32 @@ class ValidationException(Exception):
 
 
 class DecompressionContext(object):
-	def __init__(self, decompression_tree, input_header, output_header):
+	def __init__(self, decompression_tree, input_header, output_header, null_value):
 		self.decompression_tree = decompression_tree
+		self.null_value = null_value
 
 		def get_col_by_name(col_name):
-			for col_id, col_item in self.decompression_tree.columns.items():
+			for col_id, col_item in decompression_tree.columns.items():
 				if col_item["col_info"].name == col_name:
 					return col_item["col_info"]
 			raise Exception("Invalid col_name: {}".format(col_name))
+
+		# in_columns, out_columns
+		self.in_columns = decompression_tree.get_in_columns()
+		self.out_columns = decompression_tree.get_out_columns()
+
+		# unused out columns dict
+		self.unused_out_columns = [col_id for col_id in decompression_tree.get_unused_columns()
+									if not OutputColumnManager.is_exception_col(decompression_tree.get_column(col_id)["col_info"])]
+		print("unused_out_columns: {}".format(self.unused_out_columns))
+
+		# exception columns dict
+		self.exception_columns = dict()
+		for col_id in decompression_tree.columns.keys():
+			ex_col_id = OutputColumnManager.get_exception_col_id(col_id)
+			if ex_col_id in decompression_tree.columns:
+				self.exception_columns[ex_col_id] = col_id
+		print("exception_columns: {}".format(self.exception_columns))
 
 		# column positions
 		self.in_column_positions, self.out_column_positions = dict(), dict()
@@ -36,24 +54,22 @@ class DecompressionContext(object):
 		print("in_column_positions: {}".format(self.in_column_positions))
 		print("out_column_positions: {}".format(self.out_column_positions))
 
-		# unused out columns dict
-		self.unused_orig_columns = [col_id for col_id in self.decompression_tree.get_unused_columns()
-									if not OutputColumnManager.is_exception_col(self.decompression_tree.get_column(col_id)["col_info"])]
-		print("unused_orig_columns: {}".format(self.unused_orig_columns))
-
-		# exception columns dict
-		self.exception_columns = dict()
-		for col_id in self.decompression_tree.columns.keys():
-			ex_col_id = OutputColumnManager.get_exception_col_id(col_id)
-			if ex_col_id in self.decompression_tree.columns:
-				self.exception_columns[col_id] = ex_col_id
-		print("exception_columns: {}".format(self.exception_columns))
-
 		# topological order for evalution
-		self.topological_order = self.decompression_tree.get_topological_order()
-		print("topological_order: {}".format(self.topological_order))
+		# self.topological_order = decompression_tree.get_topological_order()
+		# print("topological_order: {}".format(self.topological_order))
 
-		sys.exit(1)
+		# decompression nodes in topological order
+		self.decompression_nodes = []
+		for node_id in decompression_tree.get_topological_order():
+			expr_n = decompression_tree.get_node(node_id)
+			pd = get_pattern_detector(expr_n.p_id)
+			operator = pd.get_operator_dec(expr_n.cols_in, expr_n.cols_out, expr_n.operator_info, self.null_value)
+			self.decompression_nodes.append({
+				"expr_n": expr_n,
+				"operator": operator
+			})
+
+		# sys.exit(1)
 
 
 def parse_args():
@@ -88,31 +104,69 @@ def parse_args():
 	return parser.parse_args()
 
 
-def decompress(in_tpl, null_mask, decompression_context):
-	"""
-	Input:
-		- decompression nodes in topological order
-		- (orig_col, ex_col) pairs
-		- in tuple
+def decompress(in_tpl, null_mask, context):
+	# print(in_tpl)
+	# print(null_mask)
 
-	NOTE-1:
-		- for each unsued column (non-exception) copy the value
-		- for each ex_col, if value is not null, fill in orig_col
-		- for each dec_node, if orig_col(s) are not already filled, apply operator_dec(operator_dec_info)
-	NOTE-2:
-		- find a reliable way to check if an orig_col is already filled:
-			- just checking for null might not be enough
-			- the evaluation of the dec_node may have resulted in null
-			- see if this is problematic and whether you need to separately keep track of which columns were filled
-	"""
+	values = dict()
 
-	print(in_tpl)
-	print(null_mask)
+	# unused columns
+	for col_id in context.unused_out_columns:
+		in_col_pos = context.in_column_positions[col_id]
+		values[col_id] = in_tpl[in_col_pos]
+		# print("[unused columns] col_id={}".format(col_id))
 
-	out_tpl = []
-	# TODO
+	# exceptions
+	for ex_col_id, col_id in context.exception_columns.items():
+		in_col_pos = context.in_column_positions[ex_col_id]
+		attr = in_tpl[in_col_pos]
+		if attr != context.null_value:
+			values[col_id] = attr
+			# print("[exceptions] col_id={}".format(col_id))
 
-	print(out_tpl)
+	# null values
+	for col_id in context.out_columns:
+		out_col_pos = context.out_column_positions[col_id]
+		if null_mask[out_col_pos]:
+			values[col_id] = context.null_value
+			# print("[null values] col_id={}".format(col_id))
+
+	# apply operators in topological order
+	for expr_n in context.decompression_nodes:
+		expr_n, operator = expr_n["expr_n"], expr_n["operator"]
+
+		# fill in in_attrs
+		in_attrs = []
+		for in_col in expr_n.cols_in:
+			in_attr = in_tpl[context.in_column_positions[in_col.col_id]]
+			in_attrs.append(in_attr)
+		# apply operator
+		try:
+			out_attrs = operator(in_attrs)
+		except OperatorException as e:
+			# expr_n was not used in the compression
+			continue
+
+		# fill in values with out_attrs
+		for out_col_idx, out_col in enumerate(expr_n.cols_out):
+			""" don't fill value if already filled; reasons:
+				1) exception
+				2) value was null
+				3) compression took a different path
+			"""
+			if out_col.col_id in values:
+				continue
+			values[out_col.col_id] = out_attrs[out_col_idx]
+
+	# fill in out_tpl
+	out_tpl = [context.null_value] * len(context.out_columns)
+	for col_id in context.out_columns:
+		if col_id not in values:
+			raise Exception("error: value not filled: col_id={}".format(col_id))
+		out_col_pos = context.out_column_positions[col_id]
+		out_tpl[out_col_pos] = values[col_id]
+
+	# print(out_tpl, "\n")
 	return out_tpl
 
 
@@ -143,7 +197,7 @@ def driver_loop(driver_in, driver_nulls, fdelim, fd_out,
 		in_tpl = in_line.split(fdelim)
 
 		nulls_line = driver_nulls.nextTuple()
-		null_mask = nulls_line.split(fdelim)
+		null_mask = [True if v == "1" else False for v in nulls_line.split(fdelim)]
 
 		out_tpl = decompress(in_tpl, null_mask, decompression_context)
 
@@ -174,7 +228,7 @@ def driver_loop_valid(driver_in, driver_nulls, driver_valid, fdelim, fd_out,
 		valid_tpl = valid_line.split(fdelim)
 
 		nulls_line = driver_nulls.nextTuple()
-		null_mask = nulls_line.split(fdelim)
+		null_mask = [True if v == "1" else False for v in nulls_line.split(fdelim)]
 
 		out_tpl = decompress(in_tpl, null_mask, decompression_context)
 
@@ -183,6 +237,9 @@ def driver_loop_valid(driver_in, driver_nulls, driver_valid, fdelim, fd_out,
 		except ValidationException as e:
 			print("error:", e)
 			print(json.dumps(e.diff, indent=2))
+			# debug
+			sys.exit(1)
+			# end-debug
 
 		line_new = fdelim.join(out_tpl)
 		fd_out.write(line_new + "\n")
@@ -210,7 +267,7 @@ def main():
 		return
 
 	# build decompression context
-	decompression_context = DecompressionContext(decompression_tree, input_header, output_header)
+	decompression_context = DecompressionContext(decompression_tree, input_header, output_header, args.null)
 
 	# apply decompression tree and generate the decompressed csv file
 	try:

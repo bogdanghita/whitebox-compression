@@ -212,6 +212,10 @@ class PatternDetector(object):
 				 note-1: function assumes that the above properties are satisfied & does not check them
 				 note-2: get_operator() function is meant to be called only in the initialization phase, not for every tuple; e.g. call get_operator once for each expression node and save the returned operator, then use it as many times as you want
 
+		Raises: OperatorException
+				if the expression node was not used in the compression
+				special case: ConstantPatternDetector does not know whether if the value was used or not, thus it never raises OperatorException
+
 		NOTE: see cls.get_decompression_node() for more info about the parameters
 		'''
 		raise Exception("Not implemented")
@@ -420,11 +424,7 @@ class ConstantPatternDetector(PatternDetector):
 	@classmethod
 	def get_operator_dec(cls, cols_in, cols_out, operator_dec_info, null_value):
 		def operator(attrs):
-			in_val = attrs[0]
-			if in_val == null_value:
-				out_val = null_value
-			else:
-				out_val = operator_dec_info["constant"]
+			out_val = operator_dec_info["constant"]
 			return [out_val]
 
 		return operator
@@ -653,7 +653,7 @@ class DictPattern(PatternDetector):
 		def operator(attrs):
 			in_val = attrs[0]
 			if in_val == null_value:
-				out_val = null_value
+				raise OperatorException("[{}] expression node not used in the compression phase".format(cls.__name__))
 			else:
 				pos = int(in_val)
 				out_val = operator_dec_info["map"][pos]
@@ -905,7 +905,7 @@ class NumberAsString(StringPatternDetector):
 		def operator(attrs):
 			in_val, prefix, suffix = attrs
 			if in_val == null_value:
-				out_val = null_value
+				raise OperatorException("[{}] expression node not used in the compression phase".format(cls.__name__))
 			else:
 				out_val = "{}{}{}".format(prefix, in_val, suffix)
 			return [out_val]
@@ -1182,7 +1182,7 @@ class CharSetSplit(StringPatternDetector):
 	def get_operator_dec(cls, cols_in, cols_out, operator_dec_info, null_value):
 		def operator(attrs):
 			if null_value in attrs:
-				out_val = null_value
+				raise OperatorException("[{}] expression node not used in the compression phase".format(cls.__name__))
 			else:
 				out_val = "".join(attrs)
 			return [out_val]
