@@ -1518,7 +1518,11 @@ class ColumnCorrelation(PatternDetector):
 
 		def operator(attrs):
 			source_val = attrs[0]
-			out_val = operator_dec_info["map"][source_val]
+			if source_val not in operator_dec_info["map"]:
+				raise OperatorException("[{}] expression node not used in the compression phase".format(cls.__name__))
+				# raise DebugException()
+			else:
+				out_val = operator_dec_info["map"][source_val]
 			return [out_val]
 
 		return operator

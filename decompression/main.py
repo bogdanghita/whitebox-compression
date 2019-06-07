@@ -4,6 +4,7 @@ import os
 import sys
 import argparse
 import json
+import traceback
 from lib.util import *
 from pattern_detection.patterns import *
 from pattern_detection.lib.expression_tree import *
@@ -30,10 +31,10 @@ class DecompressionContext(object):
 		self.in_columns = decompression_tree.get_in_columns()
 		self.out_columns = decompression_tree.get_out_columns()
 
-		# unused out columns dict
-		self.unused_out_columns = [col_id for col_id in decompression_tree.get_unused_columns()
-									if not OutputColumnManager.is_exception_col(decompression_tree.get_column(col_id)["col_info"])]
-		print("unused_out_columns: {}".format(self.unused_out_columns))
+		# # unused out columns dict
+		# self.unused_out_columns = [col_id for col_id in decompression_tree.get_unused_columns()
+		# 							if not OutputColumnManager.is_exception_col(decompression_tree.get_column(col_id)["col_info"])]
+		# print("unused_out_columns: {}".format(self.unused_out_columns))
 
 		# exception columns dict
 		self.exception_columns = dict()
@@ -110,16 +111,14 @@ def decompress(in_tpl, null_mask, context):
 
 	values = dict()
 
-	# unused columns
-	for col_id in context.unused_out_columns:
-		in_col_pos = context.in_column_positions[col_id]
-		values[col_id] = in_tpl[in_col_pos]
+	# input columns (used & unused)
+	for col_id in context.in_columns:
+		values[col_id] = in_tpl[context.in_column_positions[col_id]]
 		# print("[unused columns] col_id={}".format(col_id))
 
 	# exceptions
 	for ex_col_id, col_id in context.exception_columns.items():
-		in_col_pos = context.in_column_positions[ex_col_id]
-		attr = in_tpl[in_col_pos]
+		attr = in_tpl[context.in_column_positions[ex_col_id]]
 		if attr != context.null_value:
 			values[col_id] = attr
 			# print("[exceptions] col_id={}".format(col_id))
@@ -137,9 +136,17 @@ def decompress(in_tpl, null_mask, context):
 
 		# fill in in_attrs
 		in_attrs = []
+		abort = False
 		for in_col in expr_n.cols_in:
-			in_attr = in_tpl[context.in_column_positions[in_col.col_id]]
+			try:
+				in_attr = values[in_col.col_id]
+			except KeyError as e:
+				# expr_n that was supposed to generate values[in_col.col_id] was not used in the compression
+				abort = True
 			in_attrs.append(in_attr)
+		if abort:
+			continue
+
 		# apply operator
 		try:
 			out_attrs = operator(in_attrs)
@@ -162,6 +169,10 @@ def decompress(in_tpl, null_mask, context):
 	out_tpl = [context.null_value] * len(context.out_columns)
 	for col_id in context.out_columns:
 		if col_id not in values:
+			# debug: debug-values
+			# print(json.dumps(values, indent=2))
+			# print("total_tuple_count={}".format(total_tuple_count))
+			# end-debug: debug-values
 			raise Exception("error: value not filled: col_id={}".format(col_id))
 		out_col_pos = context.out_column_positions[col_id]
 		out_tpl[out_col_pos] = values[col_id]
@@ -181,11 +192,15 @@ def validate(out_tpl, valid_tpl):
 			diff.append(dict(index=idx, out=out_attr, valid=valid_attr))
 
 	if len(diff) > 0:
+		# debug: debug-values
+		print("total_tuple_count={}".format(total_tuple_count))
+		# end-debug: debug-values
 		raise ValidationException("Attribute mismatch", diff=diff)
 
 
 def driver_loop(driver_in, driver_nulls, fdelim, fd_out,
 				decompression_context):
+	global total_tuple_count
 	total_tuple_count = 0
 
 	while True:
@@ -212,6 +227,7 @@ def driver_loop(driver_in, driver_nulls, fdelim, fd_out,
 
 def driver_loop_valid(driver_in, driver_nulls, driver_valid, fdelim, fd_out,
 					  decompression_context):
+	global total_tuple_count
 	total_tuple_count = 0
 
 	while True:

@@ -161,14 +161,14 @@ class ExpressionManager(object):
 			return None
 
 		# fill out_tpl in for each expression node
-		in_columns_used = set()
+		in_columns_consumed = set()
 		for expr_n_idx, expr_n in enumerate(self.expr_nodes):
 			expr_n, operator = expr_n["expr_n"], expr_n["operator"]
 			in_attrs = []
 			# mark in_col as referenced & get in_attrs
 			used = False
 			for in_col in expr_n.cols_in:
-				if in_col.col_id in in_columns_used:
+				if in_col.col_id in in_columns_consumed:
 					# print("debug: column already used with another expression node")
 					used = True
 					break
@@ -187,8 +187,8 @@ class ExpressionManager(object):
 				# 	self.in_columns_stats[in_col_idx]["exception_count"] += 1
 				continue
 			# mark in_col as used
-			for in_col in expr_n.cols_in:
-				in_columns_used.add(in_col.col_id)
+			for in_col in expr_n.cols_in_consumed:
+				in_columns_consumed.add(in_col.col_id)
 			# use this expr_n
 			for in_col in expr_n.cols_in:
 				in_col_idx = self.in_columns_map[in_col.col_id]
@@ -196,11 +196,18 @@ class ExpressionManager(object):
 			for out_attr_idx, out_attr in enumerate(out_attrs):
 				out_col_idx = self.out_columns_map[expr_n.cols_out[out_attr_idx].col_id]
 				out_tpl[out_col_idx] = str(out_attr)
+				# debug: debug-values
+				# debug_values[expr_n.cols_out[out_attr_idx].col_id] = out_tpl[out_col_idx]
+				# end-debug: debug-values
 
 		# handle unused attrs
 		for in_col_idx, in_col in enumerate(self.in_columns):
-			# if column not preset as input in any expression node
-			if in_col.col_id not in in_columns_used:
+			# debug: debug-values
+			# debug_values[in_col.col_id] = in_tpl[in_col_idx]
+			# end-debug: debug-values
+
+			# if column not consumed by any expression node
+			if in_col.col_id not in in_columns_consumed:
 				# attr is null and no expression node handled it
 				if in_tpl[in_col_idx] == self.null_value:
 					# nothing to be done; out_tpl[out_col_idx] is already null
@@ -208,16 +215,28 @@ class ExpressionManager(object):
 				# in_col is an output column
 				# NOTE: this also catches unconsumed input columns
 				if in_col.col_id in self.out_columns_map:
-					out_col_idx = self.out_columns_map[in_col.col_id]
+					out_col_id = in_col.col_id
 				else: # exception
-					out_col_idx = self.out_columns_map[OutputColumnManager.get_exception_col_id(in_col.col_id)]
+					out_col_id = OutputColumnManager.get_exception_col_id(in_col.col_id)
+				out_col_idx = self.out_columns_map[out_col_id]
 				# add attr to out_tpl
 				out_tpl[out_col_idx] = str(in_tpl[in_col_idx])
+				# debug: debug-values
+				# debug_values[out_col_id] = out_tpl[out_col_idx]
+				# end-debug: debug-values
 
 		# count nulls for stats
 		for idx, attr in enumerate(out_tpl):
 			if attr == self.null_value:
 				self.out_columns_stats[idx]["null_count"] += 1
+
+		# debug: debug-values
+		# target_col_id = "40__2_0_2__1_0_0"
+		# if target_col_id in self.in_columns_map:
+		# 	print("[in] {}".format(in_tpl[self.in_columns_map[target_col_id]]))
+		# if target_col_id in self.out_columns_map:
+		# 	print("[out] {}".format(out_tpl[self.out_columns_map[target_col_id]]))
+		# end-debug: debug-values
 
 		return (out_tpl, null_mask)
 
@@ -225,9 +244,18 @@ class ExpressionManager(object):
 def apply_expression_manager_list(tpl, expr_manager_list):
 	# print("\n[in_tpl]", len(tpl), tpl)
 
+	# debug: debug-values
+	# global debug_values
+	# debug_values = {}
+	# print("len(expr_manager_list): {}".format(len(expr_manager_list)))
+	# end-debug: debug-values
+
 	# apply all expression managers one after the other
 	for expr_manager in expr_manager_list:
+	# debug: debug-values
 	# for idx, expr_manager in enumerate(expr_manager_list):
+	# 	print("level: ", idx)
+	# end-debug: debug-values
 		res = expr_manager.apply_expressions(tpl)
 		if res is None:
 			return None
@@ -245,10 +273,18 @@ def apply_expression_manager_list(tpl, expr_manager_list):
 	# print("[null_mask]", len(null_mask), null_mask)
 	# sys.exit(1)
 
+	# debug: debug-values
+	# if total_tuple_count == 1:
+	# 	print(json.dumps(debug_values, indent=2))
+	# 	sys.exit(1)
+	# end-debug: debug-values
+
 	return res
 
 
 def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_null_mask):
+	global total_tuple_count
+	global valid_tuple_count
 	total_tuple_count = 0
 	valid_tuple_count = 0
 
