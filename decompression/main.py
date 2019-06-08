@@ -66,6 +66,7 @@ class DecompressionContext(object):
 			pd = get_pattern_detector(expr_n.p_id)
 			operator = pd.get_operator_dec(expr_n.cols_in, expr_n.cols_out, expr_n.operator_info, self.null_value)
 			self.decompression_nodes.append({
+				"node_id": node_id,
 				"expr_n": expr_n,
 				"operator": operator
 			})
@@ -109,10 +110,17 @@ def decompress(in_tpl, null_mask, context):
 	# print(in_tpl)
 	# print(null_mask)
 
+	# debug: debug-values
+	# global values
+	# end-debug: debug-values
 	values = dict()
 
 	# input columns (used & unused)
 	for col_id in context.in_columns:
+		# debug
+		# if col_id == "19":
+		# 	print("input columns")
+		# # end-debug
 		values[col_id] = in_tpl[context.in_column_positions[col_id]]
 		# print("[unused columns] col_id={}".format(col_id))
 
@@ -120,6 +128,10 @@ def decompress(in_tpl, null_mask, context):
 	for ex_col_id, col_id in context.exception_columns.items():
 		attr = in_tpl[context.in_column_positions[ex_col_id]]
 		if attr != context.null_value:
+			# debug
+			# if col_id == "19":
+			# 	print("exceptions")
+			# end-debug
 			values[col_id] = attr
 			# print("[exceptions] col_id={}".format(col_id))
 
@@ -127,12 +139,17 @@ def decompress(in_tpl, null_mask, context):
 	for col_id in context.out_columns:
 		out_col_pos = context.out_column_positions[col_id]
 		if null_mask[out_col_pos]:
+			# debug
+			# if col_id == "19":
+			# 	print("null_values")
+			# 	print(out_col_pos, null_mask[out_col_pos])
+			# end-debug
 			values[col_id] = context.null_value
 			# print("[null values] col_id={}".format(col_id))
 
 	# apply operators in topological order
 	for expr_n in context.decompression_nodes:
-		expr_n, operator = expr_n["expr_n"], expr_n["operator"]
+		node_id, expr_n, operator = expr_n["node_id"], expr_n["expr_n"], expr_n["operator"]
 
 		# fill in in_attrs
 		in_attrs = []
@@ -144,6 +161,17 @@ def decompress(in_tpl, null_mask, context):
 				# expr_n that was supposed to generate values[in_col.col_id] was not used in the compression
 				abort = True
 			in_attrs.append(in_attr)
+
+		# debug
+		# if "19" in {c.col_id for c in expr_n.cols_out}:
+		# 	print("expr_n:", node_id, expr_n.p_id)
+		# 	print(expr_n.cols_in)
+		# 	print(expr_n.cols_in_consumed)
+		# 	print(in_attrs)
+		# 	print(expr_n.operator_info)
+		# 	print(abort)
+		# end-debug
+
 		if abort:
 			continue
 
@@ -151,6 +179,10 @@ def decompress(in_tpl, null_mask, context):
 		try:
 			out_attrs = operator(in_attrs)
 		except OperatorException as e:
+			# debug
+			# if "19" in {c.col_id for c in expr_n.cols_out}:
+			# 	print("OperatorException:", e)
+			# end-debug
 			# expr_n was not used in the compression
 			continue
 
@@ -162,6 +194,10 @@ def decompress(in_tpl, null_mask, context):
 				3) compression took a different path
 			"""
 			if out_col.col_id in values:
+				# debug
+				# if "19" in {c.col_id for c in expr_n.cols_out}:
+				# 	print("out_col.col_id in values:", out_col.col_id, values[out_col.col_id])
+				# end-debug
 				continue
 			values[out_col.col_id] = out_attrs[out_col_idx]
 
@@ -193,7 +229,7 @@ def validate(out_tpl, valid_tpl):
 
 	if len(diff) > 0:
 		# debug: debug-values
-		print("total_tuple_count={}".format(total_tuple_count))
+		# print("total_tuple_count={}".format(total_tuple_count))
 		# end-debug: debug-values
 		raise ValidationException("Attribute mismatch", diff=diff)
 
@@ -252,10 +288,12 @@ def driver_loop_valid(driver_in, driver_nulls, driver_valid, fdelim, fd_out,
 			validate(out_tpl, valid_tpl)
 		except ValidationException as e:
 			print("error:", e)
+			# debug: debug-values
+			# if total_tuple_count == 1:
+			# 	print(json.dumps(values, indent=2))
 			print(json.dumps(e.diff, indent=2))
-			# debug
 			sys.exit(1)
-			# end-debug
+			# end-debug: debug-values
 
 		line_new = fdelim.join(out_tpl)
 		fd_out.write(line_new + "\n")

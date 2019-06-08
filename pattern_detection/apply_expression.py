@@ -86,6 +86,12 @@ class ExpressionManager(object):
 			}
 			self.out_columns_stats.append(out_col_stats)
 
+		# debug
+		# print("here")
+		# print([c.col_id for c in in_columns])
+		# print(self.in_columns_map["19"])
+		# end-debug
+
 		# # TODO: debug
 		# print("***expression_nodes***")
 		# for expr_n in expr_nodes:
@@ -155,7 +161,6 @@ class ExpressionManager(object):
 
 	def apply_expressions(self, in_tpl):
 		out_tpl = [self.null_value] * len(self.out_columns)
-		null_mask = ["1" if attr == self.null_value else "0" for attr in in_tpl]
 
 		if not self.is_valid_tuple(in_tpl):
 			return None
@@ -238,7 +243,7 @@ class ExpressionManager(object):
 		# 	print("[out] {}".format(out_tpl[self.out_columns_map[target_col_id]]))
 		# end-debug: debug-values
 
-		return (out_tpl, null_mask)
+		return out_tpl
 
 
 def apply_expression_manager_list(tpl, expr_manager_list):
@@ -256,10 +261,9 @@ def apply_expression_manager_list(tpl, expr_manager_list):
 	# for idx, expr_manager in enumerate(expr_manager_list):
 	# 	print("level: ", idx)
 	# end-debug: debug-values
-		res = expr_manager.apply_expressions(tpl)
-		if res is None:
+		tpl = expr_manager.apply_expressions(tpl)
+		if tpl is None:
 			return None
-		tpl, null_mask = res
 
 		# print("level: ", idx)
 		# print([col.col_id for col in expr_manager.get_out_columns()])
@@ -279,10 +283,10 @@ def apply_expression_manager_list(tpl, expr_manager_list):
 	# 	sys.exit(1)
 	# end-debug: debug-values
 
-	return res
+	return tpl
 
 
-def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_null_mask):
+def driver_loop(driver, expr_manager_list, fdelim, null_value, fd_out, fd_null_mask):
 	global total_tuple_count
 	global valid_tuple_count
 	total_tuple_count = 0
@@ -296,14 +300,16 @@ def driver_loop(driver, expr_manager_list, fdelim, fd_out, fd_null_mask):
 
 		in_tpl = line.split(fdelim)
 
-		res = apply_expression_manager_list(in_tpl, expr_manager_list)
-		if res is None:
+		out_tpl = apply_expression_manager_list(in_tpl, expr_manager_list)
+		if out_tpl is None:
 			continue
-		(out_tpl, null_mask) = res
 		valid_tuple_count += 1
+
+		null_mask = ["1" if attr == null_value else "0" for attr in in_tpl]
 
 		line_new = fdelim.join(out_tpl)
 		fd_out.write(line_new + "\n")
+
 		line_new = fdelim.join(null_mask)
 		fd_null_mask.write(line_new + "\n")
 
@@ -404,7 +410,7 @@ def main():
 			fd_in = open(args.file, 'r')
 		driver = FileDriver(fd_in)
 		with open(output_file, 'w') as fd_out, open(null_mask_file, 'w') as fd_null_mask:
-			(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager_list, args.fdelim, fd_out, fd_null_mask)
+			(total_tuple_count, valid_tuple_count) = driver_loop(driver, expr_manager_list, args.fdelim, args.null, fd_out, fd_null_mask)
 	finally:
 		try:
 			fd_in.close()

@@ -126,18 +126,25 @@ if __name__ == "__main__":
 
 
 """
-input_file=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1/CommonGovernment/CommonGovernment_1.expr_tree/c_tree.json
-output_file=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1/CommonGovernment/CommonGovernment_1.expr_tree/c_tree.svg
+#[remote]
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
+#[local]
+wbs_dir=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1
+repo_wbs_dir=/ufs/bogdan/work/master-project/public_bi_benchmark-master_project/benchmark
+
+input_file=$wbs_dir/CommonGovernment/CommonGovernment_1.expr_tree/c_tree.json
+output_file=$wbs_dir/CommonGovernment/CommonGovernment_1.expr_tree/c_tree.svg
 
 ./pattern_detection/plot_expression_tree.py $input_file --out-file $output_file
 
 ================================================================================
 [debug_values]
-input_file=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1/CommonGovernment/CommonGovernment_1.expr_tree/c_tree.json
-c_output_file=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1/CommonGovernment/CommonGovernment_1.expr_tree/c_debug_c_tree.svg
-dec_output_file=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1/CommonGovernment/CommonGovernment_1.expr_tree/dec_debug_c_tree.svg
-c_debug_values_file=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1/CommonGovernment/CommonGovernment_1.expr_tree/c_debug_values.json
-dec_debug_values_file=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1/CommonGovernment/CommonGovernment_1.expr_tree/dec_debug_values.json
+input_file=$wbs_dir/CommonGovernment/CommonGovernment_1.expr_tree/c_tree.json
+c_output_file=$wbs_dir/CommonGovernment/CommonGovernment_1.expr_tree/c_debug_c_tree.svg
+dec_output_file=$wbs_dir/CommonGovernment/CommonGovernment_1.expr_tree/dec_debug_c_tree.svg
+c_debug_values_file=$wbs_dir/CommonGovernment/CommonGovernment_1.expr_tree/c_debug_values.json
+dec_debug_values_file=$wbs_dir/CommonGovernment/CommonGovernment_1.expr_tree/dec_debug_values.json
 
 ./pattern_detection/plot_expression_tree.py $input_file --out-file $c_output_file --debug-values-file $c_debug_values_file
 ./pattern_detection/plot_expression_tree.py $input_file --out-file $dec_output_file --debug-values-file $dec_debug_values_file
