@@ -325,10 +325,9 @@ def apply_expressions(expr_manager, in_data_manager, out_data_manager):
 			break
 		total_tuple_count += 1
 
-		res = expr_manager.apply_expressions(tpl)
-		if res is None:
+		tpl_new = expr_manager.apply_expressions(tpl)
+		if tpl_new is None:
 			continue
-		(tpl_new, null_mask) = res
 		valid_tuple_count += 1
 
 		out_data_manager.write_tuple(tpl_new)
