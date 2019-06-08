@@ -377,7 +377,7 @@ validation_file=$wbs_dir/$wb/$table.csv
 input_file=$wbs_dir/$wb/$table.poc_1_out/${table}_out.csv
 nulls_file=$wbs_dir/$wb/$table.poc_1_out/${table}_out.nulls.csv
 
-./decompression/main.py --in-header-file $in_header_file --nulls-file $nulls_file --expr-tree-file $expr_tree_file \
+time ./decompression/main.py --in-header-file $in_header_file --nulls-file $nulls_file --expr-tree-file $expr_tree_file \
 --output-file $output_file --out-header-file $out_header_file \
 --validation-file $validation_file \
 $input_file
