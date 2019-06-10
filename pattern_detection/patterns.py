@@ -13,6 +13,7 @@ from pattern_detection.lib.util import *
 from pattern_detection.lib.prefix_tree import PrefixTree
 from pattern_detection.lib.datatype_analyzer import *
 from pattern_detection.lib.nominal import *
+from pattern_detection.estimators import *
 
 
 class OperatorException(Exception):
@@ -448,7 +449,7 @@ class DictPattern(PatternDetector):
 			return False
 
 		# NOTE: for now we only consider varchar columns
-		if col.datatype.name != "varchar":
+		if col.datatype.name.lower() != "varchar":
 			return False
 
 		# do not try this pattern again on the same column
@@ -507,13 +508,15 @@ class DictPattern(PatternDetector):
 		# NOTE: for now we only consider varchar columns; thus, keys are strings
 
 		# check dict size
-		size_keys = sum([DatatypeAnalyzer.get_size_disk(key) for key in counter.keys()])
+		# size_keys = sum([DatatypeAnalyzer.get_size_disk(key) for key in counter.keys()])
+		size_keys = self.get_dict_size(counter.keys())
 		if size_keys > self.max_dict_size:
 			return False
 
 		# check total size of input vs total size of output
-		required_bits = nb_bits(nb_keys-1)
-		size_out_col = float(required_bits) / 8 * nb_elems
+		# required_bits = nb_bits_int(nb_keys-1)
+		# size_out_col = float(required_bits) / 8 * nb_elems
+		size_out_col = DictEstimator.get_col_size(counter.keys(), nb_elems)
 		size_in_col = sum([DatatypeAnalyzer.get_size_disk(key) * count for key, count in counter.items()])
 		'''
 		NOTE: we do not take into account the size of the dict, because the relation:
@@ -600,10 +603,6 @@ class DictPattern(PatternDetector):
 		res = dict()
 
 		for idx, col in self.columns.items():
-			if col["info"].col_id == "41__2_0_1__0_0_1":
-				# print(col["patterns"]["default"]["rows"])
-				print(col["counter"])
-
 			if len(col["patterns"]["default"]["rows"]) == 0:
 				continue
 			if len(col["counter"].keys()) == 0:
@@ -638,9 +637,14 @@ class DictPattern(PatternDetector):
 		return operator
 
 	@classmethod
+	def get_dict_size(cls, map_keys):
+		return DictEstimator.get_dict_size(map_keys)
+
+	@classmethod
 	def get_metadata_size(cls, operator_info):
 		map_obj = operator_info["map"]
-		return sum([DatatypeAnalyzer.get_size_disk(k) for k in map_obj.keys()])
+		# return sum([DatatypeAnalyzer.get_size_disk(k) for k in map_obj.keys()])
+		return cls.get_dict_size(map_obj.keys())
 
 	@classmethod
 	def get_operator_dec_info(cls, operator_info):
@@ -671,7 +675,7 @@ class StringPatternDetector(PatternDetector):
 		if not PatternDetector.select_column(self, col):
 			return False
 
-		return col.datatype.name == "varchar"
+		return col.datatype.name.lower() == "varchar"
 
 	@classmethod
 	def empty_col_item(cls, col):

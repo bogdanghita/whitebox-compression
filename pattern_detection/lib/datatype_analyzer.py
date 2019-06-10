@@ -29,6 +29,25 @@ class MinMax(object):
 		self.push(other.dmax)
 
 
+class NumericDatatype(object):
+	numeric_datatypes = {
+		"decimal",
+		"tinyint",
+		"smallint",
+		"int",
+		"bigint",
+		"float",
+		"real",
+		"float8",
+		"float4",
+		"integer"
+	}
+
+	@classmethod
+	def is_numeric_datatype(cls, datatype):
+		return datatype.name.lower() in cls.numeric_datatypes
+
+
 class DatatypeCast(object):
 	pass
 
@@ -77,7 +96,7 @@ class DatatypeAnalyzer(object):
 			return max(1, len(val))
 		if isinstance(val, int):
 			# NOTE: 1 bit for sign
-			bits = nb_bits(abs(val)) + 1
+			bits = nb_bits_int(abs(val)) + 1
 			return math.ceil(float(bits) / 8)
 		if isinstance(val, float):
 			# TODO: replace this with actual float size on disk
@@ -152,9 +171,9 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 		'''
 		Raises: Exception() if the value does not match the datatype
 		'''
-		if datatype.name not in cls.datatypes:
+		if datatype.name.lower() not in cls.datatypes:
 			raise Exception("[cast] Unsupported datatype: datatype={}".format(datatype))
-		n_val = cls.datatypes[datatype.name]["cast"](val, *datatype.params)
+		n_val = cls.datatypes[datatype.name.lower()]["cast"](val, *datatype.params)
 		return n_val
 
 	@classmethod

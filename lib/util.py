@@ -18,7 +18,7 @@ def sizeof_fmt(num, suffix='B'):
 	return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-def nb_bits(num):
+def nb_bits_int(num):
 	if num < 0:
 		raise Exception("Unsupported: negative number")
 	if num == 0:
