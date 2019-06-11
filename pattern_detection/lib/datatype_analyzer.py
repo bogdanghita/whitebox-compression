@@ -14,10 +14,22 @@ https://docs.huihoo.com/ingres/ingres2006r2-guides/OpenAPI%20User%20Guide/1371.h
 https://www.geeksforgeeks.org/data-types-in-c/
 """
 DATATYPES = {
+	"boolean": dict(size=1),
+	"integer": dict(size=4),
+	"int": dict(size=4),
 	"tinyint": dict(size=1, range=(-128, 127)),
 	"smallint": dict(size=2, range=(-32768, 32767)),
+	"bigint": dict(size=8),
+	"decimal": dict(), # size computed in DatatypeAnalyzer.get_datatype_size()
 	"float": dict(size=4),
+	"float4": dict(size=4),
+	"real": dict(size=4),
 	"double": dict(size=8),
+	"float8": dict(size=8),
+	"varchar": dict(), # size computed in DatatypeAnalyzer.get_datatype_size()
+	"date": dict(size=12), # size of ingresdate
+	"time": dict(size=10),
+	"timestamp": dict(size=14),
 }
 
 
@@ -103,9 +115,20 @@ class DatatypeAnalyzer(object):
 	def get_datatype_size(cls, datatype):
 		"""
 		Returns: size of datatype on disk, in bytes
+
+		NOTE: for decimal see:
+		https://docs.huihoo.com/ingres/ingres2006r2-guides/OpenAPI%20User%20Guide/1371.htm
 		"""
 		if datatype.name.lower() not in DATATYPES:
 			raise Exception("Unsupported datatype: {}".format(datatype))
+
+		if datatype.name.lower() == "decimal":
+			precision = datatype.params[0]
+			return math.floor(precision / 2) + 1
+
+		if datatype.name.lower() == "varchar":
+			n = datatype.params[0]
+			return n
 
 		return DATATYPES[datatype.name.lower()]["size"]
 
@@ -123,9 +146,15 @@ class DatatypeAnalyzer(object):
 			return math.ceil(float(bits) / 8)
 
 		if isinstance(val, Decimal):
-			digits = val.as_tuple().digits
+			dec = Decimal(val).as_tuple()
+			digits, exponent = dec.digits, dec.exponent
 			physical_val = int("".join([str(d) for d in digits]))
 			return cls.get_value_size(phys_val)
+			# precision, scale = len(digits), abs(exponent)
+			# if scale >= precision:
+			# 	precision = scale + 1
+			# datatype = DataType(name="decimal", params=[precision, scale])
+			# return cls.get_datatype_size(datatype)
 
 		if isinstance(val, float):
 			if hint == "float":
