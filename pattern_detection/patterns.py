@@ -415,7 +415,7 @@ class ConstantPatternDetector(PatternDetector):
 	@classmethod
 	def get_metadata_size(cls, operator_info):
 		constant = operator_info["constant"]
-		return DatatypeAnalyzer.get_size_disk(constant)
+		return DatatypeAnalyzer.get_value_size(constant)
 
 	@classmethod
 	def get_operator_dec_info(cls, operator_info):
@@ -501,14 +501,14 @@ class DictPattern(PatternDetector):
 		# print(col_item["info"].col_id, nb_keys, nb_elems, float(nb_keys) / nb_elems)
 
 		# check number of keys
-		if (nb_keys >= RANGE_SMALLINT[1] or
+		if (nb_keys >= DATATYPES["smallint"]["range"][1] or
 			float(nb_keys) / nb_elems > self.max_key_ratio):
 			return False
 
 		# NOTE: for now we only consider varchar columns; thus, keys are strings
 
 		# check dict size
-		# size_keys = sum([DatatypeAnalyzer.get_size_disk(key) for key in counter.keys()])
+		# size_keys = sum([DatatypeAnalyzer.get_value_size(key) for key in counter.keys()])
 		size_keys = self.get_dict_size(counter.keys())
 		if size_keys > self.max_dict_size:
 			return False
@@ -517,7 +517,7 @@ class DictPattern(PatternDetector):
 		# required_bits = nb_bits_int(nb_keys-1)
 		# size_out_col = float(required_bits) / 8 * nb_elems
 		size_out_col = DictEstimator.get_col_size(counter.keys(), nb_elems)
-		size_in_col = sum([DatatypeAnalyzer.get_size_disk(key) * count for key, count in counter.items()])
+		size_in_col = sum([DatatypeAnalyzer.get_value_size(key) * count for key, count in counter.items()])
 		'''
 		NOTE: we do not take into account the size of the dict, because the relation:
 			size_in_col < size_out_col + size_keys
@@ -533,9 +533,9 @@ class DictPattern(PatternDetector):
 		counter = col_item["counter"]
 		nb_keys = len(counter.keys())
 
-		if nb_keys-1 < RANGE_TINYINT[1]:
+		if nb_keys-1 < DATATYPES["tinyint"]["range"][1]:
 			name = "tinyint"
-		elif nb_keys-1 < RANGE_SMALLINT[1]:
+		elif nb_keys-1 < DATATYPES["smallint"]["range"][1]:
 			name = "smallint"
 		else:
 			raise Exception("Dict size out of range: nb_keys={}".format(nb_keys))
@@ -643,7 +643,7 @@ class DictPattern(PatternDetector):
 	@classmethod
 	def get_metadata_size(cls, operator_info):
 		map_obj = operator_info["map"]
-		# return sum([DatatypeAnalyzer.get_size_disk(k) for k in map_obj.keys()])
+		# return sum([DatatypeAnalyzer.get_value_size(k) for k in map_obj.keys()])
 		return cls.get_dict_size(map_obj.keys())
 
 	@classmethod
@@ -1175,7 +1175,7 @@ class CharSetSplit(StringPatternDetector):
 		char_sets = operator_info["char_sets"]
 		size_B = 0
 		for ph, c_set in char_sets.items():
-			size_B += DatatypeAnalyzer.get_size_disk(ph) + sum([DatatypeAnalyzer.get_size_disk(c) for c in c_set])
+			size_B += DatatypeAnalyzer.get_value_size(ph) + sum([DatatypeAnalyzer.get_value_size(c) for c in c_set])
 		return size_B
 
 	@classmethod
@@ -1507,7 +1507,7 @@ class ColumnCorrelation(PatternDetector):
 	@classmethod
 	def get_metadata_size(cls, operator_info):
 		corr_map = operator_info["corr_map"]
-		size_B = sum([DatatypeAnalyzer.get_size_disk(k) + DatatypeAnalyzer.get_size_disk(v) for k, v in corr_map.items()])
+		size_B = sum([DatatypeAnalyzer.get_value_size(k) + DatatypeAnalyzer.get_value_size(v) for k, v in corr_map.items()])
 		return size_B
 
 	@classmethod

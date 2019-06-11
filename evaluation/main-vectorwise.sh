@@ -154,7 +154,7 @@ output_dir=$wbs_dir/$wb/$table.evaluation
 # output_dir=$wbs_dir/$wb/$table.evaluation-nocompression
 
 mkdir -p $output_dir && \
-time ./evaluation/main.sh $db_name $input_file $schema_file $table_name $output_dir
+time ./evaluation/main-vectorwise.sh $db_name $input_file $schema_file $table_name $output_dir
 # to disable compression add --no-compression as last argument
 
 # for stats processing only:
@@ -190,12 +190,12 @@ for wb in $wbs_dir/*; do \
 \
     output_dir=$wbs_dir/$wb/$table.evaluation; \
     mkdir -p $output_dir && \
-    time ./evaluation/main.sh $db_name $input_file $schema_file $table_name $output_dir; \
+    time ./evaluation/main-vectorwise.sh $db_name $input_file $schema_file $table_name $output_dir; \
     echo "drop table $table\g" | sql $db_name; \
 \
     output_dir=$wbs_dir/$wb/$table.evaluation-nocompression; \
     mkdir -p $output_dir && \
-    time ./evaluation/main.sh $db_name $input_file $schema_file $table_name $output_dir --no-compression; \
+    time ./evaluation/main-vectorwise.sh $db_name $input_file $schema_file $table_name $output_dir --no-compression; \
 \
     stats_file1=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json; \
     stats_file2=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json; \

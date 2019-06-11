@@ -150,7 +150,7 @@ class OutputManager(object):
 					# debug
 					if pd["name"] == "DictPattern":
 						print("nb_keys={}".format(len(p["operator_info"]["map"].keys())))
-						print("size_keys={}".format(sum([DatatypeAnalyzer.get_size_disk(key) for key in p["operator_info"]["map"].keys()])))
+						print("size_keys={}".format(sum([DatatypeAnalyzer.get_value_size(key) for key in p["operator_info"]["map"].keys()])))
 					# end-debug
 
 	@staticmethod

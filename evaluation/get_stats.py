@@ -5,6 +5,7 @@ import sys
 import argparse
 import json
 import re
+from lib.util import *
 from lib.data_files_stats import process_data_files
 from lib.compression_log_stats import process_compression_log_file
 from lib.statdump_stats import process_statdump_file
@@ -18,30 +19,6 @@ NOTE: interested in: compression ratio and size in bytes
 TODO: extract stats from the *.statdump.* and *.compression-log.* files
 TODO: get size of each column by looking at the data files (listed in *.data-files.*)
 """
-
-
-def parse_schema_file(schema_file):
-	schema = {}
-	regex_col = re.compile(r'^"(.*?)" (.*?),?$')
-
-	with open(schema_file, 'r') as f:
-		# ignore create table line
-		f.readline()
-		cols = list(map(lambda c: c.strip(), f.readlines()[:-1]))
-
-	for col_id, c in enumerate(cols):
-		col_id = str(col_id)
-		m = regex_col.match(c)
-		if not m:
-			raise Exception("Unable to parse schema file")
-		col_name, datatype = m.group(1), m.group(2)
-		schema[col_id] = {
-			"col_id": col_id,
-			"col_name": col_name,
-			"datatype": datatype
-		}
-
-	return schema
 
 
 def aggregate_stats(schema, stats):
@@ -62,7 +39,6 @@ def aggregate_stats(schema, stats):
 		"columns": res_columns,
 		"table": res_agg
 	}
-
 	return res
 
 
@@ -74,13 +50,13 @@ def output_agg_stats(agg_stats, table_name, output_dir):
 
 def parse_args():
 	parser = argparse.ArgumentParser(
-		description="""Detect column patterns in CSV file."""
+		description="""Get stats from vectorwise evaluation."""
 	)
 
 	parser.add_argument('--schema-file', dest='schema_file', type=str,
 		help="SQL file containing table schema", required=True)
 	parser.add_argument('--table-name', dest='table_name', type=str,
-		help="Name of the table. Must be the same with the one in the schema-file", required=True)
+		help="Name of the table", required=True)
 	parser.add_argument('--output-dir', dest='output_dir', type=str,
 		help="Folder containing the load & stats output to process. Further output will also be added to this folder", required=True)
 

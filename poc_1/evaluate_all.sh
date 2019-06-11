@@ -36,7 +36,7 @@ evaluate() {
 
 	echo "drop table $out_table\g" | sql $db_name
 	$SCRIPT_DIR/../util/VectorWiseify-schema.sh $n_schema_file $wv_n_schema_file > /dev/null
-	time $SCRIPT_DIR/../evaluation/main.sh $db_name $n_input_file $wv_n_schema_file $out_table $output_dir
+	time $SCRIPT_DIR/../evaluation/main-vectorwise.sh $db_name $n_input_file $wv_n_schema_file $out_table $output_dir
 }
 
 

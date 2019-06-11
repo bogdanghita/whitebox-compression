@@ -6,8 +6,19 @@ from lib.util import *
 
 
 MAX_DECIMAL_PRECISION = 18
-RANGE_TINYINT = (-128, 127)
-RANGE_SMALLINT = (-32768, 32767)
+
+"""
+source:
+https://communities.actian.com/s/article/SQL-Data-Types-and-Ingres-Vectorwise
+https://docs.huihoo.com/ingres/ingres2006r2-guides/OpenAPI%20User%20Guide/1371.htm
+https://www.geeksforgeeks.org/data-types-in-c/
+"""
+DATATYPES = {
+	"tinyint": dict(size=1, range=(-128, 127)),
+	"smallint": dict(size=2, range=(-32768, 32767)),
+	"float": dict(size=4),
+	"double": dict(size=8),
+}
 
 
 class MinMax(object):
@@ -40,7 +51,8 @@ class NumericDatatype(object):
 		"real",
 		"float8",
 		"float4",
-		"integer"
+		"integer",
+		"double"
 	}
 
 	@classmethod
@@ -88,21 +100,55 @@ class DatatypeAnalyzer(object):
 		raise Exception("Not implemented")
 
 	@classmethod
-	def get_size_disk(cls, val):
+	def get_datatype_size(cls, datatype):
+		"""
+		Returns: size of datatype on disk, in bytes
+		"""
+		if datatype.name.lower() not in DATATYPES:
+			raise Exception("Unsupported datatype: {}".format(datatype))
+
+		return DATATYPES[datatype.name.lower()]["size"]
+
+	@classmethod
+	def get_value_size(cls, val, hint=None):
 		"""
 		Returns: size of val on disk, in bytes
 		"""
 		if isinstance(val, str):
 			return max(1, len(val))
+
 		if isinstance(val, int):
 			# NOTE: 1 bit for sign
 			bits = nb_bits_int(abs(val)) + 1
 			return math.ceil(float(bits) / 8)
+
+		if isinstance(val, Decimal):
+			digits = val.as_tuple().digits
+			physical_val = int("".join([str(d) for d in digits]))
+			return cls.get_value_size(phys_val)
+
 		if isinstance(val, float):
-			# TODO: replace this with actual float size on disk
-			return len(str(val))
+			if hint == "float":
+				return DATATYPES["float"]["size"]
+			if hint == "double":
+				return DATATYPES["double"]["size"]
+			# default to size of double
+			if hint is None:
+				return SIZE_DOUBLE
+			raise Exception("Invalid hint for float")
 
 		raise Exception("Unsupported datatype: {}".format(type(val)))
+
+	@classmethod
+	def get_value_size_hint(cls, datatype):
+		hint_list = [
+			({"float", "float4", "real"}, "float"),
+			({"double", "float8"}, "double")
+		]
+		for dts, hint in hint_list:
+			if datatype.name.lower() in dts:
+				return hint
+		return None
 
 
 class NumericDatatypeAnalyzer(DatatypeAnalyzer):

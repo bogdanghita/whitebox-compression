@@ -479,7 +479,7 @@ cat $output_dir/$out_table.stats.json | less
 
 # [load & evaluation]
 ./util/VectorWiseify-schema.sh $n_schema_file $wv_n_schema_file > /dev/null
-time ./evaluation/main.sh $db_name $n_input_file $wv_n_schema_file $out_table $output_dir
+time ./evaluation/main-vectorwise.sh $db_name $n_input_file $wv_n_schema_file $out_table $output_dir
 
 cat $output_dir/stats-vectorwise/$out_table.statdump.out | less
 cat $output_dir/stats-vectorwise/$out_table.compression-log.out | less
