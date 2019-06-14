@@ -11,12 +11,13 @@ SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(1, SCRIPT_DIR)
 
 from pattern_detection.lib.util import *
+from pattern_detection.lib.datatype_analyzer import *
 
 
 class Estimator(object):
 	def __init__(self, columns, null_value):
 		self.null_value = null_value
-		self.row_count, valid_count = 0, 0
+		self.row_count = 0
 		self.name = self.get_name()
 		self.columns = {}
 		self.init_columns(columns)
@@ -36,7 +37,8 @@ class Estimator(object):
 	@classmethod
 	def empty_col_item(cls, col):
 		return {
-			"info": deepcopy(col)
+			"info": deepcopy(col),
+			"valid_count": 0
 		}
 
 	def handle_attr(self, attr, idx):
@@ -59,7 +61,7 @@ class Estimator(object):
 		Returns:
 			columns: dict(col_id, size) columns analyzed by the estimator, where:
 				col_id: str # id of the column
-				size: total estimated size of the compressed column (column, metadata)
+				size: (values_size, metadata_size, exceptions_size, null_size)
 		'''
 		return {col_item["info"].col_id: self.evaluate_col(col_item) for col_item in self.columns.values()}
 
@@ -72,8 +74,9 @@ class Estimator(object):
 		null_size = self.get_null_size(col_item)
 		values_size = self.get_values_size(col_item)
 		metadata_size = self.get_metadata_size(col_item)
+		exceptions_size = self.get_exceptions_size(col_item)
 
-		return null_size + values_size + metadata_size
+		return (values_size, metadata_size, exceptions_size, null_size)
 
 	def get_null_size(self, col_item):
 		"""
@@ -90,6 +93,9 @@ class Estimator(object):
 	def get_metadata_size(self, col_item):
 		raise Exception("Not implemented")
 
+	def get_exceptions_size(self, col_item):
+		raise Exception("Not implemented")
+
 
 class NoCompressionEstimator(Estimator):
 	def __init__(self, columns, null_value):
@@ -101,7 +107,7 @@ class NoCompressionEstimator(Estimator):
 
 	@classmethod
 	def empty_col_item(cls, col):
-		res = PatternDetector.empty_col_item(col)
+		res = Estimator.empty_col_item(col)
 		return res
 
 	@overrides
@@ -110,17 +116,23 @@ class NoCompressionEstimator(Estimator):
 
 		if attr == self.null_value:
 			return True
-		self.valid_count += 1
+		col["valid_count"] += 1
 
 		return True
 
 	@overrides
 	def get_values_size(self, col_item):
-		res = DatatypeAnalyzer.get_datatype_size(col_item["info"].datatype) * self.valid_count
+		if col_item["valid_count"] == 0:
+			return 0
+		res = DatatypeAnalyzer.get_datatype_size(col_item["info"].datatype) * col_item["valid_count"]
 		return res
 
 	@overrides
 	def get_metadata_size(self, col_item):
+		return 0
+
+	@overrides
+	def get_exceptions_size(self, col_item):
 		return 0
 
 
@@ -134,7 +146,7 @@ class DictEstimator(Estimator):
 
 	@classmethod
 	def empty_col_item(cls, col):
-		res = PatternDetector.empty_col_item(col)
+		res = Estimator.empty_col_item(col)
 		res["counter"] = Counter()
 		return res
 
@@ -144,7 +156,11 @@ class DictEstimator(Estimator):
 
 		if attr == self.null_value:
 			return True
-		self.valid_count += 1
+		col["valid_count"] += 1
+
+		if col["info"].col_id == '5':
+			print("aaa")
+			sys.exit(1)
 
 		col["counter"][attr] += 1
 
@@ -152,6 +168,8 @@ class DictEstimator(Estimator):
 
 	@overrides
 	def get_values_size(self, col_item):
+		if col_item["valid_count"] == 0:
+			return 0
 		counter = col_item["counter"]
 		nb_values = sum(counter.values())
 		return self.get_col_size(counter.keys(), nb_values)
@@ -159,6 +177,13 @@ class DictEstimator(Estimator):
 	@overrides
 	def get_metadata_size(self, col_item):
 		return self.get_dict_size(col_item["counter"].keys())
+
+	@overrides
+	def get_exceptions_size(self, col_item):
+		"""
+		NOTE: for now we do not have exceptions
+		"""
+		return 0
 
 	@classmethod
 	def get_dict_size(cls, map_keys):
@@ -180,13 +205,13 @@ class RleEstimator(Estimator):
 
 	@classmethod
 	def empty_col_item(cls, col):
-		res = PatternDetector.empty_col_item(col)
+		res = Estimator.empty_col_item(col)
 		res["current"] = None
 		res["max_run_size"] = 1
 		res["max_length_size"] = 1
 		return res
 
-	def process_run_end(col_item):
+	def process_run_end(self, col_item):
 		hint = DatatypeAnalyzer.get_value_size_hint(col_item["info"].datatype)
 		run_size = DatatypeAnalyzer.get_value_size(col_item["current"]["run"], hint=hint)
 		length_size = DatatypeAnalyzer.get_value_size(col_item["current"]["length"])
@@ -203,7 +228,7 @@ class RleEstimator(Estimator):
 		# NOTE: skip nulls
 		if attr == self.null_value:
 			return True
-		self.valid_count += 1
+		col["valid_count"] += 1
 
 		if col["current"] == None:
 			col["current"] = {
@@ -227,15 +252,24 @@ class RleEstimator(Estimator):
 		# process current run before evaluation
 		self.process_run_end(col_item)
 		# call super method
-		Estimator.evaluate_col(self, col_item)
+		return Estimator.evaluate_col(self, col_item)
 
 	@overrides
 	def get_values_size(self, col_item):
-		size_B = (col_item["max_run_size"] + col_item["max_length_size"]) * self.valid_count
-		return 0
+		if col_item["valid_count"] == 0:
+			return 0
+		size_B = (col_item["max_run_size"] + col_item["max_length_size"]) * col_item["valid_count"]
+		return size_B
 
 	@overrides
 	def get_metadata_size(self, col_item):
+		return 0
+
+	@overrides
+	def get_exceptions_size(self, col_item):
+		"""
+		NOTE: for now we do not have exceptions
+		"""
 		return 0
 
 
@@ -249,7 +283,7 @@ class ForEstimator(Estimator):
 
 	@classmethod
 	def empty_col_item(cls, col):
-		res = PatternDetector.empty_col_item(col)
+		res = Estimator.empty_col_item(col)
 		res["reference"] = float("inf")
 		res["attrs"] = []
 		res["max_diff_size"] = 1
@@ -261,14 +295,15 @@ class ForEstimator(Estimator):
 
 		if attr == self.null_value:
 			return True
-		self.valid_count += 1
+		col["valid_count"] += 1
 
 		# store attr to compute difference in the evaluation step
 		col["attrs"].append(attr)
 
+		val = float(attr)
 		# update reference value
-		if attr < col["reference"]:
-			col["reference"] = attr
+		if val < col["reference"]:
+			col["reference"] = val
 
 		return True
 
@@ -279,19 +314,28 @@ class ForEstimator(Estimator):
 
 		# compute differences & max_diff_size
 		for attr in col_item["attrs"]:
-			diff = attr - reference
+			diff = float(attr) - reference
 			diff_size = DatatypeAnalyzer.get_value_size(diff, hint=hint)
 			if diff_size > col_item["max_diff_size"]:
 				col_item["max_diff_size"] = diff_size
 
 		# call super method
-		Estimator.evaluate_col(self, col_item)
+		return Estimator.evaluate_col(self, col_item)
 
 	@overrides
 	def get_values_size(self, col_item):
-		return col_item["max_diff_size"] * self.valid_count
+		if col_item["valid_count"] == 0:
+			return 0
+		return col_item["max_diff_size"] * col_item["valid_count"]
 
 	@overrides
 	def get_metadata_size(self, col_item):
 		reference_size = 8
 		return reference_size
+
+	@overrides
+	def get_exceptions_size(self, col_item):
+		"""
+		NOTE: for now we do not have exceptions
+		"""
+		return 0

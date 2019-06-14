@@ -1,6 +1,7 @@
 import os
 import sys
 from lib.util import *
+from pattern_detection.patterns import *
 
 
 def init_columns(schema):
@@ -44,7 +45,7 @@ def driver_loop(driver, estimator_list, fdelim, null_value):
 	return total_tuple_count
 
 
-def main(schema, input_file, fdelim, null_value):
+def main(schema, input_file, full_file_linecount, fdelim, null_value):
 	"""
 	Returns:
 		stats: dict(col_id, estimators) where:
@@ -52,7 +53,7 @@ def main(schema, input_file, fdelim, null_value):
 			estimators: dict(name, results) where:
 				name: # name of the estimator
 				results: dict(
-					size_B: # total size of the column in bytes
+					size_B: # total size of the column in bytes (extrapolated to the size of the full data)
 					details: dict()
 				)
 	"""
@@ -62,12 +63,24 @@ def main(schema, input_file, fdelim, null_value):
 
 	with open(input_file, 'r') as fd:
 		driver = FileDriver(fd)
-		driver_loop(driver, estimator_list, fdelim, null_value)
+		sample_tuple_count = driver_loop(driver, estimator_list, fdelim, null_value)
+
+	sample_ratio = float(full_file_linecount) / sample_tuple_count
 
 	stats = {col.col_id: {} for col in columns}
 	for estimator in estimator_list:
 		res = estimator.evaluate()
-		for col_id, size_B in res.items():
+		for col_id, (values_size, metadata_size, exceptions_size, null_size) in res.items():
+			# debug
+			# print("[col_id={}][{}] values_size={}, metadata_size={}, exceptions_size={}, null_size={}".format(
+			# 		col_id, estimator.name, values_size, metadata_size, exceptions_size, null_size))
+			print("[col_id={}][{}] values_size={}, metadata_size={}, exceptions_size={}, null_size={}".format(
+					col_id, estimator.name, sizeof_fmt(values_size), sizeof_fmt(metadata_size), sizeof_fmt(exceptions_size), sizeof_fmt(null_size)))
+			# end-debug
+
+			# extrapolate the size for the full data
+			full_size = sample_ratio * (values_size + exceptions_size + null_size)
+			size_B = metadata_size + full_size
 			stats[col_id][estimator.name] = {
 				"size_B": size_B,
 				"details": dict()

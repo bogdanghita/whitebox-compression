@@ -123,11 +123,11 @@ class DatatypeAnalyzer(object):
 			raise Exception("Unsupported datatype: {}".format(datatype))
 
 		if datatype.name.lower() == "decimal":
-			precision = datatype.params[0]
+			precision = int(datatype.params[0])
 			return math.floor(precision / 2) + 1
 
 		if datatype.name.lower() == "varchar":
-			n = datatype.params[0]
+			n = int(datatype.params[0])
 			return n
 
 		return DATATYPES[datatype.name.lower()]["size"]
@@ -145,16 +145,20 @@ class DatatypeAnalyzer(object):
 			bits = nb_bits_int(abs(val)) + 1
 			return math.ceil(float(bits) / 8)
 
+		# if isinstance(val, Decimal):
+		# 	dec = Decimal(val).as_tuple()
+		# 	digits, exponent = dec.digits, dec.exponent
+		# 	physical_val = int("".join([str(d) for d in digits]))
+		# 	return cls.get_value_size(physical_val)
+
 		if isinstance(val, Decimal):
 			dec = Decimal(val).as_tuple()
 			digits, exponent = dec.digits, dec.exponent
-			physical_val = int("".join([str(d) for d in digits]))
-			return cls.get_value_size(phys_val)
-			# precision, scale = len(digits), abs(exponent)
-			# if scale >= precision:
-			# 	precision = scale + 1
-			# datatype = DataType(name="decimal", params=[precision, scale])
-			# return cls.get_datatype_size(datatype)
+			precision, scale = len(digits), abs(exponent)
+			if scale >= precision:
+				precision = scale + 1
+			datatype = DataType(name="decimal", params=[precision, scale])
+			return cls.get_datatype_size(datatype)
 
 		if isinstance(val, float):
 			if hint == "float":
@@ -163,7 +167,7 @@ class DatatypeAnalyzer(object):
 				return DATATYPES["double"]["size"]
 			# default to size of double
 			if hint is None:
-				return SIZE_DOUBLE
+				return DATATYPES["double"]["size"]
 			raise Exception("Invalid hint for float")
 
 		raise Exception("Unsupported datatype: {}".format(type(val)))

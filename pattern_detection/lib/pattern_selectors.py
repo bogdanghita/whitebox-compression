@@ -16,16 +16,7 @@ class PatternSelector(object):
 		""" Selects the best (combination of) pattern(s) for the given columns
 
 		Returns:
-			expression_nodes: list(
-				dict(
-					p_id: # id of the pattern
-					cols_in: list(col_id1, col_id2, ...) # list of input columns; type: util.Column
-					cols_out: [rcol_1, rcol_2, ...], # list of resulting columns; type: util.Column
-					cols_ex: [rcol_1, rcol_2, ...], # list of exception columns; type: util.Column
-					operator_info: dict() # operator parameters (used when applying the transformation)
-					details: dict() # other details
-				)
-			)
+			expression_nodes: list(ExpressionNode)
 
 		NOTE-1: a column can appear in multiple expression_nodes, each being applied only on a subset of its rows;
 				the key point here is that the subsets of rows will not overlap
