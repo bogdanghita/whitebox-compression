@@ -72,10 +72,10 @@ def main(schema, input_file, full_file_linecount, fdelim, null_value):
 		res = estimator.evaluate()
 		for col_id, (values_size, metadata_size, exceptions_size, null_size) in res.items():
 			# debug
-			# print("[col_id={}][{}] values_size={}, metadata_size={}, exceptions_size={}, null_size={}".format(
-			# 		col_id, estimator.name, values_size, metadata_size, exceptions_size, null_size))
 			print("[col_id={}][{}] values_size={}, metadata_size={}, exceptions_size={}, null_size={}".format(
-					col_id, estimator.name, sizeof_fmt(values_size), sizeof_fmt(metadata_size), sizeof_fmt(exceptions_size), sizeof_fmt(null_size)))
+					col_id, estimator.name, values_size, metadata_size, exceptions_size, null_size))
+			# print("[col_id={}][{}] values_size={}, metadata_size={}, exceptions_size={}, null_size={}".format(
+			# 		col_id, estimator.name, sizeof_fmt(values_size), sizeof_fmt(metadata_size), sizeof_fmt(exceptions_size), sizeof_fmt(null_size)))
 			# end-debug
 
 			# extrapolate the size for the full data

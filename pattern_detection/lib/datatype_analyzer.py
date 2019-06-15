@@ -73,13 +73,26 @@ class NumericDatatype(object):
 
 
 class DatatypeCast(object):
-	pass
+	@classmethod
+	def cast(cls, val, datatype):
+		cast_f_list = [
+			({"integer", "int", "tinyint", "smallint", "bigint"}, 
+				int),
+			({"float", "float4", "double", "real", "double"}, 
+				float),
+			({"decimal"}, 
+				lambda x: cls.to_decimal(x, *datatype.params)),
+			({"varchar", "date", "time", "timestamp"}, 
+				str),
+		]
 
+		for dts, cast_f in cast_f_list:
+			if datatype.name.lower() in dts:
+				return cast_f(val)
+		raise Exception("[cast] Unsupported datatype: datatype={}".format(datatype))
 
-class NumericDatatypeCast(DatatypeCast):
-
-	@staticmethod
-	def to_decimal(val, precision, scale):
+	@classmethod
+	def to_decimal(cls, val, precision, scale):
 		precision, scale = int(precision), int(scale)
 		dec = Decimal(val)
 		dec_tpl = dec.as_tuple()
@@ -96,10 +109,6 @@ class NumericDatatypeCast(DatatypeCast):
 			raise Exception("[to_decimal] Value does not match precision and/or scale")
 		return dec
 
-	@staticmethod
-	def to_double(val):
-		return float(val)
-
 
 class DatatypeAnalyzer(object):
 	def __init__(self):
@@ -112,63 +121,66 @@ class DatatypeAnalyzer(object):
 		raise Exception("Not implemented")
 
 	@classmethod
-	def get_datatype_size(cls, datatype):
+	def get_datatype_size(cls, datatype, bits=False):
 		"""
-		Returns: size of datatype on disk, in bytes
+		Returns: size of datatype on disk, in bytes if not bits else bits
 
 		NOTE: for decimal see:
 		https://docs.huihoo.com/ingres/ingres2006r2-guides/OpenAPI%20User%20Guide/1371.htm
 		"""
 		if datatype.name.lower() not in DATATYPES:
 			raise Exception("Unsupported datatype: {}".format(datatype))
-
+		
 		if datatype.name.lower() == "decimal":
 			precision = int(datatype.params[0])
-			return math.floor(precision / 2) + 1
+			res_B = math.floor(precision / 2) + 1
+		elif datatype.name.lower() == "varchar":
+			res_B = int(datatype.params[0])
+		else:
+			res_B = DATATYPES[datatype.name.lower()]["size"]
 
-		if datatype.name.lower() == "varchar":
-			n = int(datatype.params[0])
-			return n
-
-		return DATATYPES[datatype.name.lower()]["size"]
+		return res_B * 8 if bits else res_B
 
 	@classmethod
-	def get_value_size(cls, val, hint=None):
+	def get_value_size(cls, val, hint=None, bits=False):
 		"""
-		Returns: size of val on disk, in bytes
+		Returns: size of val on disk, in bytes if not bits else bits
 		"""
 		if isinstance(val, str):
-			return max(1, len(val))
+			res_B = max(1, len(val))
+			return res_B * 8 if bits else res_B
 
 		if isinstance(val, int):
 			# NOTE: 1 bit for sign
-			bits = nb_bits_int(abs(val)) + 1
-			return math.ceil(float(bits) / 8)
+			size_bits = nb_bits_int(abs(val)) + 1
+			return size_bits if bits else math.ceil(float(size_bits) / 8)
 
 		# if isinstance(val, Decimal):
-		# 	dec = Decimal(val).as_tuple()
+		# 	dec = val.as_tuple()
 		# 	digits, exponent = dec.digits, dec.exponent
 		# 	physical_val = int("".join([str(d) for d in digits]))
-		# 	return cls.get_value_size(physical_val)
+		# 	return cls.get_value_size(physical_val, bits)
 
 		if isinstance(val, Decimal):
-			dec = Decimal(val).as_tuple()
+			dec = val.as_tuple()
 			digits, exponent = dec.digits, dec.exponent
 			precision, scale = len(digits), abs(exponent)
 			if scale >= precision:
 				precision = scale + 1
 			datatype = DataType(name="decimal", params=[precision, scale])
-			return cls.get_datatype_size(datatype)
+			return cls.get_datatype_size(datatype, bits) 
 
 		if isinstance(val, float):
 			if hint == "float":
-				return DATATYPES["float"]["size"]
-			if hint == "double":
-				return DATATYPES["double"]["size"]
+				res_B = DATATYPES["float"]["size"]
+			elif hint == "double":
+				res_B = DATATYPES["double"]["size"]
 			# default to size of double
-			if hint is None:
-				return DATATYPES["double"]["size"]
-			raise Exception("Invalid hint for float")
+			elif hint is None:
+				res_B = DATATYPES["double"]["size"]
+			else:
+				raise Exception("Invalid hint for float")
+			return res_B * 8 if bits else res_B
 
 		raise Exception("Unsupported datatype: {}".format(type(val)))
 
@@ -190,14 +202,7 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 	TODO: add support for other numeric datatypes (e.g. tinyint, smallint, int, bigint, float)
 	"""
 
-	datatypes = {
-		"decimal": {
-			"cast": NumericDatatypeCast.to_decimal
-		},
-		"double": {
-			"cast": NumericDatatypeCast.to_double
-		}
-	}
+	datatypes = {"decimal", "double"}
 	illegal_chars = ['e', 'E', '_']
 	unsupported_decimals = [Decimal("Infinity"), Decimal("-Infinity"), Decimal("NaN")]
 
@@ -252,7 +257,8 @@ class NumericDatatypeAnalyzer(DatatypeAnalyzer):
 		'''
 		if datatype.name.lower() not in cls.datatypes:
 			raise Exception("[cast] Unsupported datatype: datatype={}".format(datatype))
-		n_val = cls.datatypes[datatype.name.lower()]["cast"](val, *datatype.params)
+		# n_val = cls.datatypes[datatype.name.lower()]["cast"](val, *datatype.params)
+		n_val = DatatypeCast.cast(val, datatype)
 		return n_val
 
 	@classmethod

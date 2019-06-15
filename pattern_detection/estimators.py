@@ -69,7 +69,7 @@ class Estimator(object):
 		"""Estimates column size
 
 		Returns:
-			size: total estimated size of the compressed column (values + metadata)
+			size: total estimated size of the compressed column in bytes (values + metadata)
 		"""
 		null_size = self.get_null_size(col_item)
 		values_size = self.get_values_size(col_item)
@@ -83,17 +83,29 @@ class Estimator(object):
 		One bit for each value, indicating whether it is null or not
 
 		Returns:
-			size: size in bytes of the null values
+			nulls size in bytes
 		"""
 		return float(1) * self.row_count / 8
 
 	def get_values_size(self, col_item):
+		"""
+		Returns:
+			values size in bytes
+		"""
 		raise Exception("Not implemented")
 
 	def get_metadata_size(self, col_item):
+		"""
+		Returns:
+			metadata size in bytes
+		"""
 		raise Exception("Not implemented")
 
 	def get_exceptions_size(self, col_item):
+		"""
+		Returns:
+			exceptions size in bytes
+		"""
 		raise Exception("Not implemented")
 
 
@@ -124,7 +136,16 @@ class NoCompressionEstimator(Estimator):
 	def get_values_size(self, col_item):
 		if col_item["valid_count"] == 0:
 			return 0
-		res = DatatypeAnalyzer.get_datatype_size(col_item["info"].datatype) * col_item["valid_count"]
+		datatype_size = DatatypeAnalyzer.get_datatype_size(col_item["info"].datatype)
+		
+		# debug
+		print("[col_id={}] datatype_size={}, datatype={}".format(
+				col_item["info"].col_id,
+				datatype_size,
+				col_item["info"].datatype))
+		# end-debug
+
+		res = datatype_size * col_item["valid_count"]
 		return res
 
 	@overrides
@@ -187,7 +208,7 @@ class DictEstimator(Estimator):
 
 	@classmethod
 	def get_dict_size(cls, map_keys):
-		return sum([DatatypeAnalyzer.get_value_size(k) for k in map_keys])
+		return sum([DatatypeAnalyzer.get_value_size(k, bits=False) for k in map_keys])
 
 	@classmethod
 	def get_col_size(cls, map_keys, nb_values):
@@ -209,12 +230,22 @@ class RleEstimator(Estimator):
 		res["current"] = None
 		res["max_run_size"] = 1
 		res["max_length_size"] = 1
+		res["run_count"] = 0
 		return res
 
 	def process_run_end(self, col_item):
+		col_item["run_count"] += 1
+
 		hint = DatatypeAnalyzer.get_value_size_hint(col_item["info"].datatype)
-		run_size = DatatypeAnalyzer.get_value_size(col_item["current"]["run"], hint=hint)
-		length_size = DatatypeAnalyzer.get_value_size(col_item["current"]["length"])
+		run_size = DatatypeAnalyzer.get_value_size(
+					DatatypeCast.cast(col_item["current"]["run"], col_item["info"].datatype), 
+					hint=hint, bits=True)
+		length_size = DatatypeAnalyzer.get_value_size(col_item["current"]["length"], bits=True)
+
+		# debug
+		print("[col_id={}][{}] col_item[\"current\"]={}, run_size={}, length_size={}".format(
+				col_item["info"].col_id, self.name, col_item["current"], run_size, length_size))
+		# end-debug
 
 		if run_size > col_item["max_run_size"]:
 			col_item["max_run_size"] = run_size
@@ -258,8 +289,8 @@ class RleEstimator(Estimator):
 	def get_values_size(self, col_item):
 		if col_item["valid_count"] == 0:
 			return 0
-		size_B = (col_item["max_run_size"] + col_item["max_length_size"]) * col_item["valid_count"]
-		return size_B
+		res_bits = (col_item["max_run_size"] + col_item["max_length_size"]) * col_item["run_count"]
+		return res_bits / 8
 
 	@overrides
 	def get_metadata_size(self, col_item):
@@ -287,6 +318,10 @@ class ForEstimator(Estimator):
 		res["reference"] = float("inf")
 		res["attrs"] = []
 		res["max_diff_size"] = 1
+		# debug
+		res["max_diff"] = 1
+		res["max_attr"] = 0
+		# end-debug
 		return res
 
 	@overrides
@@ -300,7 +335,7 @@ class ForEstimator(Estimator):
 		# store attr to compute difference in the evaluation step
 		col["attrs"].append(attr)
 
-		val = float(attr)
+		val = DatatypeCast.cast(attr, col["info"].datatype)
 		# update reference value
 		if val < col["reference"]:
 			col["reference"] = val
@@ -314,10 +349,22 @@ class ForEstimator(Estimator):
 
 		# compute differences & max_diff_size
 		for attr in col_item["attrs"]:
-			diff = float(attr) - reference
-			diff_size = DatatypeAnalyzer.get_value_size(diff, hint=hint)
+			val = DatatypeCast.cast(attr, col_item["info"].datatype)
+			diff = val - reference
+			diff_size = DatatypeAnalyzer.get_value_size(diff, hint=hint, bits=True)
+			# debug
+			print("[col_id={}][{}] val={}, reference={}, diff={}, diff_size={}".format(
+					col_item["info"].col_id, self.name, val, reference, diff, diff_size))
+			# end-debug
 			if diff_size > col_item["max_diff_size"]:
 				col_item["max_diff_size"] = diff_size
+				# col_item["max_diff"] = diff
+			# debug ^ & v
+			# if abs(diff) > col_item["max_diff"]:
+			# 	col_item["max_diff"] = diff
+			# if val > col_item["max_attr"]:
+			# 	col_item["max_attr"] = val
+			# end-debug
 
 		# call super method
 		return Estimator.evaluate_col(self, col_item)
@@ -326,7 +373,21 @@ class ForEstimator(Estimator):
 	def get_values_size(self, col_item):
 		if col_item["valid_count"] == 0:
 			return 0
-		return col_item["max_diff_size"] * col_item["valid_count"]
+
+		# debug
+		# print("[col_id={}] reference={}, max_attr={}, max_diff_size={}, max_diff={}".format(
+		# 		col_item["info"].col_id,
+		# 		col_item["reference"],
+		# 		col_item["max_attr"],
+		# 		col_item["max_diff_size"], 
+		# 		col_item["max_diff"]))
+		# print("[col_id={}] value_size={}".format(
+		# 		col_item["info"].col_id,
+		# 		DatatypeAnalyzer.get_value_size(col_item["max_diff"])), bits=True)
+		# end-debug
+
+		res_bits = col_item["max_diff_size"] * col_item["valid_count"]
+		return res_bits / 8
 
 	@overrides
 	def get_metadata_size(self, col_item):
