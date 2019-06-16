@@ -78,7 +78,7 @@ class DatatypeCast(object):
 		cast_f_list = [
 			({"integer", "int", "tinyint", "smallint", "bigint"}, 
 				int),
-			({"float", "float4", "double", "real", "double"}, 
+			({"float", "float4", "float8", "double", "real", "double"}, 
 				float),
 			({"decimal"}, 
 				lambda x: cls.to_decimal(x, *datatype.params)),
