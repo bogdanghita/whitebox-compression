@@ -23,6 +23,10 @@ class Estimator(object):
 		self.init_columns(columns)
 
 	@classmethod
+	def supports_exceptions(cls):
+		return False
+
+	@classmethod
 	def get_name(cls):
 		return cls.__name__
 
@@ -85,7 +89,10 @@ class Estimator(object):
 		Returns:
 			nulls size in bytes
 		"""
-		return float(1) * self.row_count / 8
+		size_bits = float(1) * self.row_count
+		if self.supports_exceptions():
+			size_bits *= 2
+		return size_bits / 8
 
 	def get_values_size(self, col_item):
 		"""
@@ -114,12 +121,17 @@ class NoCompressionEstimator(Estimator):
 		Estimator.__init__(self, columns, null_value)
 
 	@overrides
+	def supports_exceptions(cls):
+		return False
+
+	@overrides
 	def select_column(self, col):
 		return True
 
 	@classmethod
 	def empty_col_item(cls, col):
 		res = Estimator.empty_col_item(col)
+		res["value_size_hint"] = DatatypeAnalyzer.get_value_size_hint(col.datatype)
 		return res
 
 	@overrides
@@ -139,14 +151,14 @@ class NoCompressionEstimator(Estimator):
 		datatype_size = DatatypeAnalyzer.get_datatype_size(col_item["info"].datatype)
 		
 		# debug
-		print("[col_id={}] datatype_size={}, datatype={}".format(
-				col_item["info"].col_id,
-				datatype_size,
-				col_item["info"].datatype))
+		# print("[col_id={}] datatype_size={}, datatype={}".format(
+		# 		col_item["info"].col_id,
+		# 		datatype_size,
+		# 		col_item["info"].datatype))
 		# end-debug
 
-		res = datatype_size * col_item["valid_count"]
-		return res
+		res_B = datatype_size * col_item["valid_count"]
+		return res_B
 
 	@overrides
 	def get_metadata_size(self, col_item):
@@ -157,9 +169,77 @@ class NoCompressionEstimator(Estimator):
 		return 0
 
 
+class BitsEstimator(Estimator):
+	def __init__(self, columns, null_value):
+		Estimator.__init__(self, columns, null_value)
+
+	@overrides
+	def supports_exceptions(cls):
+		return True
+
+	@overrides
+	def select_column(self, col):
+		return (NumericDatatype.is_numeric_datatype(col.datatype) or 
+				col.datatype.name.lower() == "varchar")
+
+	@classmethod
+	def empty_col_item(cls, col):
+		res = Estimator.empty_col_item(col)
+		res["max_value_size"] = 1
+		res["value_size_hint"] = DatatypeAnalyzer.get_value_size_hint(col.datatype)
+		return res
+
+	@overrides
+	def handle_attr(self, attr, idx):
+		col = self.columns[idx]
+
+		if attr == self.null_value:
+			return True
+		col["valid_count"] += 1
+
+		val = DatatypeCast.cast(attr, col["info"].datatype)
+		val_size = DatatypeAnalyzer.get_value_size(val, hint=col["value_size_hint"], bits=True)
+		if val_size > col["max_value_size"]:
+			col["max_value_size"] = val_size
+
+		return True
+
+	@overrides
+	def get_values_size(self, col_item):
+		if col_item["valid_count"] == 0:
+			return 0
+		datatype_size = DatatypeAnalyzer.get_datatype_size(col_item["info"].datatype)
+		
+		# debug
+		# print("[col_id={}] max_value_size={}, datatype_size={}, datatype={}".format(
+		# 		col_item["info"].col_id,
+		# 		col_item["max_value_size"],
+		# 		datatype_size,
+		# 		col_item["info"].datatype))
+		# end-debug
+
+		res_bits = col_item["max_value_size"] * col_item["valid_count"]
+		return res_bits / 8
+
+	@overrides
+	def get_metadata_size(self, col_item):
+		return 0
+
+	@overrides
+	def get_exceptions_size(self, col_item):
+		"""
+		NOTE: for now we do not have exceptions
+		"""
+		return 0
+
+
 class DictEstimator(Estimator):
 	def __init__(self, columns, null_value):
 		Estimator.__init__(self, columns, null_value)
+
+	@overrides
+	def supports_exceptions(cls):
+		return True
 
 	@overrides
 	def select_column(self, col):
@@ -178,10 +258,6 @@ class DictEstimator(Estimator):
 		if attr == self.null_value:
 			return True
 		col["valid_count"] += 1
-
-		if col["info"].col_id == '5':
-			print("aaa")
-			sys.exit(1)
 
 		col["counter"][attr] += 1
 
@@ -221,6 +297,10 @@ class RleEstimator(Estimator):
 		Estimator.__init__(self, columns, null_value)
 
 	@overrides
+	def supports_exceptions(cls):
+		return True
+
+	@overrides
 	def select_column(self, col):
 		return NumericDatatype.is_numeric_datatype(col.datatype)
 
@@ -240,11 +320,12 @@ class RleEstimator(Estimator):
 		run_size = DatatypeAnalyzer.get_value_size(
 					DatatypeCast.cast(col_item["current"]["run"], col_item["info"].datatype), 
 					hint=hint, bits=True)
-		length_size = DatatypeAnalyzer.get_value_size(col_item["current"]["length"], bits=True)
+		length_size = DatatypeAnalyzer.get_value_size(col_item["current"]["length"], 
+													  signed=False, bits=True)
 
 		# debug
-		print("[col_id={}][{}] col_item[\"current\"]={}, run_size={}, length_size={}".format(
-				col_item["info"].col_id, self.name, col_item["current"], run_size, length_size))
+		# print("[col_id={}][{}] col_item[\"current\"]={}, run_size={}, length_size={}".format(
+		# 		col_item["info"].col_id, self.name, col_item["current"], run_size, length_size))
 		# end-debug
 
 		if run_size > col_item["max_run_size"]:
@@ -309,6 +390,10 @@ class ForEstimator(Estimator):
 		Estimator.__init__(self, columns, null_value)
 
 	@overrides
+	def supports_exceptions(cls):
+		return True
+
+	@overrides
 	def select_column(self, col):
 		return NumericDatatype.is_numeric_datatype(col.datatype)
 
@@ -319,8 +404,8 @@ class ForEstimator(Estimator):
 		res["attrs"] = []
 		res["max_diff_size"] = 1
 		# debug
-		res["max_diff"] = 1
-		res["max_attr"] = 0
+		# res["max_diff"] = 1
+		# res["max_attr"] = 0
 		# end-debug
 		return res
 
@@ -353,8 +438,8 @@ class ForEstimator(Estimator):
 			diff = val - reference
 			diff_size = DatatypeAnalyzer.get_value_size(diff, hint=hint, bits=True)
 			# debug
-			print("[col_id={}][{}] val={}, reference={}, diff={}, diff_size={}".format(
-					col_item["info"].col_id, self.name, val, reference, diff, diff_size))
+			# print("[col_id={}][{}] val={}, reference={}, diff={}, diff_size={}".format(
+			# 		col_item["info"].col_id, self.name, val, reference, diff, diff_size))
 			# end-debug
 			if diff_size > col_item["max_diff_size"]:
 				col_item["max_diff_size"] = diff_size

@@ -15,6 +15,7 @@ def init_columns(schema):
 def init_estimators(columns, null_value):
 	res = [
 		NoCompressionEstimator(columns, null_value),
+		BitsEstimator(columns, null_value),
 		DictEstimator(columns, null_value),
 		RleEstimator(columns, null_value),
 		ForEstimator(columns, null_value)
@@ -72,10 +73,10 @@ def main(schema, input_file, full_file_linecount, fdelim, null_value):
 		res = estimator.evaluate()
 		for col_id, (values_size, metadata_size, exceptions_size, null_size) in res.items():
 			# debug
-			print("[col_id={}][{}] values_size={}, metadata_size={}, exceptions_size={}, null_size={}".format(
-					col_id, estimator.name, values_size, metadata_size, exceptions_size, null_size))
 			# print("[col_id={}][{}] values_size={}, metadata_size={}, exceptions_size={}, null_size={}".format(
-			# 		col_id, estimator.name, sizeof_fmt(values_size), sizeof_fmt(metadata_size), sizeof_fmt(exceptions_size), sizeof_fmt(null_size)))
+			# 		col_id, estimator.name, values_size, metadata_size, exceptions_size, null_size))
+			print("[col_id={}][{}] values_size={}, metadata_size={}, exceptions_size={}, null_size={}".format(
+					col_id, estimator.name, sizeof_fmt(values_size), sizeof_fmt(metadata_size), sizeof_fmt(exceptions_size), sizeof_fmt(null_size)))
 			# end-debug
 
 			# extrapolate the size for the full data
@@ -83,6 +84,7 @@ def main(schema, input_file, full_file_linecount, fdelim, null_value):
 			size_B = metadata_size + full_size
 			stats[col_id][estimator.name] = {
 				"size_B": size_B,
+				"size_human_readable": sizeof_fmt(size_B),
 				"details": dict()
 			}
 

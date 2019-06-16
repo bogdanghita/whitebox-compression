@@ -142,7 +142,7 @@ class DatatypeAnalyzer(object):
 		return res_B * 8 if bits else res_B
 
 	@classmethod
-	def get_value_size(cls, val, hint=None, bits=False):
+	def get_value_size(cls, val, hint=None, signed=True, bits=False):
 		"""
 		Returns: size of val on disk, in bytes if not bits else bits
 		"""
@@ -151,8 +151,9 @@ class DatatypeAnalyzer(object):
 			return res_B * 8 if bits else res_B
 
 		if isinstance(val, int):
-			# NOTE: 1 bit for sign
-			size_bits = nb_bits_int(abs(val)) + 1
+			size_bits = nb_bits_int(abs(val))
+			if signed: # 1 bit for sign
+				size_bits += 1
 			return size_bits if bits else math.ceil(float(size_bits) / 8)
 
 		# if isinstance(val, Decimal):
