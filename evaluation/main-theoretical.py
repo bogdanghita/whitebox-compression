@@ -23,6 +23,7 @@ def aggregate_stats(schema, stats):
 			raise Exception("No estimator result for col_id: {}".format(col_id))
 
 		best_estimator_name = min(estimators.keys(), key=lambda name: estimators[name]["size_B"])
+		# best_estimator_name = "NoCompressionEstimator"
 		size_B = estimators[best_estimator_name]["size_B"]
 
 		table_size_B += size_B
