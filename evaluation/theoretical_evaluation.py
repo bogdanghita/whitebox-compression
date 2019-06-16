@@ -12,14 +12,19 @@ def init_columns(schema):
 	return res
 
 
-def init_estimators(columns, null_value):
-	res = [
-		NoCompressionEstimator(columns, null_value),
-		BitsEstimator(columns, null_value),
-		DictEstimator(columns, null_value),
-		RleEstimator(columns, null_value),
-		ForEstimator(columns, null_value)
-	]
+def init_estimators(columns, null_value, no_compression=False):
+	if no_compression:
+		res = [
+			NoCompressionEstimator(columns, null_value)
+		]
+	else:
+		res = [
+			NoCompressionEstimator(columns, null_value),
+			BitsEstimator(columns, null_value),
+			DictEstimator(columns, null_value),
+			RleEstimator(columns, null_value),
+			ForEstimator(columns, null_value)
+		]
 	return res
 
 
@@ -46,7 +51,7 @@ def driver_loop(driver, estimator_list, fdelim, null_value):
 	return total_tuple_count
 
 
-def main(schema, input_file, full_file_linecount, fdelim, null_value):
+def main(schema, input_file, full_file_linecount, fdelim, null_value, no_compression=False):
 	"""
 	Returns:
 		stats: dict(col_id, estimators) where:
@@ -60,7 +65,7 @@ def main(schema, input_file, full_file_linecount, fdelim, null_value):
 	"""
 
 	columns = init_columns(schema)
-	estimator_list = init_estimators(columns, null_value)
+	estimator_list = init_estimators(columns, null_value, no_compression)
 
 	with open(input_file, 'r') as fd:
 		driver = FileDriver(fd)
