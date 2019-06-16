@@ -70,7 +70,7 @@ for wb in $testset_dir/*; do
 		echo $wb $table
 
 		# NOTE: `evaluate_vectorwise` loads data to vectorwise and gathers logs; no other operations should be performed on vectorwise during this time
-		# evaluate_vectorwise $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate.out
+		evaluate_vectorwise $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate.out
 
 		evaluate_theoretical $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate-theoretical.out		
 	done

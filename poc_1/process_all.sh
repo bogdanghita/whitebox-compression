@@ -25,11 +25,10 @@ wbs_dir="$1"
 generate_sample() {
 	wb="$1"
 	table="$2"
+	sample_file="$3"
 
 	echo "[generate_sample][start] $(date) $wb $table"
 
-	sample_file=$wbs_dir/$wb/$table.sample.csv
-	# sample_file=$wbs_dir/$wb/$table.sample-theoretical.csv
 	if test -f "$sample_file"; then
 		echo "debug: skipping sampling; sample already exists"
 		return
@@ -112,9 +111,10 @@ process() {
 
 	echo "[process][start] $(date) $wb $table"
 
-	generate_sample $wb $table
+	generate_sample $wb $table $wbs_dir/$wb/$table.sample.csv
+	generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical.csv
 	generate_expression $wb $table
-	# apply_expression $wb $table
+	apply_expression $wb $table
 	apply_expression_theoretical $wb $table
 
 	echo "[process][end]   $(date) $wb $table"
