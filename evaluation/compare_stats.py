@@ -76,7 +76,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 			out_columns_stats[out_col["col_id"]] = out_col
 		# print(json.dumps(apply_expr_stats, indent=2))
 
-	ccs = expr_tree.get_connected_components()
+	# ccs = expr_tree.get_connected_components()
 	# for cc in ccs:
 	# 	print("levels={}, in_columns={}".format(cc.levels, cc.get_in_columns()))
 

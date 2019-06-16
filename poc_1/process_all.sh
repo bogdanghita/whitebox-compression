@@ -3,6 +3,7 @@
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 WORKING_DIR="$(pwd)"
 repo_wbs_dir=$SCRIPT_DIR/../../public_bi_benchmark-master_project/benchmark
+# testset_dir=$SCRIPT_DIR/../testsets/testset_full
 testset_dir=$SCRIPT_DIR/../testsets/testset_unique_schema_2
 # testset_dir=$SCRIPT_DIR/../testsets/testset_test
 
@@ -28,6 +29,7 @@ generate_sample() {
 	echo "[generate_sample][start] $(date) $wb $table"
 
 	sample_file=$wbs_dir/$wb/$table.sample.csv
+	# sample_file=$wbs_dir/$wb/$table.sample-theoretical.csv
 	if test -f "$sample_file"; then
 		echo "debug: skipping sampling; sample already exists"
 		return
@@ -72,16 +74,35 @@ apply_expression() {
 
 	echo "[apply_expression][start] $(date) $wb $table"
 
+	# vectorwise
 	input_file=$wbs_dir/$wb/$table.csv
 	expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
 	output_dir=$wbs_dir/$wb/$table.poc_1_out
 	out_table="${table}_out"
 
 	mkdir -p $output_dir
-
 	time $SCRIPT_DIR/../pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
 
 	echo "[apply_expression][end]   $(date) $wb $table"
+}
+
+
+apply_expression_theoretical() {
+	wb="$1"
+	table="$2"
+
+	echo "[apply_expression_theoretical][start] $(date) $wb $table"
+
+	# theoretical
+	input_file=$wbs_dir/$wb/$table.sample-theoretical.csv
+	expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
+	output_dir=$wbs_dir/$wb/$table.poc_1_out-theoretical
+	out_table="${table}_out"
+
+	mkdir -p $output_dir
+	time $SCRIPT_DIR/../pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
+
+	echo "[apply_expression_theoretical][end]   $(date) $wb $table"
 }
 
 
@@ -93,7 +114,8 @@ process() {
 
 	generate_sample $wb $table
 	generate_expression $wb $table
-	apply_expression $wb $table
+	# apply_expression $wb $table
+	apply_expression_theoretical $wb $table
 
 	echo "[process][end]   $(date) $wb $table"
 }

@@ -76,7 +76,7 @@ def plot(data, out_dir, out_file_format="svg"):
 	out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
-				  ["vectorwise default", "whitebox compression"],
+				  ["baseline default", "whitebox compression"],
 				  [COLORS["default"], COLORS["wc"]],
 				  "table", "compression ratio",
 				  out_file, out_file_format,
@@ -86,7 +86,7 @@ def plot(data, out_dir, out_file_format="svg"):
 	out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [size_nocompression_series, size_default_series, size_wc_series],
-				  ["no compression", "vectorwise default", "whitebox compression"],
+				  ["baseline no compression", "baseline default", "whitebox compression"],
 				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
@@ -107,7 +107,7 @@ def plot(data, out_dir, out_file_format="svg"):
 	out_file = os.path.join(out_dir, "size_used.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [size_default_series, size_wc_series],
-				  ["vectorwise default", "whitebox compression"],
+				  ["baseline default", "whitebox compression"],
 				  [COLORS["default"], COLORS["wc"]],
 				  "table", "total size of columns present in the expression tree (GiB)",
 				  out_file, out_file_format,
@@ -131,7 +131,7 @@ def parse_args():
 	return parser.parse_args()
 
 
-def main(wbs_dir, testset_dir, out_dir, out_file_format):
+def main_helper(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_extension):
 	data = {}
 
 	for wb in os.listdir(testset_dir):
@@ -139,7 +139,9 @@ def main(wbs_dir, testset_dir, out_dir, out_file_format):
 			for table in fp_wb:
 				table = table.strip()
 
-				base_dir = os.path.join(wbs_dir, wb, "{}.poc_1_out".format(table), "compare_stats")
+				base_dir = os.path.join(wbs_dir, wb, 
+										"{}.{}".format(table, base_dir_extension), 
+										"compare_stats")
 				summary_out_file_nocompression_default = os.path.join(base_dir, "{}.summary.nocompression-default.json".format(table))
 				summary_out_file_nocompression_wc = os.path.join(base_dir, "{}.summary.nocompression-wc.json".format(table))
 				summary_out_file_default_wc = os.path.join(base_dir, "{}.summary.default-wc.json".format(table))
@@ -157,6 +159,17 @@ def main(wbs_dir, testset_dir, out_dir, out_file_format):
 					print('error: unable to load data for ({}, {}): error={}'.format(wb, table, e))
 
 	plot(data, out_dir=out_dir, out_file_format=out_file_format)
+
+
+def main(wbs_dir, testset_dir, out_dir, out_file_format):
+
+	# vectorwise baseline
+	main_helper(wbs_dir, testset_dir, out_dir, out_file_format,
+				base_dir_extension="poc_1_out")
+
+	# theoretical baseline
+	main_helper(wbs_dir, testset_dir, out_dir, out_file_format,
+				base_dir_extension="poc_1_out-theoretical")
 
 
 if __name__ == "__main__":

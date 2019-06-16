@@ -123,26 +123,26 @@ table=Generico_2
 ================================================================================
 # no-compression
 table_name=$table
-input_file=$wbs_dir/$wb/$table.sample.csv
-schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql
 output_dir=$wbs_dir/$wb/$table.evaluation-nocompression
+input_file=$wbs_dir/$wb/$table.sample-theoretical.csv
+schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql
 full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount
 no_compression="--no-compression"
 
 # default
 table_name=$table
-input_file=$wbs_dir/$wb/$table.sample.csv
-schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql
 output_dir=$wbs_dir/$wb/$table.evaluation
+input_file=$wbs_dir/$wb/$table.sample-theoretical.csv
+schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql
 full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount
 no_compression=""
 
 # whitebox-compression
 out_table=${table}_out
 table_name=$out_table
-input_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.sample.csv
-schema_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.table.sql
-output_dir=$wbs_dir/$wb/$table.poc_1_out
+output_dir=$wbs_dir/$wb/$table.poc_1_out-theoretical
+input_file=$output_dir/$out_table.csv
+schema_file=$output_dir/$out_table.table-vectorwise.sql
 full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount
 no_compression=""
 
@@ -154,4 +154,53 @@ time ./evaluation/main-theoretical.py \
 $no_compression \
 --full-file-linecount $(cat $full_file_linecount) \
 $input_file
+"""
+
+"""
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
+
+# eval all workbooks: baseline-nocompression, baseline-default
+for wb in $wbs_dir/*; do \
+  for table in $wb/*.csv; do \
+    if [[ "$table" == *.*.csv ]]; then \
+      continue; \
+    fi; \
+    wb="$(basename $wb)"; \
+    table="$(basename $table)"; table="${table%.csv}"; \
+    echo $wb $table; \
+\
+    input_file=$wbs_dir/$wb/$table.sample-theoretical.csv; \
+    schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql; \
+    full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount; \
+    table_name=$table; \
+\
+    output_dir=$wbs_dir/$wb/$table.evaluation; \
+    mkdir -p $output_dir && \
+    time ./evaluation/main-theoretical.py \
+	--schema-file $schema_file \
+	--table-name $table_name \
+	--output-dir $output_dir \
+	--full-file-linecount $(cat $full_file_linecount) \
+	$input_file; \
+\
+    output_dir=$wbs_dir/$wb/$table.evaluation-nocompression; \
+    mkdir -p $output_dir && \
+    time ./evaluation/main-theoretical.py \
+	--schema-file $schema_file \
+	--table-name $table_name \
+	--output-dir $output_dir \
+	--no-compression \
+	--full-file-linecount $(cat $full_file_linecount) \
+	$input_file; \
+\
+    stats_file1=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-theoretical.json; \
+    stats_file2=$wbs_dir/$wb/$table.evaluation/$table.eval-theoretical.json; \
+    ./evaluation/compare_stats.py $stats_file1 $stats_file2 &> $wbs_dir/$wb/$table.evaluation-theoretical.compare_stats.out; \
+\
+  done; \
+done &> ./eval_all_workbooks-theoretical.out
+
+watch tail -n 40 eval_all_workbooks-theoretical.out
+cat $wbs_dir/*/*.evaluation-theoretical.compare_stats.out | less
 """

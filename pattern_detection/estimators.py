@@ -314,6 +314,9 @@ class RleEstimator(Estimator):
 		return res
 
 	def process_run_end(self, col_item):
+		if col_item["valid_count"] == 0:
+			return
+
 		col_item["run_count"] += 1
 
 		hint = DatatypeAnalyzer.get_value_size_hint(col_item["info"].datatype)

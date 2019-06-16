@@ -12,7 +12,7 @@ MININT = -sys.maxsize
 ROW_SIZE_SAMPLE_POINTS = 1024
 
 
-def get_sample(fp, nb_dataset_rows, nb_sample_points, nb_block_rows):
+def get_sample(fp, nb_dataset_rows, nb_sample_points, nb_block_rows, file_name=None):
 	print("[get_sample][initial-params] nb_dataset_rows={}, nb_sample_points={}, nb_block_rows={}".format(nb_dataset_rows, nb_sample_points, nb_block_rows))
 
 	if nb_sample_points * nb_block_rows > nb_dataset_rows / 2:
@@ -36,14 +36,14 @@ def get_sample(fp, nb_dataset_rows, nb_sample_points, nb_block_rows):
 		# seek until block start
 		while fp_line_idx < block_start:
 			if fp.readline() == "":
-				raise Exception("Unexpected end of file")
+				raise Exception("Unexpected end of file {}".format(file_name))
 			fp_line_idx += 1
 
 		# read nb_block_rows lines
 		for j in range(nb_block_rows):
 			line = fp.readline()
 			if line == "":
-				raise Exception("Unexpected end of file")
+				raise Exception("Unexpected end of file: {}".format(file_name))
 			fp_line_idx += 1
 			yield line
 
@@ -117,7 +117,8 @@ def main():
 		sample = get_sample(fp,
 							nb_dataset_rows=args.dataset_nb_rows,
 							nb_sample_points=nb_sample_points,
-							nb_block_rows=args.sample_block_nb_rows)
+							nb_block_rows=args.sample_block_nb_rows,
+							file_name=args.file)
 
 		output_sample(sample, args.output_file)
 
