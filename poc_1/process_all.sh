@@ -93,7 +93,7 @@ apply_expression_theoretical() {
 	echo "[apply_expression_theoretical][start] $(date) $wb $table"
 
 	# theoretical
-	input_file=$wbs_dir/$wb/$table.sample-theoretical.csv
+	input_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv
 	expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
 	output_dir=$wbs_dir/$wb/$table.poc_1_out-theoretical
 	out_table="${table}_out"
@@ -112,10 +112,11 @@ process() {
 	echo "[process][start] $(date) $wb $table"
 
 	generate_sample $wb $table $wbs_dir/$wb/$table.sample.csv
-	generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical.csv
-	generate_expression $wb $table
-	apply_expression $wb $table
-	apply_expression_theoretical $wb $table
+	generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-train.csv
+	generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-test.csv
+	# generate_expression $wb $table
+	# apply_expression $wb $table
+	# apply_expression_theoretical $wb $table
 
 	echo "[process][end]   $(date) $wb $table"
 }

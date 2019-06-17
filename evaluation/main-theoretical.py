@@ -124,7 +124,7 @@ table=Generico_2
 # no-compression
 table_name=$table
 output_dir=$wbs_dir/$wb/$table.evaluation-nocompression
-input_file=$wbs_dir/$wb/$table.sample-theoretical.csv
+input_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv
 schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql
 full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount
 no_compression="--no-compression"
@@ -132,7 +132,7 @@ no_compression="--no-compression"
 # default
 table_name=$table
 output_dir=$wbs_dir/$wb/$table.evaluation
-input_file=$wbs_dir/$wb/$table.sample-theoretical.csv
+input_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv
 schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql
 full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount
 no_compression=""
@@ -170,7 +170,7 @@ for wb in $wbs_dir/*; do \
     table="$(basename $table)"; table="${table%.csv}"; \
     echo $wb $table; \
 \
-    input_file=$wbs_dir/$wb/$table.sample-theoretical.csv; \
+    input_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv; \
     schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql; \
     full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount; \
     table_name=$table; \
