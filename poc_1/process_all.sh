@@ -114,9 +114,9 @@ process() {
 	generate_sample $wb $table $wbs_dir/$wb/$table.sample.csv
 	generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-train.csv
 	generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-test.csv
-	# generate_expression $wb $table
-	# apply_expression $wb $table
-	# apply_expression_theoretical $wb $table
+	generate_expression $wb $table
+	apply_expression $wb $table
+	apply_expression_theoretical $wb $table
 
 	echo "[process][end]   $(date) $wb $table"
 }
