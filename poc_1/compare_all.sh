@@ -24,14 +24,16 @@ compare() {
 
 	wb="$1"
 	table="$2"
+	baseline="$3"
+	base_dir="$4"
 
-	output_dir=$wbs_dir/$wb/$table.poc_1_out/compare_stats
+	output_dir=$base_dir/compare_stats
 	out_table="${table}_out"
-	stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
-	stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
-	stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json
+	stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-$baseline.json
+	stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-$baseline.json
+	stats_file_wc=$base_dir/$out_table.eval-$baseline.json
 	expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
-	apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json
+	apply_expr_stats_file=$base_dir/$out_table.stats.json
 	summary_out_file_nocompression_default=$output_dir/$table.summary.nocompression-default.json
 	summary_out_file_nocompression_wc=$output_dir/$table.summary.nocompression-wc.json
 	summary_out_file_default_wc=$output_dir/$table.summary.default-wc.json
@@ -66,15 +68,23 @@ plot_comparison() {
 }
 
 
-# for wb in $testset_dir/*; do
-# 	for table in $(cat $wb); do
-# 		wb="$(basename $wb)"
-# 		echo $wb $table
-#
-# 		compare $wb $table &> $wbs_dir/$wb/$table.poc_1.compare.out
-# 	done
-# done
+compare_all() {
+	for wb in $testset_dir/*; do
+		for table in $(cat $wb); do
+			wb="$(basename $wb)"
+			echo $wb $table
 
+			compare $wb $table vectorwise $wbs_dir/$wb/$table.poc_1_out \
+			&> $wbs_dir/$wb/$table.poc_1.compare.out
+
+			compare $wb $table theoretical $wbs_dir/$wb/$table.poc_1_out-theoretical \
+			&> $wbs_dir/$wb/$table.poc_1-theoretical.compare.out
+		done
+	done
+}
+
+
+compare_all
 plot_comparison
 
 
@@ -86,5 +96,10 @@ date; ./poc_1/compare_all.sh $wbs_dir; echo $?; date
 
 cat $wbs_dir/*/*.poc_1.compare.out | less
 cat $wbs_dir/*/*.poc_1_out/compare_stats/*.compare_stats.default-wc.out | grep -e "table_compression_ratio" -e "used_compression_ratio="
+
+cat $wbs_dir/*/*.poc_1-theoretical.compare.out | less
+cat $wbs_dir/*/*.poc_1_out-theoretical/compare_stats/*.compare_stats.default-wc.out | grep -e "table_compression_ratio" -e "used_compression_ratio="
+
+ls -lah ./poc_1/output/output_tmp/*
 
 END_COMMENT

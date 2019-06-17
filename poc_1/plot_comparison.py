@@ -139,8 +139,8 @@ def main_helper(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_extensi
 			for table in fp_wb:
 				table = table.strip()
 
-				base_dir = os.path.join(wbs_dir, wb, 
-										"{}.{}".format(table, base_dir_extension), 
+				base_dir = os.path.join(wbs_dir, wb,
+										"{}.{}".format(table, base_dir_extension),
 										"compare_stats")
 				summary_out_file_nocompression_default = os.path.join(base_dir, "{}.summary.nocompression-default.json".format(table))
 				summary_out_file_nocompression_wc = os.path.join(base_dir, "{}.summary.nocompression-wc.json".format(table))
@@ -164,11 +164,17 @@ def main_helper(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_extensi
 def main(wbs_dir, testset_dir, out_dir, out_file_format):
 
 	# vectorwise baseline
-	main_helper(wbs_dir, testset_dir, out_dir, out_file_format,
+	out_dir_tmp = os.path.join(out_dir, "vectorwise")
+	if not os.path.exists(out_dir_tmp):
+		os.mkdir(out_dir_tmp)
+	main_helper(wbs_dir, testset_dir, out_dir_tmp, out_file_format,
 				base_dir_extension="poc_1_out")
 
 	# theoretical baseline
-	main_helper(wbs_dir, testset_dir, out_dir, out_file_format,
+	out_dir_tmp = os.path.join(out_dir, "theoretical")
+	if not os.path.exists(out_dir_tmp):
+		os.mkdir(out_dir_tmp)
+	main_helper(wbs_dir, testset_dir, out_dir_tmp, out_file_format,
 				base_dir_extension="poc_1_out-theoretical")
 
 
