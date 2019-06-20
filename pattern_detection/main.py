@@ -19,10 +19,11 @@ import plot_pattern_distribution, plot_ngram_freq_masks, plot_correlation_coeffi
 # TODO: read this from a config file
 iteration_stages = [
 {
-	"max_it": 2,
+	"max_it": 16,
 	"pattern_detectors": {
 		"ConstantPatternDetector": {"min_constant_ratio": 0.9},
 		"DictPattern": {"max_dict_size": 64 * 1024, "max_key_ratio": 0.1},
+		"NumberAsString": {},
 		"CharSetSplit": {
 			"default_placeholder": "?",
 				"char_sets": [
@@ -34,7 +35,7 @@ iteration_stages = [
 	"pattern_selector": {
 		"type": "PriorityPatternSelector",
 		"params": {
-			"priorities": [["ConstantPatternDetector"], ["DictPattern"], ["CharSetSplit"]],
+			"priorities": [["ConstantPatternDetector"], ["DictPattern"], ["NumberAsString"], ["CharSetSplit"]],
 			"coverage_pattern_selector_args": {
 				"min_col_coverage": 0.2
 			}
@@ -50,50 +51,8 @@ iteration_stages = [
 		"type": "CorrelationPatternSelector",
 		"params": {}
 	}
-},
-{
-	"max_it": 1,
-	"pattern_detectors": {
-		"NumberAsString": {}
-	},
-	"pattern_selector": {
-		"type": "CoveragePatternSelector",
-		"params": {
-			"min_col_coverage": 0.2
-		}
-	}
-},
-{
-	"max_it": 1,
-	"pattern_detectors": {
-		"ConstantPatternDetector": {"min_constant_ratio": 0.9},
-		"DictPattern": {"max_dict_size": 64 * 1024, "max_key_ratio": 0.1},
-	},
-	"pattern_selector": {
-		"type": "PriorityPatternSelector",
-		"params": {
-			"priorities": [["ConstantPatternDetector"], ["DictPattern"]],
-			"coverage_pattern_selector_args": {
-				"min_col_coverage": 0.2
-			}
-		}
-	}
 }
 ]
-# iteration_stages = [
-# {
-# 	"max_it": 1,
-# 	"pattern_detectors": {
-# 		"NumberAsString": {}
-# 	},
-# 	"pattern_selector": {
-# 		"type": "CoveragePatternSelector",
-# 		"params": {
-# 			"min_col_coverage": 0.2
-# 		}
-# 	}
-# }
-# ]
 
 
 class PatternDetectionEngine(object):

@@ -1,0 +1,14 @@
+iteration_stages = [
+{
+	"max_it": 1,
+	"pattern_detectors": {
+		"NumberAsString": {}
+	},
+	"pattern_selector": {
+		"type": "CoveragePatternSelector",
+		"params": {
+			"min_col_coverage": 0.2
+		}
+	}
+}
+]

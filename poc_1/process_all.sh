@@ -73,7 +73,6 @@ apply_expression() {
 
 	echo "[apply_expression][start] $(date) $wb $table"
 
-	# vectorwise
 	input_file=$wbs_dir/$wb/$table.csv
 	expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
 	output_dir=$wbs_dir/$wb/$table.poc_1_out
@@ -92,12 +91,18 @@ apply_expression_theoretical() {
 
 	echo "[apply_expression_theoretical][start] $(date) $wb $table"
 
-	# theoretical
-	input_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv
 	expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
 	output_dir=$wbs_dir/$wb/$table.poc_1_out-theoretical
-	out_table="${table}_out"
 
+	# apply on train sample
+	input_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv
+	out_table="${table}_train"
+	mkdir -p $output_dir
+	time $SCRIPT_DIR/../pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
+
+	# apply on test sample
+	input_file=$wbs_dir/$wb/$table.sample-theoretical-test.csv
+	out_table="${table}_out"
 	mkdir -p $output_dir
 	time $SCRIPT_DIR/../pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
 

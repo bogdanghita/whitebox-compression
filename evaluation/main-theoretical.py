@@ -69,7 +69,7 @@ def parse_args():
 	parser.add_argument('--output-dir', dest='output_dir', type=str,
 		help="Output directory to dump result files to", required=True)
 	parser.add_argument('--full-file-linecount', dest='full_file_linecount', type=int,
-		help="Number of lines in the full file that the sample was taken from", required=True)	
+		help="Number of lines in the full file that the sample was taken from", required=True)
 	parser.add_argument("-F", "--fdelim", dest="fdelim",
 		help="Use <fdelim> as delimiter between fields", default="|")
 	parser.add_argument("--null", dest="null", type=str,
