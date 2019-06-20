@@ -453,31 +453,31 @@ table=Generico_2
 
 
 ================================================================================
-input_file=$wbs_dir/$wb/$table.csv
 expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
-output_dir=$wbs_dir/$wb/$table.poc_1_out
 out_table="${table}_out"
 
+# [apply-expression]
+input_file=$wbs_dir/$wb/$table.csv
+output_dir=$wbs_dir/$wb/$table.poc_1_out
+mkdir -p $output_dir && \
+time ./pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
+
+# [apply-expression-theoretical]
+input_file=$wbs_dir/$wb/$table.sample-theoretical-test.csv
+output_dir=$wbs_dir/$wb/$table.poc_1_out-theoretical
+mkdir -p $output_dir && \
+time ./pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
+
+cat $output_dir/$out_table.stats.json | less
+
+
+# [load & evaluation]
 n_input_file=$output_dir/$out_table.csv
 n_schema_file=$output_dir/$out_table.table.sql
 wv_n_schema_file=$output_dir/$out_table.table-vectorwise.sql
 db_name=pbib
 source ~/.ingVWsh
 
-stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
-stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
-stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json
-apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json
-summary_out_file=$output_dir/$table.summary.json
-
-
-# [apply-expression]
-mkdir -p $output_dir && \
-time ./pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
-
-cat $output_dir/$out_table.stats.json | less
-
-# [load & evaluation]
 ./util/VectorWiseify-schema.sh $n_schema_file $wv_n_schema_file > /dev/null
 time ./evaluation/main-vectorwise.sh $db_name $n_input_file $wv_n_schema_file $out_table $output_dir
 
@@ -486,7 +486,14 @@ cat $output_dir/stats-vectorwise/$out_table.compression-log.out | less
 cat $output_dir/load-vectorwise/$out_table.data-files.out | less
 cat $output_dir/$out_table.eval-vectorwise.json | less
 
+
 # [compare]
+stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
+stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
+stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json
+apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json
+summary_out_file=$output_dir/$table.summary.json
+
 # ./evaluation/compare_stats.py $stats_file_nocompression $stats_file_default
 ./evaluation/compare_stats.py $stats_file_default $stats_file_wc --expr-tree-file $expr_tree_file --apply-expr-stats-file $apply_expr_stats_file --summary-out-file $summary_out_file
 

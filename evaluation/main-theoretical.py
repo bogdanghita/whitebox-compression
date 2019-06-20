@@ -142,7 +142,7 @@ out_table=${table}_out
 table_name=$out_table
 output_dir=$wbs_dir/$wb/$table.poc_1_out-theoretical
 input_file=$output_dir/$out_table.csv
-schema_file=$output_dir/$out_table.table-vectorwise.sql
+schema_file=$output_dir/$out_table.table.sql
 full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount
 no_compression=""
 
@@ -156,11 +156,11 @@ $no_compression \
 $input_file
 
 # no-compression results
-cat ${table}.evaluation-nocompression/${table}.eval-theoretical.json | less -S
+cat $wbs_dir/$wb/${table}.evaluation-nocompression/${table}.eval-theoretical.json | less -S
 # default results
-cat ${table}.evaluation/${table}.eval-theoretical.json | less -S
+cat $wbs_dir/$wb/${table}.evaluation/${table}.eval-theoretical.json | less -S
 # whitebox-compression results
-cat ${table}.poc_1_out-theoretical/${table}_out.eval-theoretical.json | less -S
+cat $wbs_dir/$wb/${table}.poc_1_out-theoretical/${table}_out.eval-theoretical.json | less -S
 """
 
 """
