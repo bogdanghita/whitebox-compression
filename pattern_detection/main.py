@@ -135,7 +135,10 @@ class OutputManager(object):
 				fd.write(fdelim.join(header) + "\n")
 
 				# write one row at a time
-				# NOTE: we assume that col_p[p_id]["rows"] is sorted in increasing order
+				# TODO: make the implementation easier by using bitmaps instead of row ids
+				for p_id in header:
+					col_p[p_id]["rows"] = sorted(col_p[p_id]["rows"])
+
 				row_iterators = {p:0 for p in col_p.keys()}
 				row_count = 0
 				while True:
