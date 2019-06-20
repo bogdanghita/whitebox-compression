@@ -149,7 +149,7 @@ class NoCompressionEstimator(Estimator):
 		if col_item["valid_count"] == 0:
 			return 0
 		datatype_size = DatatypeAnalyzer.get_datatype_size(col_item["info"].datatype)
-		
+
 		# debug
 		# print("[col_id={}] datatype_size={}, datatype={}".format(
 		# 		col_item["info"].col_id,
@@ -179,7 +179,7 @@ class BitsEstimator(Estimator):
 
 	@overrides
 	def select_column(self, col):
-		return (NumericDatatype.is_numeric_datatype(col.datatype) or 
+		return (NumericDatatype.is_numeric_datatype(col.datatype) or
 				col.datatype.name.lower() == "varchar")
 
 	@classmethod
@@ -209,7 +209,7 @@ class BitsEstimator(Estimator):
 		if col_item["valid_count"] == 0:
 			return 0
 		datatype_size = DatatypeAnalyzer.get_datatype_size(col_item["info"].datatype)
-		
+
 		# debug
 		# print("[col_id={}] max_value_size={}, datatype_size={}, datatype={}".format(
 		# 		col_item["info"].col_id,
@@ -234,8 +234,9 @@ class BitsEstimator(Estimator):
 
 
 class DictEstimator(Estimator):
-	def __init__(self, columns, null_value):
+	def __init__(self, columns, null_value, max_dict_size):
 		Estimator.__init__(self, columns, null_value)
+		self.max_dict_size = max_dict_size
 
 	@overrides
 	def supports_exceptions(cls):
@@ -249,6 +250,7 @@ class DictEstimator(Estimator):
 	def empty_col_item(cls, col):
 		res = Estimator.empty_col_item(col)
 		res["counter"] = Counter()
+		res["exceptions_size"] = 0
 		return res
 
 	@overrides
@@ -264,6 +266,24 @@ class DictEstimator(Estimator):
 		return True
 
 	@overrides
+	def evaluate_col(self, col_item):
+		counter = col_item["counter"]
+
+		# optimize dictionary
+		counter_optimized = self.optimize_dictionary(counter, self.max_dict_size)
+
+		# compute exceptions size
+		exception_count = sum([count for key, count in counter.items() if key not in counter_optimized])
+		datatype_size = DatatypeAnalyzer.get_datatype_size(col_item["info"].datatype)
+		col_item["exceptions_size"] = datatype_size * exception_count
+
+		# update counter
+		col_item["counter"] = counter_optimized
+
+		# call super method
+		return Estimator.evaluate_col(self, col_item)
+
+	@overrides
 	def get_values_size(self, col_item):
 		if col_item["valid_count"] == 0:
 			return 0
@@ -273,23 +293,43 @@ class DictEstimator(Estimator):
 
 	@overrides
 	def get_metadata_size(self, col_item):
-		return self.get_dict_size(col_item["counter"].keys())
+		res = self.get_dict_size(col_item["counter"].keys())
+		return res
 
 	@overrides
 	def get_exceptions_size(self, col_item):
-		"""
-		NOTE: for now we do not have exceptions
-		"""
-		return 0
+		return col_item["exceptions_size"]
 
 	@classmethod
 	def get_dict_size(cls, map_keys):
-		return sum([DatatypeAnalyzer.get_value_size(k, bits=False) for k in map_keys])
+		# NOTE: +1 byte for each key: null terminator (since keys are strings)
+		return sum([DatatypeAnalyzer.get_value_size(k, bits=False) + 1 for k in map_keys])
 
 	@classmethod
 	def get_col_size(cls, map_keys, nb_values):
 		required_bits = nb_bits_int(len(map_keys)-1)
 		return math.ceil(float(required_bits) * nb_values / 8)
+
+	@classmethod
+	def optimize_dictionary(cls, counter, size_max):
+		"""
+		Keep only the first n most common keys that fit in size_max
+		"""
+		counter_res = Counter()
+
+		# all (key, count) pairs, sorted in decreasing order of count
+		hist = counter.most_common()
+
+		size = 0
+		for key, count in hist:
+			# NOTE: +1 byte for each key: null terminator (since keys are strings)
+			size_key = DatatypeAnalyzer.get_value_size(key, bits=False) + 1
+			if size + size_key > size_max:
+				break
+			size += size_key
+			counter_res[key] = count
+
+		return counter_res
 
 
 class RleEstimator(Estimator):
@@ -321,9 +361,9 @@ class RleEstimator(Estimator):
 
 		hint = DatatypeAnalyzer.get_value_size_hint(col_item["info"].datatype)
 		run_size = DatatypeAnalyzer.get_value_size(
-					DatatypeCast.cast(col_item["current"]["run"], col_item["info"].datatype), 
+					DatatypeCast.cast(col_item["current"]["run"], col_item["info"].datatype),
 					hint=hint, bits=True)
-		length_size = DatatypeAnalyzer.get_value_size(col_item["current"]["length"], 
+		length_size = DatatypeAnalyzer.get_value_size(col_item["current"]["length"],
 													  signed=False, bits=True)
 
 		# debug
@@ -467,7 +507,7 @@ class ForEstimator(Estimator):
 		# 		col_item["info"].col_id,
 		# 		col_item["reference"],
 		# 		col_item["max_attr"],
-		# 		col_item["max_diff_size"], 
+		# 		col_item["max_diff_size"],
 		# 		col_item["max_diff"]))
 		# print("[col_id={}] value_size={}".format(
 		# 		col_item["info"].col_id,

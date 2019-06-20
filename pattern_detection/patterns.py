@@ -509,7 +509,7 @@ class DictPattern(PatternDetector):
 
 		# check dict size
 		# size_keys = sum([DatatypeAnalyzer.get_value_size(key) for key in counter.keys()])
-		size_keys = self.get_dict_size(counter.keys())
+		size_keys = DictEstimator.get_dict_size(counter.keys())
 		if size_keys > self.max_dict_size:
 			return False
 
@@ -637,14 +637,10 @@ class DictPattern(PatternDetector):
 		return operator
 
 	@classmethod
-	def get_dict_size(cls, map_keys):
-		return DictEstimator.get_dict_size(map_keys)
-
-	@classmethod
 	def get_metadata_size(cls, operator_info):
 		map_obj = operator_info["map"]
 		# return sum([DatatypeAnalyzer.get_value_size(k) for k in map_obj.keys()])
-		return cls.get_dict_size(map_obj.keys())
+		return DictEstimator.get_dict_size(map_obj.keys())
 
 	@classmethod
 	def get_operator_dec_info(cls, operator_info):

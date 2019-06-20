@@ -154,6 +154,13 @@ time ./evaluation/main-theoretical.py \
 $no_compression \
 --full-file-linecount $(cat $full_file_linecount) \
 $input_file
+
+# no-compression results
+cat ${table}.evaluation-nocompression/${table}.eval-theoretical.json | less -S
+# default results
+cat ${table}.evaluation/${table}.eval-theoretical.json | less -S
+# whitebox-compression results
+cat ${table}.poc_1_out-theoretical/${table}_out.eval-theoretical.json | less -S
 """
 
 """

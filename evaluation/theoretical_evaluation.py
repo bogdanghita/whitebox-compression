@@ -4,6 +4,9 @@ from lib.util import *
 from pattern_detection.patterns import *
 
 
+max_dict_size = 64 * 1024
+
+
 def init_columns(schema):
 	res = []
 	for col_id, col_item in schema.items():
@@ -21,7 +24,8 @@ def init_estimators(columns, null_value, no_compression=False):
 		res = [
 			NoCompressionEstimator(columns, null_value),
 			BitsEstimator(columns, null_value),
-			DictEstimator(columns, null_value),
+			DictEstimator(columns, null_value,
+						  max_dict_size),
 			RleEstimator(columns, null_value),
 			ForEstimator(columns, null_value)
 		]
