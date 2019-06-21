@@ -17,8 +17,16 @@ DEFAULT_COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
 COLORS = {
 	"nocompression": DEFAULT_COLORS[0],
 	"default": DEFAULT_COLORS[1],
-	"wc": DEFAULT_COLORS[2]
+	"wc": DEFAULT_COLORS[2],
+	"total": DEFAULT_COLORS[3],
+	"used": DEFAULT_COLORS[4],
+	"theoretical": DEFAULT_COLORS[5],
+	"vectorwise": DEFAULT_COLORS[6],
 }
+
+
+def to_gib(b):
+	return float(b) / 1024 / 1024 / 1024
 
 
 def plot_barchart(x_ticks, series_list, series_labels, series_colors,
@@ -53,13 +61,7 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 	plt.savefig(out_file, format=out_file_format)
 
 
-def plot(data, out_dir, out_file_format="svg"):
-	data_items = sorted(data.items(), key=lambda x: x[0])
-
-	def to_gib(b):
-		return float(b) / 1024 / 1024 / 1024
-
-	# all columns
+def plot_total(data_items, out_dir, out_file_format):
 	table_series = []
 	size_nocompression_series = []
 	size_default_series, size_wc_series = [], []
@@ -72,7 +74,7 @@ def plot(data, out_dir, out_file_format="svg"):
 		ratio_default_series.append(summary["nocompression_default"]["total"]["compression_ratio"])
 		ratio_wc_series.append(summary["nocompression_wc"]["total"]["compression_ratio"])
 
-	# all ratio
+	# ratio
 	out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
@@ -82,7 +84,7 @@ def plot(data, out_dir, out_file_format="svg"):
 				  out_file, out_file_format,
 				  title="Compression ratio")
 
-	# all size
+	# size
 	out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [size_nocompression_series, size_default_series, size_wc_series],
@@ -92,7 +94,17 @@ def plot(data, out_dir, out_file_format="svg"):
 				  out_file, out_file_format,
 				  title="Total table size")
 
-	# used columns
+	return {
+		"table_series": table_series,
+		"size_nocompression_series": size_nocompression_series,
+		"size_default_series": size_default_series,
+		"size_wc_series": size_wc_series,
+		"ratio_default_series": ratio_default_series,
+		"ratio_wc_series": ratio_wc_series,
+	}
+
+
+def plot_used(data_items, out_dir, out_file_format):
 	table_series = []
 	size_nocompression_series = []
 	size_default_series, size_wc_series = [], []
@@ -112,7 +124,7 @@ def plot(data, out_dir, out_file_format="svg"):
 		ratio_default_series.append(float(size_nocompression) / size_default)
 		ratio_wc_series.append(float(size_nocompression) / size_wc)
 
-	# used ratio
+	# ratio
 	out_file = os.path.join(out_dir, "ratio_used.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
@@ -122,7 +134,7 @@ def plot(data, out_dir, out_file_format="svg"):
 				  out_file, out_file_format,
 				  title="Used columns ratio")
 
-	# used size
+	# size
 	out_file = os.path.join(out_dir, "size_used.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [size_nocompression_series, size_default_series, size_wc_series],
@@ -131,6 +143,56 @@ def plot(data, out_dir, out_file_format="svg"):
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
 				  title="Used columns size")
+
+	return {
+		"table_series": table_series,
+		"size_nocompression_series": size_nocompression_series,
+		"size_default_series": size_default_series,
+		"size_wc_series": size_wc_series,
+		"ratio_default_series": ratio_default_series,
+		"ratio_wc_series": ratio_wc_series,
+	}
+
+
+def plot_total_vs_used(series_total, series_used, out_dir, out_file_format):
+	total_table_series = series_total["table_series"]
+	used_table_series = series_used["table_series"]
+	total_size_series = []
+	used_size_series = []
+
+	i, j = 0, 0
+	while j < len(used_table_series):
+		if total_table_series[i] != used_table_series[j]:
+			i += 1
+			continue
+		total_size_series.append(series_total["size_nocompression_series"][i])
+		used_size_series.append(series_used["size_nocompression_series"][j])
+		i += 1
+		j += 1
+
+	out_file = os.path.join(out_dir, "size_total_vs_used.{}".format(out_file_format))
+	plot_barchart(used_table_series,
+				  [total_size_series, used_size_series],
+				  ["total size", "used size"],
+				  [COLORS["total"], COLORS["used"]],
+				  "table", "table size (GiB)",
+				  out_file, out_file_format,
+				  title="Total vs used columns size")
+
+
+def plot_baseline_helper(data, out_dir, out_file_format):
+	data_items = sorted(data.items(), key=lambda x: x[0])
+
+	# total
+	series_total = plot_total(data_items, out_dir, out_file_format)
+
+	# used
+	series_used = plot_used(data_items, out_dir, out_file_format)
+
+	# total vs used size
+	plot_total_vs_used(series_total, series_used, out_dir, out_file_format)
+
+	return (series_total, series_used)
 
 
 def parse_args():
@@ -150,7 +212,7 @@ def parse_args():
 	return parser.parse_args()
 
 
-def main_helper(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_extension):
+def plot_baseline(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_extension):
 	data = {}
 
 	for wb in os.listdir(testset_dir):
@@ -177,7 +239,50 @@ def main_helper(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_extensi
 				except Exception as e:
 					print('error: unable to load data for ({}, {}): error={}'.format(wb, table, e))
 
-	plot(data, out_dir=out_dir, out_file_format=out_file_format)
+	return plot_baseline_helper(data, out_dir, out_file_format)
+
+
+def plot_comparison(series_vectorwise, series_theoretical, out_dir, out_file_format):
+	series_vectorwise_orig = series_vectorwise
+	series_theoretical_orig = series_theoretical
+
+	table_series = series_vectorwise[0]["table_series"]
+
+	# no-compression
+	series_vectorwise  = series_vectorwise_orig[0]["size_nocompression_series"]
+	series_theoretical = series_theoretical_orig[0]["size_nocompression_series"]
+	out_file = os.path.join(out_dir, "no_compression.{}".format(out_file_format))
+	plot_barchart(table_series,
+				  [series_theoretical, series_vectorwise],
+				  ["theoretical", "vectorwise"],
+				  [COLORS["theoretical"], COLORS["vectorwise"]],
+				  "table", "table size (GiB)",
+				  out_file, out_file_format,
+				  title="Theoretical vs VectorWise (no compression)")
+
+	# default
+	series_vectorwise  = series_vectorwise_orig[0]["size_default_series"]
+	series_theoretical = series_theoretical_orig[0]["size_default_series"]
+	out_file = os.path.join(out_dir, "blackbox_compression.{}".format(out_file_format))
+	plot_barchart(table_series,
+				  [series_theoretical, series_vectorwise],
+				  ["theoretical", "vectorwise"],
+				  [COLORS["theoretical"], COLORS["vectorwise"]],
+				  "table", "table size (GiB)",
+				  out_file, out_file_format,
+				  title="Theoretical vs VectorWise (blackbox compression)")
+
+	# wc
+	series_vectorwise  = series_vectorwise_orig[0]["size_wc_series"]
+	series_theoretical = series_theoretical_orig[0]["size_wc_series"]
+	out_file = os.path.join(out_dir, "whitebox_compression.{}".format(out_file_format))
+	plot_barchart(table_series,
+				  [series_theoretical, series_vectorwise],
+				  ["theoretical", "vectorwise"],
+				  [COLORS["theoretical"], COLORS["vectorwise"]],
+				  "table", "table size (GiB)",
+				  out_file, out_file_format,
+				  title="Theoretical vs VectorWise (whitebox compression)")
 
 
 def main(wbs_dir, testset_dir, out_dir, out_file_format):
@@ -186,19 +291,26 @@ def main(wbs_dir, testset_dir, out_dir, out_file_format):
 	out_dir_tmp = os.path.join(out_dir, "vectorwise")
 	if not os.path.exists(out_dir_tmp):
 		os.mkdir(out_dir_tmp)
-	main_helper(wbs_dir, testset_dir, out_dir_tmp, out_file_format,
-				base_dir_extension="poc_1_out")
+	series_vectorwise = plot_baseline(wbs_dir, testset_dir, out_dir_tmp, out_file_format,
+									  base_dir_extension="poc_1_out")
 
 	# theoretical baseline
 	out_dir_tmp = os.path.join(out_dir, "theoretical")
 	if not os.path.exists(out_dir_tmp):
 		os.mkdir(out_dir_tmp)
-	main_helper(wbs_dir, testset_dir, out_dir_tmp, out_file_format,
-				base_dir_extension="poc_1_out-theoretical")
+	series_theoretical = plot_baseline(wbs_dir, testset_dir, out_dir_tmp, out_file_format,
+									   base_dir_extension="poc_1_out-theoretical")
+
+	# theoretical vs vectorwise
+	out_dir_tmp = os.path.join(out_dir, "theoretical_vs_baseline")
+	if not os.path.exists(out_dir_tmp):
+		os.mkdir(out_dir_tmp)
+	plot_comparison(series_vectorwise, series_theoretical, out_dir_tmp, out_file_format)
 
 
 if __name__ == "__main__":
 	args = parse_args()
 	print(args)
 
-	main(args.wbs_dir, args.testset_dir, args.out_dir, args.out_file_format)
+	out_file_format = "svg" if args.out_file_format is None else args.out_file_format
+	main(args.wbs_dir, args.testset_dir, args.out_dir, out_file_format)
