@@ -72,21 +72,21 @@ def plot(data, out_dir, out_file_format="svg"):
 		ratio_default_series.append(summary["nocompression_default"]["total"]["compression_ratio"])
 		ratio_wc_series.append(summary["nocompression_wc"]["total"]["compression_ratio"])
 
-	# ratio
+	# all ratio
 	out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
-				  ["baseline default", "whitebox compression"],
+				  ["blackbox compression", "whitebox compression"],
 				  [COLORS["default"], COLORS["wc"]],
 				  "table", "compression ratio",
 				  out_file, out_file_format,
 				  title="Compression ratio")
 
-	# sizes
+	# all size
 	out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [size_nocompression_series, size_default_series, size_wc_series],
-				  ["baseline no compression", "baseline default", "whitebox compression"],
+				  ["no compression", "blackbox compression", "whitebox compression"],
 				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
@@ -94,22 +94,41 @@ def plot(data, out_dir, out_file_format="svg"):
 
 	# used columns
 	table_series = []
+	size_nocompression_series = []
 	size_default_series, size_wc_series = [], []
+	ratio_default_series, ratio_wc_series = [], []
 	for (wc, table), summary in data_items:
 		# NOTE: filter cases where VectorWise put multiple columns in the same file
 		if "used" not in summary["default_wc"]:
 			continue
+		size_nocompression = summary["nocompression_wc"]["used"]["size_baseline_B"]
+		size_default = summary["default_wc"]["used"]["size_baseline_B"]
+		size_wc = summary["default_wc"]["used"]["size_target_B"]
+
 		table_series.append(table)
-		size_default_series.append(to_gib(summary["default_wc"]["used"]["size_baseline_B"]))
-		size_wc_series.append(to_gib(summary["default_wc"]["used"]["size_target_B"]))
+		size_nocompression_series.append(to_gib(size_nocompression))
+		size_default_series.append(to_gib(size_default))
+		size_wc_series.append(to_gib(size_wc))
+		ratio_default_series.append(float(size_nocompression) / size_default)
+		ratio_wc_series.append(float(size_nocompression) / size_wc)
+
+	# used ratio
+	out_file = os.path.join(out_dir, "ratio_used.{}".format(out_file_format))
+	plot_barchart(table_series,
+				  [ratio_default_series, ratio_wc_series],
+				  ["blackbox compression", "whitebox compression"],
+				  [COLORS["default"], COLORS["wc"]],
+				  "table", "compression ratio",
+				  out_file, out_file_format,
+				  title="Used columns ratio")
 
 	# used size
 	out_file = os.path.join(out_dir, "size_used.{}".format(out_file_format))
 	plot_barchart(table_series,
-				  [size_default_series, size_wc_series],
-				  ["baseline default", "whitebox compression"],
-				  [COLORS["default"], COLORS["wc"]],
-				  "table", "total size of columns present in the expression tree (GiB)",
+				  [size_nocompression_series, size_default_series, size_wc_series],
+				  ["no compression", "blackbox compression", "whitebox compression"],
+				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
+				  "table", "table size (GiB)",
 				  out_file, out_file_format,
 				  title="Used columns size")
 

@@ -84,7 +84,7 @@ compare_all() {
 }
 
 
-compare_all
+# compare_all
 plot_comparison
 
 
@@ -101,5 +101,7 @@ cat $wbs_dir/*/*.poc_1-theoretical.compare.out | less
 cat $wbs_dir/*/*.poc_1_out-theoretical/compare_stats/*.compare_stats.default-wc.out | grep -e "table_compression_ratio" -e "used_compression_ratio="
 
 ls -lah ./poc_1/output/output_tmp/*
+
+scp -r bogdan@bricks14:/scratch/bogdan/master-project/whitebox-compression/poc_1/output/output_tmp/* poc_1/output/output_tmp/
 
 END_COMMENT
