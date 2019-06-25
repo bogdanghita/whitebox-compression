@@ -302,7 +302,7 @@ def main(wbs_dir, testset_dir, out_dir, out_file_format):
 									   base_dir_extension="poc_1_out-theoretical")
 
 	# theoretical vs vectorwise
-	out_dir_tmp = os.path.join(out_dir, "theoretical_vs_baseline")
+	out_dir_tmp = os.path.join(out_dir, "theoretical_vs_vectorwise")
 	if not os.path.exists(out_dir_tmp):
 		os.mkdir(out_dir_tmp)
 	plot_comparison(series_vectorwise, series_theoretical, out_dir_tmp, out_file_format)
