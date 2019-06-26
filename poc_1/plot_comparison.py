@@ -39,7 +39,8 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 
 	fig, ax = plt.subplots()
 
-	plt.figure(figsize=(2*figsize, figsize), dpi=100)
+	plt.figure(figsize=(16.0/9*figsize, figsize), dpi=100)
+	# plt.figure()
 
 	index = np.arange(n_groups)
 	bar_width = 0.3
@@ -50,11 +51,13 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 	if y_lim is not None:
 		plt.ylim(y_lim)
 
-	plt.xlabel(x_label)
-	plt.ylabel(y_label)
+	plt.xlabel(x_label, fontsize=20)
+	plt.ylabel(y_label, fontsize=20)
 	plt.xticks(index + ((len(series_list)-1) * bar_width), x_ticks, rotation=270)
-	plt.legend()
-	plt.title(title)
+	plt.yticks(fontsize=18)
+	plt.legend(fontsize=20)
+	# plt.title(title)
+	plt.title("Vectorwise baseline", fontsize=24)
 
 	plt.tight_layout()
 
@@ -181,7 +184,12 @@ def plot_total_vs_used(series_total, series_used, out_dir, out_file_format):
 
 
 def plot_baseline_helper(data, out_dir, out_file_format):
-	data_items = sorted(data.items(), key=lambda x: x[0])
+	# key = lambda x: x[0]
+	# key = lambda x: -x[1]["nocompression_default"]["total"]["compression_ratio"]
+	key = lambda x: -x[1]["nocompression_wc"]["total"]["compression_ratio"]
+	# key = lambda x: -(x[1]["nocompression_wc"]["total"]["compression_ratio"] / x[1]["nocompression_default"]["total"]["compression_ratio"])
+	data_items = sorted(data.items(), key=key)
+	# print(data_items[0])
 
 	# total
 	series_total = plot_total(data_items, out_dir, out_file_format)
@@ -298,14 +306,14 @@ def main(wbs_dir, testset_dir, out_dir, out_file_format):
 	out_dir_tmp = os.path.join(out_dir, "theoretical")
 	if not os.path.exists(out_dir_tmp):
 		os.mkdir(out_dir_tmp)
-	series_theoretical = plot_baseline(wbs_dir, testset_dir, out_dir_tmp, out_file_format,
-									   base_dir_extension="poc_1_out-theoretical")
+	# series_theoretical = plot_baseline(wbs_dir, testset_dir, out_dir_tmp, out_file_format,
+	# 								   base_dir_extension="poc_1_out-theoretical")
 
 	# theoretical vs vectorwise
 	out_dir_tmp = os.path.join(out_dir, "theoretical_vs_vectorwise")
 	if not os.path.exists(out_dir_tmp):
 		os.mkdir(out_dir_tmp)
-	plot_comparison(series_vectorwise, series_theoretical, out_dir_tmp, out_file_format)
+	# plot_comparison(series_vectorwise, series_theoretical, out_dir_tmp, out_file_format)
 
 
 if __name__ == "__main__":
