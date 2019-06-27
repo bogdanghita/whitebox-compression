@@ -23,7 +23,6 @@ def init_estimators(columns, null_value, no_compression=False):
 	else:
 		res = [
 			NoCompressionEstimator(columns, null_value),
-			BitsEstimator(columns, null_value),
 			DictEstimator(columns, null_value,
 						  max_dict_size),
 			RleEstimator(columns, null_value),
