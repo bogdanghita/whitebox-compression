@@ -61,7 +61,11 @@ def parse_args():
 		description="""Detect column patterns in CSV file."""
 	)
 
-	parser.add_argument('file', help='CSV file to process')
+	# parser.add_argument('file', help='CSV file to process')
+	parser.add_argument('--train-file', dest='train_file', type=str,
+		help="CSV file for training", required=True)
+	parser.add_argument('--test-file', dest='test_file', type=str,
+		help="CSV file for testing", required=True)
 	parser.add_argument('--schema-file', dest='schema_file', type=str,
 		help="SQL file containing table schema", required=True)
 	parser.add_argument('--table-name', dest='table_name', type=str,
@@ -86,7 +90,7 @@ def main():
 
 	schema = parse_schema_file(args.schema_file)
 
-	stats = theoretical_evaluation.main(schema, args.file, args.full_file_linecount,
+	stats = theoretical_evaluation.main(schema, args.train_file, args.test_file, args.full_file_linecount,
 										args.fdelim, args.null, args.no_compression)
 
 	agg_stats = aggregate_stats(schema, stats)
@@ -124,7 +128,8 @@ table=Generico_2
 # no-compression
 table_name=$table
 output_dir=$wbs_dir/$wb/$table.evaluation-nocompression
-input_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv
+train_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv
+test_file=$wbs_dir/$wb/$table.sample-theoretical-test.csv
 schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql
 full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount
 no_compression="--no-compression"
@@ -132,7 +137,8 @@ no_compression="--no-compression"
 # default
 table_name=$table
 output_dir=$wbs_dir/$wb/$table.evaluation
-input_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv
+train_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv
+test_file=$wbs_dir/$wb/$table.sample-theoretical-test.csv
 schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql
 full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount
 no_compression=""
@@ -141,7 +147,8 @@ no_compression=""
 out_table=${table}_out
 table_name=$out_table
 output_dir=$wbs_dir/$wb/$table.poc_1_out-theoretical
-input_file=$output_dir/$out_table.csv
+train_file=$output_dir/$out_table-train.csv
+test_file=$output_dir/$out_table-test.csv
 schema_file=$output_dir/$out_table.table.sql
 full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount
 no_compression=""
@@ -153,7 +160,8 @@ time ./evaluation/main-theoretical.py \
 --output-dir $output_dir \
 $no_compression \
 --full-file-linecount $(cat $full_file_linecount) \
-$input_file
+--train-file $train_file
+--test-file $test_file
 
 # no-compression results
 cat $wbs_dir/$wb/${table}.evaluation-nocompression/${table}.eval-theoretical.json | less -S
@@ -177,7 +185,7 @@ for wb in $wbs_dir/*; do \
     table="$(basename $table)"; table="${table%.csv}"; \
     echo $wb $table; \
 \
-    input_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv; \
+    train_file=$wbs_dir/$wb/$table.sample-theoretical-train.csv; \
     schema_file=$repo_wbs_dir/$wb/tables-vectorwise/$table.table-renamed.sql; \
     full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount; \
     table_name=$table; \
@@ -189,7 +197,7 @@ for wb in $wbs_dir/*; do \
 	--table-name $table_name \
 	--output-dir $output_dir \
 	--full-file-linecount $(cat $full_file_linecount) \
-	$input_file; \
+	$train_file; \
 \
     output_dir=$wbs_dir/$wb/$table.evaluation-nocompression; \
     mkdir -p $output_dir && \
@@ -199,7 +207,7 @@ for wb in $wbs_dir/*; do \
 	--output-dir $output_dir \
 	--no-compression \
 	--full-file-linecount $(cat $full_file_linecount) \
-	$input_file; \
+	$train_file; \
 \
     stats_file1=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-theoretical.json; \
     stats_file2=$wbs_dir/$wb/$table.evaluation/$table.eval-theoretical.json; \

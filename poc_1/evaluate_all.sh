@@ -49,9 +49,10 @@ evaluate_theoretical() {
 
 	output_dir=$wbs_dir/$wb/$table.poc_1_out-theoretical
 	out_table="${table}_out"
-	n_input_file=$output_dir/$out_table.csv
-	n_schema_file=$output_dir/$out_table.table.sql
-	wv_n_schema_file=$output_dir/$out_table.table-vectorwise.sql
+	train_file=$output_dir/train/$out_table.csv
+	test_file=$output_dir/test/$out_table.csv
+	n_schema_file=$output_dir/test/$out_table.table.sql
+	wv_n_schema_file=$output_dir/test/$out_table.table-vectorwise.sql
 	full_file_linecount=$repo_wbs_dir/$wb/samples/$table.linecount
 
 	$SCRIPT_DIR/../util/VectorWiseify-schema.sh $n_schema_file $wv_n_schema_file > /dev/null
@@ -60,7 +61,8 @@ evaluate_theoretical() {
 	--table-name $out_table \
 	--output-dir $output_dir \
 	--full-file-linecount $(cat $full_file_linecount) \
-	$n_input_file
+	--train-file $train_file \
+	--test-file $test_file
 }
 
 
@@ -72,7 +74,7 @@ for wb in $testset_dir/*; do
 		# NOTE: `evaluate_vectorwise` loads data to vectorwise and gathers logs; no other operations should be performed on vectorwise during this time
 		evaluate_vectorwise $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate.out
 
-		evaluate_theoretical $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate-theoretical.out		
+		evaluate_theoretical $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate-theoretical.out
 	done
 done
 
