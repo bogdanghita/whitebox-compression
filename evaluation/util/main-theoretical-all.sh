@@ -5,6 +5,7 @@ WORKING_DIR="$(pwd)"
 
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
+testset_dir=$SCRIPT_DIR/../../testsets/testset_unique_schema_2
 
 evaluate() {
 	wb=$1
@@ -66,26 +67,23 @@ nb_procs="$(grep -c ^processor /proc/cpuinfo )"
 echo "[parallelism] nb_procs=$nb_procs"
 
 open_sem $nb_procs
-for wb in $wbs_dir/*; do
-	for table in $wb/*.csv; do
-		if [[ "$table" == *.*.csv ]]; then
-			continue
-		fi
+for wb in $testset_dir/*; do
+	for table in $(cat $wb); do
 		wb="$(basename $wb)"
-		table="$(basename $table)"; table="${table%.csv}"
 		if [[ "$wb" == "AirlineSentiment" ]]; then
 			continue
 		fi
-		echo $wb $table
-		run_with_lock evaluate $wb $table
+		echo "$(date) $wb $table"
+		run_with_lock evaluate $wb $table \
+		&> $wbs_dir/$wb/$table.main-theoretical.out
 		# evaluate $wb $table
 	done
 done
 wait
-echo "[done]"
+echo "$(date) [done]"
 
 : <<'END_COMMENT'
-./util/main-theoretical-all.sh
+./evaluation/util/main-theoretical-all.sh
 
 watch tail -n 40 eval_all_workbooks-theoretical.out
 cat $wbs_dir/*/*.evaluation-theoretical.compare_stats.out | less
