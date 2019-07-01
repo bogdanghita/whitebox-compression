@@ -115,6 +115,7 @@ theoretical_all(){
 			run_with_lock evaluate_theoretical $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate-theoretical.out
 		done
 	done
+	wait
 }
 
 
