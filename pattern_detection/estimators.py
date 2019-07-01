@@ -58,7 +58,7 @@ class Estimator(object):
 		Returns:
 			columns: dict(col_id, metadata) columns analyzed by the estimator, where:
 				col_id: str # id of the column
-				metadata: object used by EstimatorTest 
+				metadata: object used by EstimatorTest
 		'''
 		return {col_item["info"].col_id: self.evaluate_col(col_item) for col_item in self.columns.values()}
 
@@ -75,8 +75,8 @@ class EstimatorTrain(Estimator):
 		return cls.__name__[:-len("Train")]
 
 	def evaluate_col(self, col_item):
-		return self.get_metadata()
-	
+		return self.get_metadata(col_item)
+
 	def get_metadata(self, col_item):
 		raise Exception("Not implemented")
 
@@ -150,8 +150,8 @@ class NoCompressionEstimatorTrain(EstimatorTrain):
 	def __init__(self, columns, null_value):
 		EstimatorTrain.__init__(self, columns, null_value)
 
-	@overrides
-	def select_column(self, col):
+	@classmethod
+	def select_column(cls, col):
 		return True
 
 	@classmethod
@@ -185,7 +185,7 @@ class NoCompressionEstimatorTest(EstimatorTest):
 
 	@classmethod
 	def select_column(cls, col):
-		return NoCompressionEstimatorTrain.select_column()
+		return NoCompressionEstimatorTrain.select_column(col)
 
 	@classmethod
 	def empty_col_item(cls, col):
@@ -301,7 +301,7 @@ class DictEstimatorTrain(EstimatorTrain):
 
 
 class DictEstimatorTest(EstimatorTest):
-	def __init__(self, columns, metadata null_value):
+	def __init__(self, columns, metadata, null_value):
 		EstimatorTest.__init__(self, columns, metadata, null_value)
 
 	@classmethod
@@ -310,7 +310,7 @@ class DictEstimatorTest(EstimatorTest):
 
 	@classmethod
 	def select_column(cls, col):
-		return DictEstimatorTest.select_column(col)
+		return DictEstimatorTrain.select_column(col)
 
 	@classmethod
 	def empty_col_item(cls, col):
@@ -438,7 +438,7 @@ class RleEstimatorTrain(EstimatorTrain):
 		# process current run before evaluation
 		self.process_run_end(col_item)
 		# call super method
-		return Estimator.evaluate_col(self, col_item)
+		return EstimatorTrain.evaluate_col(self, col_item)
 
 	@overrides
 	def get_metadata(self, col_item):
@@ -522,14 +522,14 @@ class RleEstimatorTest(EstimatorTest):
 		# process current run before evaluation
 		self.process_run_end(col_item)
 		# call super method
-		return Estimator.evaluate_col(self, col_item)
+		return EstimatorTest.evaluate_col(self, col_item)
 
 	@overrides
 	def get_values_size(self, col_item):
 		if col_item["valid_count"] == 0:
 			return 0
-		
-		col_metadata = self.metadata[col["info"].col_id]
+
+		col_metadata = self.metadata[col_item["info"].col_id]
 		max_run_size = col_metadata["max_run_size"]
 		max_length_size = col_metadata["max_length_size"]
 
@@ -538,7 +538,7 @@ class RleEstimatorTest(EstimatorTest):
 
 	@overrides
 	def get_metadata_size(self, col_item):
-		col_metadata = self.metadata[col["info"].col_id]
+		col_metadata = self.metadata[col_item["info"].col_id]
 		max_run_size = col_metadata["max_run_size"]
 		max_length_size = col_metadata["max_length_size"]
 
@@ -603,7 +603,7 @@ class ForEstimatorTrain(EstimatorTrain):
 				col_item["max_diff_size"] = diff_size
 
 		# call super method
-		return Estimator.evaluate_col(self, col_item)
+		return EstimatorTrain.evaluate_col(self, col_item)
 
 	@overrides
 	def get_metadata(self, col_item):
@@ -629,6 +629,7 @@ class ForEstimatorTest(EstimatorTest):
 	@classmethod
 	def empty_col_item(cls, col):
 		res = Estimator.empty_col_item(col)
+		res["value_size_hint"] = DatatypeAnalyzer.get_value_size_hint(col.datatype)
 		res["exception_count"] = 0
 		return res
 
@@ -644,7 +645,7 @@ class ForEstimatorTest(EstimatorTest):
 
 		val = DatatypeCast.cast(attr, col["info"].datatype)
 		diff = val - col_metadata["reference"]
-		diff_size = DatatypeAnalyzer.get_value_size(diff, hint=hint, bits=True)
+		diff_size = DatatypeAnalyzer.get_value_size(diff, hint=col["value_size_hint"], bits=True)
 
 		if diff_size > col_metadata["max_diff_size"]:
 			col["exception_count"] += 1
@@ -656,8 +657,10 @@ class ForEstimatorTest(EstimatorTest):
 		if col_item["valid_count"] == 0:
 			return 0
 
+		col_metadata = self.metadata[col_item["info"].col_id]
+
 		nb_elems = col_item["valid_count"] - col_item["exception_count"]
-		res_bits = col_item["max_diff_size"] * nb_elems
+		res_bits = col_metadata["max_diff_size"] * nb_elems
 		return math.ceil(res_bits / 8)
 
 	@overrides

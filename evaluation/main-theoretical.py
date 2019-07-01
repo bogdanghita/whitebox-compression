@@ -160,7 +160,7 @@ time ./evaluation/main-theoretical.py \
 --output-dir $output_dir \
 $no_compression \
 --full-file-linecount $(cat $full_file_linecount) \
---train-file $train_file
+--train-file $train_file \
 --test-file $test_file
 
 # no-compression results
