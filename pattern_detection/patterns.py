@@ -522,13 +522,13 @@ class DictPattern(PatternDetector):
 		size_in_col = datatype_size * valid_count
 
 		# output column size
-		size_out_col = DictEstimator.get_col_size(counter.keys(), valid_count)
+		size_out_col = DictEstimatorTest.get_col_size(counter.keys(), valid_count)
 
 		# exceptions size
 		size_exceptions = datatype_size * exception_count
 
 		# dictionary size
-		# size_keys = DictEstimator.get_dict_size(counter.keys())
+		# size_keys = DictEstimatorTest.get_dict_size(counter.keys())
 
 		# check total size of input vs total size of output
 		'''
@@ -628,7 +628,7 @@ class DictPattern(PatternDetector):
 
 			# optimize dictionary
 			counter = col["counter"]
-			counter_optimized = DictEstimator.optimize_dictionary(col["counter"], self.max_dict_size)
+			counter_optimized = DictEstimatorTrain.optimize_dictionary(col["counter"], self.max_dict_size)
 			# compute exception count
 			col["exception_count"] = sum([count for key, count in counter.items() if key not in counter_optimized])
 			# update counter
@@ -673,7 +673,7 @@ class DictPattern(PatternDetector):
 	def get_metadata_size(cls, operator_info):
 		map_obj = operator_info["map"]
 		# return sum([DatatypeAnalyzer.get_value_size(k) for k in map_obj.keys()])
-		return DictEstimator.get_dict_size(map_obj.keys())
+		return DictEstimatorTest.get_dict_size(map_obj.keys())
 
 	@classmethod
 	def get_operator_dec_info(cls, operator_info):

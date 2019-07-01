@@ -338,9 +338,9 @@ class DictEstimatorTest(EstimatorTest):
 
 	@overrides
 	def get_values_size(self, col_item):
-		if col_item["valid_count"] == 0:
-			return 0
 		counter = self.metadata[col_item["info"].col_id]["counter"]
+		if len(counter.keys()) == 0:
+			return 0
 		nb_values = col_item["valid_count"] - col_item["exception_count"]
 		return self.get_col_size(counter.keys(), nb_values)
 
@@ -495,7 +495,7 @@ class RleEstimatorTest(EstimatorTest):
 					DatatypeCast.cast(attr, col["info"].datatype),
 					hint=col["value_size_hint"], bits=True)
 		if value_size > max_run_size:
-			res["exception_count"] += 1
+			col["exception_count"] += 1
 			return True
 
 		if col["current"] == None:

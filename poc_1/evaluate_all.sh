@@ -66,17 +66,60 @@ evaluate_theoretical() {
 }
 
 
-for wb in $testset_dir/*; do
-	for table in $(cat $wb); do
-		wb="$(basename $wb)"
-		echo $wb $table
-
-		# NOTE: `evaluate_vectorwise` loads data to vectorwise and gathers logs; no other operations should be performed on vectorwise during this time
-		evaluate_vectorwise $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate.out
-
-		evaluate_theoretical $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate-theoretical.out
+# https://unix.stackexchange.com/questions/103920/parallelize-a-bash-for-loop
+open_sem(){
+	mkfifo pipe-$$
+	exec 3<>pipe-$$
+	rm pipe-$$
+	local i=$1
+	for((;i>0;i--)); do
+		printf %s 000 >&3
 	done
-done
+}
+run_with_lock(){
+	local x
+	read -u 3 -n 3 x && ((0==x)) || exit $x
+	(
+		( "$@"; )
+		printf '%.3d' $? >&3
+	)&
+}
+
+
+vectorwise_all(){
+	echo "[vectorwise_all]"
+	for wb in $testset_dir/*; do
+		for table in $(cat $wb); do
+			wb="$(basename $wb)"
+			echo "$(date) $wb $table"
+
+			# NOTE: `evaluate_vectorwise` loads data to vectorwise and gathers logs; no other operations should be performed on vectorwise during this time
+			evaluate_vectorwise $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate.out
+		done
+	done
+}
+
+
+theoretical_all(){
+	echo "[theoretical_all]"
+	nb_procs="$(grep -c ^processor /proc/cpuinfo )"
+	echo "[parallelism] nb_procs=$nb_procs"
+
+	# run in parallel with $nb_procs concurrent tasks
+	open_sem $nb_procs
+	for wb in $testset_dir/*; do
+		for table in $(cat $wb); do
+			wb="$(basename $wb)"
+
+			echo "$(date) $wb $table"
+			run_with_lock evaluate_theoretical $wb $table &> $wbs_dir/$wb/$table.poc_1.evaluate-theoretical.out
+		done
+	done
+}
+
+
+vectorwise_all
+theoretical_all
 
 
 : <<'END_COMMENT'
