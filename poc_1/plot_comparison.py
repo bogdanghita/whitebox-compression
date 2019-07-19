@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-
+FONT_SIZE = 7
 Y_LIM_size, Y_LIM_ratio = (0, 15), (0, 28)
 DEFAULT_COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
 COLORS = {
@@ -51,16 +51,20 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 	n_groups = len(x_ticks)
 	figsize = max(8, n_groups / 6)
 
+	plt.rcParams.update({'font.size': FONT_SIZE})
+
 	fig, ax = plt.subplots()
 
-	plt.figure(figsize=(2*figsize, figsize), dpi=100)
+	# plt.figure(figsize=(2*figsize, figsize), dpi=100)
+	plt.figure()
 
 	index = np.arange(n_groups)
 	bar_width = 0.3
 
-	for idx, (s, l,c ) in enumerate(zip(series_list, series_labels, series_colors)):
+	for idx, (s, l, c) in enumerate(zip(series_list, series_labels, series_colors)):
 		rects = plt.bar(index + (idx * bar_width), s, bar_width, label=l, color=c)
 
+	plt.xlim((-1, len(x_ticks)))
 	if y_lim is not None:
 		plt.ylim(y_lim)
 
@@ -70,9 +74,15 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 	plt.legend()
 	plt.title(title)
 
+	target_aspect_ratio = 0.25
+	x_min, x_max = plt.gca().get_xlim()
+	y_min, y_max = plt.gca().get_ylim()
+	aspect_ratio = target_aspect_ratio / (float(y_max - y_min) / (x_max - x_min))
+	# print(x_min, x_max, y_min, y_max, aspect_ratio)
+	plt.axes().set_aspect(aspect=aspect_ratio)
 	plt.tight_layout()
 
-	plt.savefig(out_file, format=out_file_format)
+	plt.savefig(out_file, bbox_inches='tight', format=out_file_format)
 
 
 def plot_total(data_items, out_dir, out_file_format):
@@ -101,7 +111,8 @@ def plot_total(data_items, out_dir, out_file_format):
 				  out_file, out_file_format,
 				  title="Compression ratio",
 				  order=order_ratio,
-				  y_lim=Y_LIM_ratio)
+				  # y_lim=Y_LIM_ratio
+				  )
 
 	# size
 	order_size = order_ratio
@@ -114,7 +125,8 @@ def plot_total(data_items, out_dir, out_file_format):
 				  out_file, out_file_format,
 				  title="Total table size",
 				  order=order_size,
-				  y_lim=Y_LIM_size)
+				  # y_lim=Y_LIM_size
+				  )
 
 	return {
 		"table_series": table_series,
@@ -162,7 +174,8 @@ def plot_used(data_items, out_dir, out_file_format):
 				  out_file, out_file_format,
 				  title="Used columns ratio",
 				  order=order_ratio,
-				  y_lim=Y_LIM_ratio)
+				  # y_lim=Y_LIM_ratio
+				  )
 
 	# size
 	order_size = order_ratio
@@ -175,7 +188,8 @@ def plot_used(data_items, out_dir, out_file_format):
 				  out_file, out_file_format,
 				  title="Used columns size",
 				  order=order_size,
-				  y_lim=Y_LIM_size)
+				  # y_lim=Y_LIM_size
+				  )
 
 	return {
 		"table_series": table_series,
@@ -214,7 +228,8 @@ def plot_total_vs_used(series_total, series_used, out_dir, out_file_format, orde
 				  out_file, out_file_format,
 				  title="Total vs used columns size",
 				  order=order,
-				  y_lim=Y_LIM_size)
+				  # y_lim=Y_LIM_size
+				  )
 
 
 def plot_baseline_helper(data, out_dir, out_file_format):

@@ -62,9 +62,11 @@ plot_comparison() {
 	echo "$(date) [plot_comparison]"
 
 	output_dir=$SCRIPT_DIR/output/output_tmp
+	# out_file_format="svg"
+	out_file_format="pdf"
 
 	mkdir -p $output_dir
-	$SCRIPT_DIR/plot_comparison.py --wbs-dir $wbs_dir --testset-dir $testset_dir --out-dir $output_dir
+	$SCRIPT_DIR/plot_comparison.py --wbs-dir $wbs_dir --testset-dir $testset_dir --out-dir $output_dir --out-file-format $out_file_format
 }
 
 
