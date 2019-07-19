@@ -4,6 +4,7 @@ import os, sys
 import argparse
 import numpy as np
 import json
+from copy import copy, deepcopy
 
 # NOTE: this is needed when running on remote server through ssh
 # see: https://stackoverflow.com/questions/4706451/how-to-save-a-figure-remotely-with-pylab
@@ -12,7 +13,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
-Y_LIM = (0, 20)
+Y_LIM_size, Y_LIM_ratio = (0, 15), (0, 28)
 DEFAULT_COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
 COLORS = {
 	"nocompression": DEFAULT_COLORS[0],
@@ -29,11 +30,24 @@ def to_gib(b):
 	return float(b) / 1024 / 1024 / 1024
 
 
+def reorder(values, order):
+	values_tmp = copy(values)
+	for i, j in enumerate(order):
+		values[i] = values_tmp[j]
+
+
 def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 				  x_label, y_label,
 				  out_file, out_file_format,
 				  title,
+				  order=None,
 				  y_lim=None):
+	x_ticks = deepcopy(x_ticks)
+	series_list = deepcopy(series_list)
+	if order is not None:
+		for v_list in series_list + [x_ticks]:
+			reorder(v_list, order)
+
 	n_groups = len(x_ticks)
 	figsize = max(8, n_groups / 6)
 
@@ -75,6 +89,9 @@ def plot_total(data_items, out_dir, out_file_format):
 		ratio_wc_series.append(summary["nocompression_wc"]["total"]["compression_ratio"])
 
 	# ratio
+	order_ratio = sorted(range(len(data_items)), 
+				   key=lambda i: data_items[i][1]["nocompression_wc"]["total"]["compression_ratio"],
+				   reverse=True)
 	out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
@@ -82,9 +99,12 @@ def plot_total(data_items, out_dir, out_file_format):
 				  [COLORS["default"], COLORS["wc"]],
 				  "table", "compression ratio",
 				  out_file, out_file_format,
-				  title="Compression ratio")
+				  title="Compression ratio",
+				  order=order_ratio,
+				  y_lim=Y_LIM_ratio)
 
 	# size
+	order_size = order_ratio
 	out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [size_nocompression_series, size_default_series, size_wc_series],
@@ -92,7 +112,9 @@ def plot_total(data_items, out_dir, out_file_format):
 				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
-				  title="Total table size")
+				  title="Total table size",
+				  order=order_size,
+				  y_lim=Y_LIM_size)
 
 	return {
 		"table_series": table_series,
@@ -101,6 +123,8 @@ def plot_total(data_items, out_dir, out_file_format):
 		"size_wc_series": size_wc_series,
 		"ratio_default_series": ratio_default_series,
 		"ratio_wc_series": ratio_wc_series,
+		"order_ratio": order_ratio,
+		"order_size": order_size
 	}
 
 
@@ -112,6 +136,7 @@ def plot_used(data_items, out_dir, out_file_format):
 	for (wc, table), summary in data_items:
 		# NOTE: filter cases where VectorWise put multiple columns in the same file
 		if "used" not in summary["default_wc"]:
+			print("debug: \"used\" not in summary[\"default_wc\"]; wc={}, table={}".format(wc, table))
 			continue
 		size_nocompression = summary["nocompression_wc"]["used"]["size_baseline_B"]
 		size_default = summary["default_wc"]["used"]["size_baseline_B"]
@@ -125,6 +150,9 @@ def plot_used(data_items, out_dir, out_file_format):
 		ratio_wc_series.append(float(size_nocompression) / size_wc)
 
 	# ratio
+	order_ratio = sorted(range(len(table_series)), 
+				   key=lambda i: ratio_wc_series[i],
+				   reverse=True)
 	out_file = os.path.join(out_dir, "ratio_used.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
@@ -132,9 +160,12 @@ def plot_used(data_items, out_dir, out_file_format):
 				  [COLORS["default"], COLORS["wc"]],
 				  "table", "compression ratio",
 				  out_file, out_file_format,
-				  title="Used columns ratio")
+				  title="Used columns ratio",
+				  order=order_ratio,
+				  y_lim=Y_LIM_ratio)
 
 	# size
+	order_size = order_ratio
 	out_file = os.path.join(out_dir, "size_used.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [size_nocompression_series, size_default_series, size_wc_series],
@@ -142,7 +173,9 @@ def plot_used(data_items, out_dir, out_file_format):
 				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
-				  title="Used columns size")
+				  title="Used columns size",
+				  order=order_size,
+				  y_lim=Y_LIM_size)
 
 	return {
 		"table_series": table_series,
@@ -151,10 +184,12 @@ def plot_used(data_items, out_dir, out_file_format):
 		"size_wc_series": size_wc_series,
 		"ratio_default_series": ratio_default_series,
 		"ratio_wc_series": ratio_wc_series,
+		"order_ratio": order_ratio,
+		"order_size": order_size
 	}
 
 
-def plot_total_vs_used(series_total, series_used, out_dir, out_file_format):
+def plot_total_vs_used(series_total, series_used, out_dir, out_file_format, order=None):
 	total_table_series = series_total["table_series"]
 	used_table_series = series_used["table_series"]
 	total_size_series = []
@@ -177,7 +212,9 @@ def plot_total_vs_used(series_total, series_used, out_dir, out_file_format):
 				  [COLORS["total"], COLORS["used"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
-				  title="Total vs used columns size")
+				  title="Total vs used columns size",
+				  order=order,
+				  y_lim=Y_LIM_size)
 
 
 def plot_baseline_helper(data, out_dir, out_file_format):
@@ -190,7 +227,8 @@ def plot_baseline_helper(data, out_dir, out_file_format):
 	series_used = plot_used(data_items, out_dir, out_file_format)
 
 	# total vs used size
-	plot_total_vs_used(series_total, series_used, out_dir, out_file_format)
+	order = series_used["order_ratio"]
+	plot_total_vs_used(series_total, series_used, out_dir, out_file_format, order=order)
 
 	return (series_total, series_used)
 
