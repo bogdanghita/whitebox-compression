@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-FONT_SIZE = 7
+FONT_SIZE = 8
 Y_LIM_size, Y_LIM_ratio = (0, 15), (0, 28)
 DEFAULT_COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
 COLORS = {
@@ -85,6 +85,58 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 	plt.savefig(out_file, bbox_inches='tight', format=out_file_format)
 
 
+def plot_barchart_multiple(x_ticks, x_label,
+						   plot_data_list,
+						   out_file, out_file_format,
+						   title, order=None):
+	x_ticks = deepcopy(x_ticks)
+	if order is not None:
+		reorder(x_ticks, order)
+
+	n_groups = len(x_ticks)
+	figsize = max(8, n_groups / 6)
+
+	plt.rcParams.update({'font.size': FONT_SIZE})
+
+	plt.figure()
+
+	for i, plot_data in enumerate(plot_data_list):
+		series_list = plot_data["series_list"]
+		series_labels = plot_data["series_labels"]
+		series_colors = plot_data["series_colors"]
+		y_label = plot_data["y_label"]
+		y_lim = plot_data["y_lim"] if "y_lim" in plot_data else None
+
+		series_list = deepcopy(series_list)
+		if order is not None:
+			for v_list in series_list:
+				reorder(v_list, order)
+
+		index = np.arange(n_groups)
+		bar_width = 0.3
+
+		plt.subplot(len(plot_data_list), 1, i+1)
+
+		for idx, (s, l, c) in enumerate(zip(series_list, series_labels, series_colors)):
+			rects = plt.bar(index + (idx * bar_width), s, bar_width, label=l, color=c)
+
+		plt.xticks(index + ((len(series_list)-1) * bar_width), [])
+
+		plt.xlim((-1, len(x_ticks)))
+		if y_lim is not None:
+			plt.ylim(y_lim)
+
+		plt.ylabel(y_label)
+		plt.legend()
+
+	plt.xlabel(x_label)
+	plt.xticks(index + ((len(series_list)-1) * bar_width), x_ticks, rotation=270)
+	# plt.title(title)
+
+	plt.tight_layout()
+	plt.savefig(out_file, bbox_inches='tight', format=out_file_format)
+
+
 def plot_total(data_items, out_dir, out_file_format):
 	table_series = []
 	size_nocompression_series = []
@@ -102,31 +154,56 @@ def plot_total(data_items, out_dir, out_file_format):
 	order_ratio = sorted(range(len(data_items)), 
 				   key=lambda i: data_items[i][1]["nocompression_wc"]["total"]["compression_ratio"],
 				   reverse=True)
-	out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
-	plot_barchart(table_series,
-				  [ratio_default_series, ratio_wc_series],
-				  ["blackbox compression", "whitebox compression"],
-				  [COLORS["default"], COLORS["wc"]],
-				  "table", "compression ratio",
-				  out_file, out_file_format,
-				  title="Compression ratio",
-				  order=order_ratio,
-				  # y_lim=Y_LIM_ratio
-				  )
+	# out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
+	# plot_barchart(table_series,
+	# 			  [ratio_default_series, ratio_wc_series],
+	# 			  ["blackbox compression", "whitebox compression"],
+	# 			  [COLORS["default"], COLORS["wc"]],
+	# 			  "table", "compression ratio",
+	# 			  out_file, out_file_format,
+	# 			  title="Compression ratio",
+	# 			  order=order_ratio,
+	# 			  # y_lim=Y_LIM_ratio
+	# 			  )
 
 	# size
 	order_size = order_ratio
-	out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
-	plot_barchart(table_series,
-				  [size_nocompression_series, size_default_series, size_wc_series],
-				  ["no compression", "blackbox compression", "whitebox compression"],
-				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
-				  "table", "table size (GiB)",
-				  out_file, out_file_format,
-				  title="Total table size",
-				  order=order_size,
-				  # y_lim=Y_LIM_size
-				  )
+	# out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
+	# plot_barchart(table_series,
+	# 			  [size_nocompression_series, size_default_series, size_wc_series],
+	# 			  ["no compression", "blackbox compression", "whitebox compression"],
+	# 			  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
+	# 			  "table", "table size (GiB)",
+	# 			  out_file, out_file_format,
+	# 			  title="Total table size",
+	# 			  order=order_size,
+	# 			  # y_lim=Y_LIM_size
+	# 			  )
+
+	plot_data_list = [
+		{
+			"series_list": [ratio_default_series, ratio_wc_series],
+			"series_labels": ["blackbox compression", "whitebox compression"],
+			"series_colors": [COLORS["default"], COLORS["wc"]],
+			"y_label": "compression ratio",
+			"y_lim": None
+		},
+		{
+			"series_list": [size_nocompression_series, size_default_series, size_wc_series],
+			"series_labels": ["no compression", "blackbox compression", "whitebox compression"],
+			"series_colors": [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
+			"y_label": "table size (GiB)",
+			"y_lim": None
+		}
+	]
+	x_ticks = table_series
+	x_label = "table"
+	out_file = os.path.join(out_dir, "total.{}".format(out_file_format))
+	title = "Total table"
+	plot_barchart_multiple(x_ticks, x_label,
+						   plot_data_list,
+						   out_file, out_file_format,
+						   title, order=order_ratio)
 
 	return {
 		"table_series": table_series,
@@ -165,31 +242,56 @@ def plot_used(data_items, out_dir, out_file_format):
 	order_ratio = sorted(range(len(table_series)), 
 				   key=lambda i: ratio_wc_series[i],
 				   reverse=True)
-	out_file = os.path.join(out_dir, "ratio_used.{}".format(out_file_format))
-	plot_barchart(table_series,
-				  [ratio_default_series, ratio_wc_series],
-				  ["blackbox compression", "whitebox compression"],
-				  [COLORS["default"], COLORS["wc"]],
-				  "table", "compression ratio",
-				  out_file, out_file_format,
-				  title="Used columns ratio",
-				  order=order_ratio,
-				  # y_lim=Y_LIM_ratio
-				  )
+	# out_file = os.path.join(out_dir, "ratio_used.{}".format(out_file_format))
+	# plot_barchart(table_series,
+	# 			  [ratio_default_series, ratio_wc_series],
+	# 			  ["blackbox compression", "whitebox compression"],
+	# 			  [COLORS["default"], COLORS["wc"]],
+	# 			  "table", "compression ratio",
+	# 			  out_file, out_file_format,
+	# 			  title="Used columns ratio",
+	# 			  order=order_ratio,
+	# 			  # y_lim=Y_LIM_ratio
+	# 			  )
 
 	# size
 	order_size = order_ratio
-	out_file = os.path.join(out_dir, "size_used.{}".format(out_file_format))
-	plot_barchart(table_series,
-				  [size_nocompression_series, size_default_series, size_wc_series],
-				  ["no compression", "blackbox compression", "whitebox compression"],
-				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
-				  "table", "table size (GiB)",
-				  out_file, out_file_format,
-				  title="Used columns size",
-				  order=order_size,
-				  # y_lim=Y_LIM_size
-				  )
+	# out_file = os.path.join(out_dir, "size_used.{}".format(out_file_format))
+	# plot_barchart(table_series,
+	# 			  [size_nocompression_series, size_default_series, size_wc_series],
+	# 			  ["no compression", "blackbox compression", "whitebox compression"],
+	# 			  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
+	# 			  "table", "table size (GiB)",
+	# 			  out_file, out_file_format,
+	# 			  title="Used columns size",
+	# 			  order=order_size,
+	# 			  # y_lim=Y_LIM_size
+	# 			  )
+
+	plot_data_list = [
+		{
+			"series_list": [ratio_default_series, ratio_wc_series],
+			"series_labels": ["blackbox compression", "whitebox compression"],
+			"series_colors": [COLORS["default"], COLORS["wc"]],
+			"y_label": "compression ratio",
+			"y_lim": None
+		},
+		{
+			"series_list": [size_nocompression_series, size_default_series, size_wc_series],
+			"series_labels": ["no compression", "blackbox compression", "whitebox compression"],
+			"series_colors": [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
+			"y_label": "table size (GiB)",
+			"y_lim": None
+		}
+	]
+	x_ticks = table_series
+	x_label = "table"
+	out_file = os.path.join(out_dir, "used.{}".format(out_file_format))
+	title = "Used table"
+	plot_barchart_multiple(x_ticks, x_label,
+						   plot_data_list,
+						   out_file, out_file_format,
+						   title, order=order_ratio)
 
 	return {
 		"table_series": table_series,
