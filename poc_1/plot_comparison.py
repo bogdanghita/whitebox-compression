@@ -154,6 +154,11 @@ def plot_total(data_items, out_dir, out_file_format,
 		ratio_default_series.append(summary["nocompression_default"]["total"]["compression_ratio"])
 		ratio_wc_series.append(summary["nocompression_wc"]["total"]["compression_ratio"])
 
+	if baseline == "Estimator model":
+		blackbox_label = "basic lightweight"
+	else:
+		blackbox_label = "blackbox"
+
 	# ratio
 	order_ratio = sorted(range(len(data_items)), 
 				   key=lambda i: data_items[i][1]["nocompression_wc"]["total"]["compression_ratio"],
@@ -161,7 +166,7 @@ def plot_total(data_items, out_dir, out_file_format,
 	out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
-				  ["blackbox compression", "whitebox compression"],
+				  ["{} compression".format(blackbox_label), "whitebox compression"],
 				  [COLORS["default"], COLORS["wc"]],
 				  "table", "compression ratio",
 				  out_file, out_file_format,
@@ -175,7 +180,7 @@ def plot_total(data_items, out_dir, out_file_format,
 	out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [size_nocompression_series, size_default_series, size_wc_series],
-				  ["no compression", "blackbox compression", "whitebox compression"],
+				  ["no compression", "{} compression".format(blackbox_label), "whitebox compression"],
 				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
@@ -189,7 +194,7 @@ def plot_total(data_items, out_dir, out_file_format,
 	plot_data_list = [
 		{
 			"series_list": [ratio_default_series, ratio_wc_series],
-			"series_labels": ["blackbox compression", "whitebox compression"],
+			"series_labels": ["{} compression".format(blackbox_label), "whitebox compression"],
 			"series_colors": [COLORS["default"], COLORS["wc"]],
 			"y_label": "compression ratio",
 			"y_lim": None,
@@ -197,7 +202,7 @@ def plot_total(data_items, out_dir, out_file_format,
 		},
 		{
 			"series_list": [size_nocompression_series, size_default_series, size_wc_series],
-			"series_labels": ["no compression", "blackbox compression", "whitebox compression"],
+			"series_labels": ["no compression", "{} compression".format(blackbox_label), "whitebox compression"],
 			"series_colors": [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
 			"y_label": "table size (GiB)",
 			"y_lim": None,
@@ -246,6 +251,11 @@ def plot_used(data_items, out_dir, out_file_format,
 		ratio_default_series.append(float(size_nocompression) / size_default)
 		ratio_wc_series.append(float(size_nocompression) / size_wc)
 
+	if baseline == "Estimator model":
+		blackbox_label = "basic lightweight"
+	else:
+		blackbox_label = "blackbox"
+
 	# ratio
 	order_ratio = sorted(range(len(table_series)), 
 				   key=lambda i: ratio_wc_series[i],
@@ -253,7 +263,7 @@ def plot_used(data_items, out_dir, out_file_format,
 	out_file = os.path.join(out_dir, "ratio_used.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
-				  ["blackbox compression", "whitebox compression"],
+				  ["{} compression".format(blackbox_label), "whitebox compression"],
 				  [COLORS["default"], COLORS["wc"]],
 				  "table", "compression ratio",
 				  out_file, out_file_format,
@@ -267,7 +277,7 @@ def plot_used(data_items, out_dir, out_file_format,
 	out_file = os.path.join(out_dir, "size_used.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [size_nocompression_series, size_default_series, size_wc_series],
-				  ["no compression", "blackbox compression", "whitebox compression"],
+				  ["no compression", "{} compression".format(blackbox_label), "whitebox compression"],
 				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
@@ -281,7 +291,7 @@ def plot_used(data_items, out_dir, out_file_format,
 	plot_data_list = [
 		{
 			"series_list": [ratio_default_series, ratio_wc_series],
-			"series_labels": ["blackbox compression", "whitebox compression"],
+			"series_labels": ["{} compression".format(blackbox_label), "whitebox compression"],
 			"series_colors": [COLORS["default"], COLORS["wc"]],
 			"y_label": "compression ratio",
 			"y_lim": None,
@@ -289,7 +299,7 @@ def plot_used(data_items, out_dir, out_file_format,
 		},
 		{
 			"series_list": [size_nocompression_series, size_default_series, size_wc_series],
-			"series_labels": ["no compression", "blackbox compression", "whitebox compression"],
+			"series_labels": ["no compression", "{} compression".format(blackbox_label), "whitebox compression"],
 			"series_colors": [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
 			"y_label": "table size (GiB)",
 			"y_lim": None,
@@ -429,7 +439,7 @@ def plot_comparison(series_vectorwise, series_theoretical, out_dir, out_file_for
 				  [COLORS["theoretical"], COLORS["vectorwise"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
-				  title="Estimator model vs VectorWise (no compression)",
+				  title="No compression",
 				  order=order_nc)
 
 	# default
@@ -442,7 +452,7 @@ def plot_comparison(series_vectorwise, series_theoretical, out_dir, out_file_for
 				  [COLORS["theoretical"], COLORS["vectorwise"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
-				  title="Estimator model vs VectorWise (blackbox compression)",
+				  title="Basic lightweight/Blackbox compression",
 				  order=order_nc)
 
 	# wc
@@ -455,7 +465,7 @@ def plot_comparison(series_vectorwise, series_theoretical, out_dir, out_file_for
 				  [COLORS["theoretical"], COLORS["vectorwise"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
-				  title="Estimator model vs VectorWise (whitebox compression)",
+				  title="Whitebox compression",
 				  order=order_nc)
 
 	# combined
@@ -474,7 +484,7 @@ def plot_comparison(series_vectorwise, series_theoretical, out_dir, out_file_for
 			"series_colors": [COLORS["theoretical"], COLORS["vectorwise"]],
 			"y_label": "table size (GiB)",
 			"y_lim": None,
-			"title": "Blackbox compression"
+			"title": "Basic lightweight/Blackbox compression"
 		},
 		{
 			"series_list": [series_theoretical_wc, series_vectorwise_wc],
