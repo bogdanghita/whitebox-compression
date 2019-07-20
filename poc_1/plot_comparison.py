@@ -88,7 +88,7 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 def plot_barchart_multiple(x_ticks, x_label,
 						   plot_data_list,
 						   out_file, out_file_format,
-						   title, order=None):
+						   order=None):
 	x_ticks = deepcopy(x_ticks)
 	if order is not None:
 		reorder(x_ticks, order)
@@ -106,6 +106,7 @@ def plot_barchart_multiple(x_ticks, x_label,
 		series_colors = plot_data["series_colors"]
 		y_label = plot_data["y_label"]
 		y_lim = plot_data["y_lim"] if "y_lim" in plot_data else None
+		title = plot_data["title"] if "title" in plot_data else None
 
 		series_list = deepcopy(series_list)
 		if order is not None:
@@ -126,18 +127,21 @@ def plot_barchart_multiple(x_ticks, x_label,
 		if y_lim is not None:
 			plt.ylim(y_lim)
 
+		if title is not None:
+			plt.title(title)
+
 		plt.ylabel(y_label)
 		plt.legend()
 
 	plt.xlabel(x_label)
 	plt.xticks(index + ((len(series_list)-1) * bar_width), x_ticks, rotation=270)
-	# plt.title(title)
 
 	plt.tight_layout()
 	plt.savefig(out_file, bbox_inches='tight', format=out_file_format)
 
 
-def plot_total(data_items, out_dir, out_file_format):
+def plot_total(data_items, out_dir, out_file_format,
+			   baseline=None):
 	table_series = []
 	size_nocompression_series = []
 	size_default_series, size_wc_series = [], []
@@ -154,56 +158,59 @@ def plot_total(data_items, out_dir, out_file_format):
 	order_ratio = sorted(range(len(data_items)), 
 				   key=lambda i: data_items[i][1]["nocompression_wc"]["total"]["compression_ratio"],
 				   reverse=True)
-	# out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
-	# plot_barchart(table_series,
-	# 			  [ratio_default_series, ratio_wc_series],
-	# 			  ["blackbox compression", "whitebox compression"],
-	# 			  [COLORS["default"], COLORS["wc"]],
-	# 			  "table", "compression ratio",
-	# 			  out_file, out_file_format,
-	# 			  title="Compression ratio",
-	# 			  order=order_ratio,
-	# 			  # y_lim=Y_LIM_ratio
-	# 			  )
+	out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
+	plot_barchart(table_series,
+				  [ratio_default_series, ratio_wc_series],
+				  ["blackbox compression", "whitebox compression"],
+				  [COLORS["default"], COLORS["wc"]],
+				  "table", "compression ratio",
+				  out_file, out_file_format,
+				  title="Compression ratio ({} baseline)".format(baseline),
+				  order=order_ratio,
+				  # y_lim=Y_LIM_ratio
+				  )
 
 	# size
 	order_size = order_ratio
-	# out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
-	# plot_barchart(table_series,
-	# 			  [size_nocompression_series, size_default_series, size_wc_series],
-	# 			  ["no compression", "blackbox compression", "whitebox compression"],
-	# 			  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
-	# 			  "table", "table size (GiB)",
-	# 			  out_file, out_file_format,
-	# 			  title="Total table size",
-	# 			  order=order_size,
-	# 			  # y_lim=Y_LIM_size
-	# 			  )
+	out_file = os.path.join(out_dir, "size_total.{}".format(out_file_format))
+	plot_barchart(table_series,
+				  [size_nocompression_series, size_default_series, size_wc_series],
+				  ["no compression", "blackbox compression", "whitebox compression"],
+				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
+				  "table", "table size (GiB)",
+				  out_file, out_file_format,
+				  title="Total table size ({} baseline)".format(baseline),
+				  order=order_size,
+				  # y_lim=Y_LIM_size
+				  )
 
+	# combined
+	title = "Full table ({} baseline)".format(baseline)
 	plot_data_list = [
 		{
 			"series_list": [ratio_default_series, ratio_wc_series],
 			"series_labels": ["blackbox compression", "whitebox compression"],
 			"series_colors": [COLORS["default"], COLORS["wc"]],
 			"y_label": "compression ratio",
-			"y_lim": None
+			"y_lim": None,
+			"title": title
 		},
 		{
 			"series_list": [size_nocompression_series, size_default_series, size_wc_series],
 			"series_labels": ["no compression", "blackbox compression", "whitebox compression"],
 			"series_colors": [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
 			"y_label": "table size (GiB)",
-			"y_lim": None
+			"y_lim": None,
+			"title": None
 		}
 	]
 	x_ticks = table_series
 	x_label = "table"
 	out_file = os.path.join(out_dir, "total.{}".format(out_file_format))
-	title = "Total table"
 	plot_barchart_multiple(x_ticks, x_label,
 						   plot_data_list,
 						   out_file, out_file_format,
-						   title, order=order_ratio)
+						   order=order_ratio)
 
 	return {
 		"table_series": table_series,
@@ -217,7 +224,8 @@ def plot_total(data_items, out_dir, out_file_format):
 	}
 
 
-def plot_used(data_items, out_dir, out_file_format):
+def plot_used(data_items, out_dir, out_file_format,
+			  baseline=None):
 	table_series = []
 	size_nocompression_series = []
 	size_default_series, size_wc_series = [], []
@@ -242,56 +250,59 @@ def plot_used(data_items, out_dir, out_file_format):
 	order_ratio = sorted(range(len(table_series)), 
 				   key=lambda i: ratio_wc_series[i],
 				   reverse=True)
-	# out_file = os.path.join(out_dir, "ratio_used.{}".format(out_file_format))
-	# plot_barchart(table_series,
-	# 			  [ratio_default_series, ratio_wc_series],
-	# 			  ["blackbox compression", "whitebox compression"],
-	# 			  [COLORS["default"], COLORS["wc"]],
-	# 			  "table", "compression ratio",
-	# 			  out_file, out_file_format,
-	# 			  title="Used columns ratio",
-	# 			  order=order_ratio,
-	# 			  # y_lim=Y_LIM_ratio
-	# 			  )
+	out_file = os.path.join(out_dir, "ratio_used.{}".format(out_file_format))
+	plot_barchart(table_series,
+				  [ratio_default_series, ratio_wc_series],
+				  ["blackbox compression", "whitebox compression"],
+				  [COLORS["default"], COLORS["wc"]],
+				  "table", "compression ratio",
+				  out_file, out_file_format,
+				  title="Used columns ratio ({} baseline)".format(baseline),
+				  order=order_ratio,
+				  # y_lim=Y_LIM_ratio
+				  )
 
 	# size
 	order_size = order_ratio
-	# out_file = os.path.join(out_dir, "size_used.{}".format(out_file_format))
-	# plot_barchart(table_series,
-	# 			  [size_nocompression_series, size_default_series, size_wc_series],
-	# 			  ["no compression", "blackbox compression", "whitebox compression"],
-	# 			  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
-	# 			  "table", "table size (GiB)",
-	# 			  out_file, out_file_format,
-	# 			  title="Used columns size",
-	# 			  order=order_size,
-	# 			  # y_lim=Y_LIM_size
-	# 			  )
+	out_file = os.path.join(out_dir, "size_used.{}".format(out_file_format))
+	plot_barchart(table_series,
+				  [size_nocompression_series, size_default_series, size_wc_series],
+				  ["no compression", "blackbox compression", "whitebox compression"],
+				  [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
+				  "table", "table size (GiB)",
+				  out_file, out_file_format,
+				  title="Used columns size ({} baseline)".format(baseline),
+				  order=order_size,
+				  # y_lim=Y_LIM_size
+				  )
 
+	# combined
+	title = "Used columns ({} baseline)".format(baseline)
 	plot_data_list = [
 		{
 			"series_list": [ratio_default_series, ratio_wc_series],
 			"series_labels": ["blackbox compression", "whitebox compression"],
 			"series_colors": [COLORS["default"], COLORS["wc"]],
 			"y_label": "compression ratio",
-			"y_lim": None
+			"y_lim": None,
+			"title": title
 		},
 		{
 			"series_list": [size_nocompression_series, size_default_series, size_wc_series],
 			"series_labels": ["no compression", "blackbox compression", "whitebox compression"],
 			"series_colors": [COLORS["nocompression"], COLORS["default"], COLORS["wc"]],
 			"y_label": "table size (GiB)",
-			"y_lim": None
+			"y_lim": None,
+			"title": None
 		}
 	]
 	x_ticks = table_series
 	x_label = "table"
 	out_file = os.path.join(out_dir, "used.{}".format(out_file_format))
-	title = "Used table"
 	plot_barchart_multiple(x_ticks, x_label,
 						   plot_data_list,
 						   out_file, out_file_format,
-						   title, order=order_ratio)
+						   order=order_ratio)
 
 	return {
 		"table_series": table_series,
@@ -305,7 +316,8 @@ def plot_used(data_items, out_dir, out_file_format):
 	}
 
 
-def plot_total_vs_used(series_total, series_used, out_dir, out_file_format, order=None):
+def plot_total_vs_used(series_total, series_used, out_dir, out_file_format, 
+					   order=None, baseline=None):
 	total_table_series = series_total["table_series"]
 	used_table_series = series_used["table_series"]
 	total_size_series = []
@@ -328,24 +340,24 @@ def plot_total_vs_used(series_total, series_used, out_dir, out_file_format, orde
 				  [COLORS["total"], COLORS["used"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
-				  title="Total vs used columns size",
+				  title="Total vs used columns size ({} baseline)".format(baseline),
 				  order=order,
 				  # y_lim=Y_LIM_size
 				  )
 
 
-def plot_baseline_helper(data, out_dir, out_file_format):
+def plot_baseline_helper(data, out_dir, out_file_format, baseline):
 	data_items = sorted(data.items(), key=lambda x: x[0])
 
 	# total
-	series_total = plot_total(data_items, out_dir, out_file_format)
+	series_total = plot_total(data_items, out_dir, out_file_format, baseline)
 
 	# used
-	series_used = plot_used(data_items, out_dir, out_file_format)
+	series_used = plot_used(data_items, out_dir, out_file_format, baseline)
 
 	# total vs used size
 	order = series_used["order_ratio"]
-	plot_total_vs_used(series_total, series_used, out_dir, out_file_format, order=order)
+	plot_total_vs_used(series_total, series_used, out_dir, out_file_format, order=order, baseline=baseline)
 
 	return (series_total, series_used)
 
@@ -367,7 +379,8 @@ def parse_args():
 	return parser.parse_args()
 
 
-def plot_baseline(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_extension):
+def plot_baseline(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_extension, 
+				  baseline="default"):
 	data = {}
 
 	for wb in os.listdir(testset_dir):
@@ -394,7 +407,7 @@ def plot_baseline(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_exten
 				except Exception as e:
 					print('error: unable to load data for ({}, {}): error={}'.format(wb, table, e))
 
-	return plot_baseline_helper(data, out_dir, out_file_format)
+	return plot_baseline_helper(data, out_dir, out_file_format, baseline)
 
 
 def plot_comparison(series_vectorwise, series_theoretical, out_dir, out_file_format):
@@ -404,40 +417,81 @@ def plot_comparison(series_vectorwise, series_theoretical, out_dir, out_file_for
 	table_series = series_vectorwise[0]["table_series"]
 
 	# no-compression
-	series_vectorwise  = series_vectorwise_orig[0]["size_nocompression_series"]
-	series_theoretical = series_theoretical_orig[0]["size_nocompression_series"]
+	series_vectorwise_nc  = series_vectorwise_orig[0]["size_nocompression_series"]
+	series_theoretical_nc = series_theoretical_orig[0]["size_nocompression_series"]
+	order_nc = sorted(range(len(table_series)), 
+					  key=lambda i: series_vectorwise_nc[i],
+					  reverse=True)
 	out_file = os.path.join(out_dir, "no_compression.{}".format(out_file_format))
 	plot_barchart(table_series,
-				  [series_theoretical, series_vectorwise],
-				  ["theoretical", "vectorwise"],
+				  [series_theoretical_nc, series_vectorwise_nc],
+				  ["estimator model", "vectorwise"],
 				  [COLORS["theoretical"], COLORS["vectorwise"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
-				  title="Theoretical vs VectorWise (no compression)")
+				  title="Estimator model vs VectorWise (no compression)",
+				  order=order_nc)
 
 	# default
-	series_vectorwise  = series_vectorwise_orig[0]["size_default_series"]
-	series_theoretical = series_theoretical_orig[0]["size_default_series"]
+	series_vectorwise_d  = series_vectorwise_orig[0]["size_default_series"]
+	series_theoretical_d = series_theoretical_orig[0]["size_default_series"]
 	out_file = os.path.join(out_dir, "blackbox_compression.{}".format(out_file_format))
 	plot_barchart(table_series,
-				  [series_theoretical, series_vectorwise],
-				  ["theoretical", "vectorwise"],
+				  [series_theoretical_d, series_vectorwise_d],
+				  ["estimator model", "vectorwise"],
 				  [COLORS["theoretical"], COLORS["vectorwise"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
-				  title="Theoretical vs VectorWise (blackbox compression)")
+				  title="Estimator model vs VectorWise (blackbox compression)",
+				  order=order_nc)
 
 	# wc
-	series_vectorwise  = series_vectorwise_orig[0]["size_wc_series"]
-	series_theoretical = series_theoretical_orig[0]["size_wc_series"]
+	series_vectorwise_wc  = series_vectorwise_orig[0]["size_wc_series"]
+	series_theoretical_wc = series_theoretical_orig[0]["size_wc_series"]
 	out_file = os.path.join(out_dir, "whitebox_compression.{}".format(out_file_format))
 	plot_barchart(table_series,
-				  [series_theoretical, series_vectorwise],
-				  ["theoretical", "vectorwise"],
+				  [series_theoretical_wc, series_vectorwise_wc],
+				  ["estimator model", "vectorwise"],
 				  [COLORS["theoretical"], COLORS["vectorwise"]],
 				  "table", "table size (GiB)",
 				  out_file, out_file_format,
-				  title="Theoretical vs VectorWise (whitebox compression)")
+				  title="Estimator model vs VectorWise (whitebox compression)",
+				  order=order_nc)
+
+	# combined
+	plot_data_list = [
+		{
+			"series_list": [series_theoretical_nc, series_vectorwise_nc],
+			"series_labels": ["estimator model", "vectorwise"],
+			"series_colors": [COLORS["theoretical"], COLORS["vectorwise"]],
+			"y_label": "table size (GiB)",
+			"y_lim": None,
+			"title": "No compression"
+		},
+		{
+			"series_list": [series_theoretical_d, series_vectorwise_d],
+			"series_labels": ["estimator model", "vectorwise"],
+			"series_colors": [COLORS["theoretical"], COLORS["vectorwise"]],
+			"y_label": "table size (GiB)",
+			"y_lim": None,
+			"title": "Blackbox compression"
+		},
+		{
+			"series_list": [series_theoretical_wc, series_vectorwise_wc],
+			"series_labels": ["estimator model", "vectorwise"],
+			"series_colors": [COLORS["theoretical"], COLORS["vectorwise"]],
+			"y_label": "table size (GiB)",
+			"y_lim": None,
+			"title": "Whitebox compression"
+		}
+	]
+	x_ticks = table_series
+	x_label = "table"
+	out_file = os.path.join(out_dir, "combined.{}".format(out_file_format))
+	plot_barchart_multiple(x_ticks, x_label,
+						   plot_data_list,
+						   out_file, out_file_format,
+						   order=order_nc)
 
 
 def main(wbs_dir, testset_dir, out_dir, out_file_format):
@@ -447,14 +501,16 @@ def main(wbs_dir, testset_dir, out_dir, out_file_format):
 	if not os.path.exists(out_dir_tmp):
 		os.mkdir(out_dir_tmp)
 	series_vectorwise = plot_baseline(wbs_dir, testset_dir, out_dir_tmp, out_file_format,
-									  base_dir_extension="poc_1_out")
+									  base_dir_extension="poc_1_out", 
+									  baseline="VectorWise")
 
 	# theoretical baseline
 	out_dir_tmp = os.path.join(out_dir, "theoretical")
 	if not os.path.exists(out_dir_tmp):
 		os.mkdir(out_dir_tmp)
 	series_theoretical = plot_baseline(wbs_dir, testset_dir, out_dir_tmp, out_file_format,
-									   base_dir_extension="poc_1_out-theoretical")
+									   base_dir_extension="poc_1_out-theoretical",
+									   baseline="Estimator model")
 
 	# theoretical vs vectorwise
 	out_dir_tmp = os.path.join(out_dir, "theoretical_vs_vectorwise")
