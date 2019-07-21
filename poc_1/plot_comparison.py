@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 import json
 from copy import copy, deepcopy
+from statistics import mean
 
 # NOTE: this is needed when running on remote server through ssh
 # see: https://stackoverflow.com/questions/4706451/how-to-save-a-figure-remotely-with-pylab
@@ -322,7 +323,7 @@ def plot_used(data_items, out_dir, out_file_format,
 		"ratio_default_series": ratio_default_series,
 		"ratio_wc_series": ratio_wc_series,
 		"order_ratio": order_ratio,
-		"order_size": order_size
+		"order_size": order_size,
 	}
 
 
@@ -504,6 +505,53 @@ def plot_comparison(series_vectorwise, series_theoretical, out_dir, out_file_for
 						   order=order_nc)
 
 
+def compute_stats(series_vectorwise, series_theoretical):
+	"""
+	series_total, series_used = series_vectorwise
+	{
+		"table_series": table_series,
+		"size_nocompression_series": size_nocompression_series,
+		"size_default_series": size_default_series,
+		"size_wc_series": size_wc_series,
+		"ratio_default_series": ratio_default_series,
+		"ratio_wc_series": ratio_wc_series,
+		"order_ratio": order_ratio,
+		"order_size": order_size,
+	}
+	"""
+	res = {}
+	for series, name in [(series_vectorwise, "vectorwise"), (series_theoretical, "theoretical")]:
+		stats = {}
+		
+		stats["size_avg_nocomp_total"] = mean(series[0]["size_nocompression_series"])
+		stats["size_avg_vw_total"] = mean(series[0]["size_default_series"])
+		stats["size_avg_wb_total"] = mean(series[0]["size_wc_series"])
+		stats["ratio_avg_vw_total"] = mean(series[0]["ratio_default_series"])
+		stats["ratio_avg_wb_total"] = mean(series[0]["ratio_wc_series"])
+
+		stats["size_avg_nocomp_used"] = mean(series[1]["size_nocompression_series"])
+		stats["size_avg_vw_used"] = mean(series[1]["size_default_series"])
+		stats["size_avg_wb_used"] = mean(series[1]["size_wc_series"])
+		stats["ratio_avg_vw_used"] = mean(series[1]["ratio_default_series"])
+		stats["ratio_avg_wb_used"] = mean(series[1]["ratio_wc_series"])
+
+		stats["size_overall_nocomp_total"] = sum(series[0]["size_nocompression_series"])
+		stats["size_overall_default_total"] = sum(series[0]["size_default_series"])
+		stats["size_overall_wb_total"] = sum(series[0]["size_wc_series"])
+		stats["ratio_overall_vw_total"] = stats["size_overall_nocomp_total"] / stats["size_overall_default_total"]
+		stats["ratio_overall_wc_total"] = stats["size_overall_nocomp_total"] / stats["size_overall_wb_total"]
+
+		stats["size_overall_nocomp_used"] = sum(series[1]["size_nocompression_series"])
+		stats["size_overall_default_used"] = sum(series[1]["size_default_series"])
+		stats["size_overall_wb_used"] = sum(series[1]["size_wc_series"])
+		stats["ratio_overall_vw_used"] = stats["size_overall_nocomp_used"] / stats["size_overall_default_used"]
+		stats["ratio_overall_wc_used"] = stats["size_overall_nocomp_used"] / stats["size_overall_wb_used"]
+
+		res[name] = stats
+
+	return res
+
+
 def main(wbs_dir, testset_dir, out_dir, out_file_format):
 
 	# vectorwise baseline
@@ -527,6 +575,10 @@ def main(wbs_dir, testset_dir, out_dir, out_file_format):
 	if not os.path.exists(out_dir_tmp):
 		os.mkdir(out_dir_tmp)
 	plot_comparison(series_vectorwise, series_theoretical, out_dir_tmp, out_file_format)
+
+	# stats
+	stats = compute_stats(series_vectorwise, series_theoretical)
+	print(json.dumps(stats, indent=2))
 
 
 if __name__ == "__main__":
