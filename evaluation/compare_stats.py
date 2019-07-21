@@ -90,7 +90,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 		agg_in_size_B, agg_total_out_size_B = 0, 0
 		agg_metadata_size_B, agg_out_size_B, agg_ex_size_B = 0, 0, 0
 		in_datatypes, out_datatypes, ex_datatypes = Counter(), Counter(), Counter()
-		cc_in_columns, cc_patterns, cc_nb_expr_nodes, cc_depths = Counter(), defaultdict(Counter), Counter(), Counter()
+		cc_in_columns, cc_out_columns, cc_patterns, cc_nb_expr_nodes, cc_depths = Counter(), Counter(), defaultdict(Counter), Counter(), Counter()
 
 		# all input columns
 		for in_col_id in expr_tree.get_in_columns():
@@ -140,6 +140,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 				out_size_B += col_size_B
 				ccs_output += "\ncol_id={}, col_name={}, null_ratio={}, size={}, out_col={}".format(out_col.col_id, col_name, null_ratio, sizeof_fmt(col_size_B), out_col)
 				out_datatypes[out_col.datatype.name] += 1
+				cc_out_columns[cc_idx] += 1
 
 			# exception columns
 			ex_size_B = 0
@@ -209,6 +210,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 			},
 			"expr_tree": {
 				"cc_in_columns": cc_in_columns,
+				"cc_out_columns": cc_out_columns,
 				"cc_patterns": cc_patterns,
 				"cc_nb_expr_nodes": cc_nb_expr_nodes,
 				"cc_depths": cc_depths
