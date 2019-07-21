@@ -7,6 +7,7 @@ import json
 from lib.util import *
 from pattern_detection.patterns import *
 from pattern_detection.lib.expression_tree import *
+from collections import Counter
 
 
 def get_metadata_size(expr_tree):
@@ -63,7 +64,9 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 		s_file1: {c["col_data"]["col_name"]: c for c in s_data1["columns"].values()},
 		s_file2: {c["col_data"]["col_name"]: c for c in s_data2["columns"].values()}
 	}
-	summary_obj = {}
+	summary_obj = {
+		"in_datatypes": Counter()
+	}
 
 	expr_tree, out_columns_stats = None, None
 	if expr_tree_file is not None:
@@ -85,10 +88,25 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 
 	if expr_tree:
 		agg_in_size_B, agg_total_out_size_B = 0, 0
+		agg_metadata_size_B, agg_out_size_B, agg_ex_size_B = 0, 0, 0
+		in_datatypes, out_datatypes, ex_datatypes = Counter(), Counter(), Counter()
+		cc_in_columns, cc_patterns, cc_nb_expr_nodes, cc_depths = Counter(), defaultdict(Counter), Counter(), Counter()
 
-		for cc_expr_tree in expr_tree.get_connected_components():
+		# all input columns
+		for in_col_id in expr_tree.get_in_columns():
+			in_col = expr_tree.get_column(in_col_id)["col_info"]
+			summary_obj["in_datatypes"][in_col.datatype.name] += 1
+
+		for cc_idx, cc_expr_tree in enumerate(expr_tree.get_connected_components()):
 			in_columns = [cc_expr_tree.get_column(col_id) for col_id in cc_expr_tree.get_in_columns()]
 			out_columns = [cc_expr_tree.get_column(col_id) for col_id in cc_expr_tree.get_out_columns()]
+
+			# expr_tree stats
+			cc_in_columns[cc_idx] = len(in_columns)
+			cc_depths[cc_idx] = len(cc_expr_tree.get_node_levels())
+			for node in cc_expr_tree.nodes.values():
+				cc_nb_expr_nodes[cc_idx] += 1
+				cc_patterns[cc_idx][node.p_name] += 1
 
 			# in_cols
 			in_size_B = 0
@@ -101,6 +119,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 				col_size_B = column_data[s_file1][col_name]["data_files"]["data_file"]["size_B"]
 				in_size_B += col_size_B
 				ccs_output += "\ncol_id={}, col_name={}, size={}, in_col={}".format(in_col.col_id, col_name, sizeof_fmt(col_size_B), in_col)
+				in_datatypes[in_col.datatype.name] += 1
 
 			# out_cols
 			out_size_B = 0
@@ -120,6 +139,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
 				out_size_B += col_size_B
 				ccs_output += "\ncol_id={}, col_name={}, null_ratio={}, size={}, out_col={}".format(out_col.col_id, col_name, null_ratio, sizeof_fmt(col_size_B), out_col)
+				out_datatypes[out_col.datatype.name] += 1
 
 			# exception columns
 			ex_size_B = 0
@@ -138,6 +158,7 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 				col_size_B = column_data[s_file2][col_name]["data_files"]["data_file"]["size_B"]
 				ex_size_B += col_size_B
 				ccs_output += "\ncol_id={}, col_name={}, null_ratio={}, size={}, ex_col={}".format(ex_col.col_id, col_name, null_ratio, sizeof_fmt(col_size_B), ex_col)
+				ex_datatypes[ex_col.datatype.name] += 1
 
 			# metadata
 			ccs_output += "\n[metadata]"
@@ -160,6 +181,9 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 
 			agg_in_size_B += in_size_B
 			agg_total_out_size_B += total_out_size_B
+			agg_metadata_size_B += metadata_size_B
+			agg_out_size_B += out_size_B
+			agg_ex_size_B += ex_size_B
 
 		# aggregate for used columns
 		agg_compression_ratio = float(agg_in_size_B) / agg_total_out_size_B if agg_total_out_size_B > 0 else float("inf")
@@ -169,14 +193,29 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 					agg_total_out_size_B=sizeof_fmt(agg_total_out_size_B),
 					agg_compression_ratio=agg_compression_ratio)
 
-	output = agg_output + "\n" + ccs_output
-	summary_obj = {
-		"used": {
+		summary_obj["used"] = {
 			"size_baseline_B": agg_in_size_B,
 			"size_target_B": agg_total_out_size_B,
-			"compression_ratio": agg_compression_ratio
+			"compression_ratio": agg_compression_ratio,
+			"size_components": {
+				"metadata_size_B": agg_metadata_size_B,
+				"out_size_B": agg_out_size_B,
+				"ex_size_B": agg_ex_size_B
+			},
+			"datatypes": {
+				"in_columns": in_datatypes,
+				"out_columns": out_datatypes,
+				"ex_columns": ex_datatypes
+			},
+			"expr_tree": {
+				"cc_in_columns": cc_in_columns,
+				"cc_patterns": cc_patterns,
+				"cc_nb_expr_nodes": cc_nb_expr_nodes,
+				"cc_depths": cc_depths
+			}
 		}
-	}
+
+	output = agg_output + "\n" + ccs_output
 	return (output, summary_obj)
 
 

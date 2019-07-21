@@ -373,6 +373,22 @@ def plot_baseline_helper(data, out_dir, out_file_format, baseline):
 	return (series_total, series_used)
 
 
+def plot_stats(data, out_dir, out_file_format, baseline):
+	data_items = sorted(data.items(), key=lambda x: x[0])
+
+	for (wc, table), summary in data_items:
+		# NOTE: filter cases where VectorWise put multiple columns in the same file
+		if "used" not in summary["default_wc"]:
+			print("debug: \"used\" not in summary[\"default_wc\"]; wc={}, table={}".format(wc, table))
+			continue
+		# TODO
+
+	if baseline == "Estimator model":
+		blackbox_label = "basic lightweight"
+	else:
+		blackbox_label = "blackbox"
+
+
 def parse_args():
 	parser = argparse.ArgumentParser(
 		description="""Plot evaluation comparison results."""
@@ -418,6 +434,10 @@ def plot_baseline(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_exten
 				except Exception as e:
 					print('error: unable to load data for ({}, {}): error={}'.format(wb, table, e))
 
+	# plot other stats
+	plot_stats(data, out_dir, out_file_format, baseline)
+
+	# plot size and ratios
 	return plot_baseline_helper(data, out_dir, out_file_format, baseline)
 
 
@@ -505,7 +525,7 @@ def plot_comparison(series_vectorwise, series_theoretical, out_dir, out_file_for
 						   order=order_nc)
 
 
-def compute_stats(series_vectorwise, series_theoretical):
+def compute_general_stats(series_vectorwise, series_theoretical):
 	"""
 	series_total, series_used = series_vectorwise
 	{
@@ -522,7 +542,7 @@ def compute_stats(series_vectorwise, series_theoretical):
 	res = {}
 	for series, name in [(series_vectorwise, "vectorwise"), (series_theoretical, "theoretical")]:
 		stats = {}
-		
+
 		stats["size_avg_nocomp_total"] = mean(series[0]["size_nocompression_series"])
 		stats["size_avg_vw_total"] = mean(series[0]["size_default_series"])
 		stats["size_avg_wb_total"] = mean(series[0]["size_wc_series"])
@@ -576,9 +596,9 @@ def main(wbs_dir, testset_dir, out_dir, out_file_format):
 		os.mkdir(out_dir_tmp)
 	plot_comparison(series_vectorwise, series_theoretical, out_dir_tmp, out_file_format)
 
-	# stats
-	stats = compute_stats(series_vectorwise, series_theoretical)
-	print(json.dumps(stats, indent=2))
+	# general stats
+	general_stats = compute_general_stats(series_vectorwise, series_theoretical)
+	print(json.dumps(general_stats, indent=2))
 
 
 if __name__ == "__main__":
