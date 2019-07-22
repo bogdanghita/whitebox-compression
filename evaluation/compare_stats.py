@@ -97,9 +97,17 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 			in_col = expr_tree.get_column(in_col_id)["col_info"]
 			summary_obj["in_datatypes"][in_col.datatype.name] += 1
 
+		handled_ccs = 0
 		for cc_idx, cc_expr_tree in enumerate(expr_tree.get_connected_components()):
 			in_columns = [cc_expr_tree.get_column(col_id) for col_id in cc_expr_tree.get_in_columns()]
 			out_columns = [cc_expr_tree.get_column(col_id) for col_id in cc_expr_tree.get_out_columns()]
+
+			# # do not count single-node connected components that are constant or dict
+			# if len(cc_expr_tree.nodes.keys()) == 1:
+			# 	node = next(iter(cc_expr_tree.nodes.values()))
+			# 	if node.p_name in ["ConstantPatternDetector", "DictPattern"]:
+			# 		# continue
+			handled_ccs += 1
 
 			# expr_tree stats
 			cc_in_columns[cc_idx] = len(in_columns)
@@ -119,7 +127,12 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 				col_size_B = column_data[s_file1][col_name]["data_files"]["data_file"]["size_B"]
 				in_size_B += col_size_B
 				ccs_output += "\ncol_id={}, col_name={}, size={}, in_col={}".format(in_col.col_id, col_name, sizeof_fmt(col_size_B), in_col)
+				# used input columns
 				in_datatypes[in_col.datatype.name] += 1
+				# degug
+				if in_col.datatype.name == "smallint":
+					print([node.p_name for node in cc_expr_tree.nodes.values()])
+				# end-degug
 
 			# out_cols
 			out_size_B = 0
@@ -186,36 +199,38 @@ def compare_ccs(s_file1, s_file2, s_data1, s_data2, expr_tree_file, apply_expr_s
 			agg_out_size_B += out_size_B
 			agg_ex_size_B += ex_size_B
 
-		# aggregate for used columns
-		agg_compression_ratio = float(agg_in_size_B) / agg_total_out_size_B if agg_total_out_size_B > 0 else float("inf")
-		agg_output += "\n[{table_name}] agg_in_size={agg_in_size_B}, agg_total_out_size={agg_total_out_size_B}, used_compression_ratio={agg_compression_ratio:.2f}".format(
-					table_name=table_name,
-					agg_in_size_B=sizeof_fmt(agg_in_size_B),
-					agg_total_out_size_B=sizeof_fmt(agg_total_out_size_B),
-					agg_compression_ratio=agg_compression_ratio)
+		# only proceed if there was at least one handled cc
+		if handled_ccs > 0:
+			# aggregate for used columns
+			agg_compression_ratio = float(agg_in_size_B) / agg_total_out_size_B if agg_total_out_size_B > 0 else float("inf")
+			agg_output += "\n[{table_name}] agg_in_size={agg_in_size_B}, agg_total_out_size={agg_total_out_size_B}, used_compression_ratio={agg_compression_ratio:.2f}".format(
+						table_name=table_name,
+						agg_in_size_B=sizeof_fmt(agg_in_size_B),
+						agg_total_out_size_B=sizeof_fmt(agg_total_out_size_B),
+						agg_compression_ratio=agg_compression_ratio)
 
-		summary_obj["used"] = {
-			"size_baseline_B": agg_in_size_B,
-			"size_target_B": agg_total_out_size_B,
-			"compression_ratio": agg_compression_ratio,
-			"size_components": {
-				"metadata_size_B": agg_metadata_size_B,
-				"out_size_B": agg_out_size_B,
-				"ex_size_B": agg_ex_size_B
-			},
-			"datatypes": {
-				"in_columns": in_datatypes,
-				"out_columns": out_datatypes,
-				"ex_columns": ex_datatypes
-			},
-			"expr_tree": {
-				"cc_in_columns": cc_in_columns,
-				"cc_out_columns": cc_out_columns,
-				"cc_patterns": cc_patterns,
-				"cc_nb_expr_nodes": cc_nb_expr_nodes,
-				"cc_depths": cc_depths
+			summary_obj["used"] = {
+				"size_baseline_B": agg_in_size_B,
+				"size_target_B": agg_total_out_size_B,
+				"compression_ratio": agg_compression_ratio,
+				"size_components": {
+					"metadata_size_B": agg_metadata_size_B,
+					"out_size_B": agg_out_size_B,
+					"ex_size_B": agg_ex_size_B
+				},
+				"datatypes": {
+					"in_columns": in_datatypes,
+					"out_columns": out_datatypes,
+					"ex_columns": ex_datatypes
+				},
+				"expr_tree": {
+					"cc_in_columns": cc_in_columns,
+					"cc_out_columns": cc_out_columns,
+					"cc_patterns": cc_patterns,
+					"cc_nb_expr_nodes": cc_nb_expr_nodes,
+					"cc_depths": cc_depths
+				}
 			}
-		}
 
 	output = agg_output + "\n" + ccs_output
 	return (output, summary_obj)

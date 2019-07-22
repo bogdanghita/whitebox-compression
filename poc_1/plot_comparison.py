@@ -6,6 +6,7 @@ import numpy as np
 import json
 from copy import copy, deepcopy
 from statistics import mean
+from collections import Counter
 
 # NOTE: this is needed when running on remote server through ssh
 # see: https://stackoverflow.com/questions/4706451/how-to-save-a-figure-remotely-with-pylab
@@ -13,7 +14,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-FONT_SIZE = 8
+FONT_SIZE_BAR = 8
+FONT_SIZE_PIE = 14
 Y_LIM_size, Y_LIM_ratio = (0, 15), (0, 28)
 DEFAULT_COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
 COLORS = {
@@ -29,6 +31,14 @@ COLORS = {
 
 def to_gib(b):
 	return float(b) / 1024 / 1024 / 1024
+
+
+def sizeof_fmt(num, suffix='B'):
+	for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+		if abs(num) < 1024.0:
+			return "%.1f%s%s" % (num, unit, suffix)
+		num /= 1024.0
+	return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
 def reorder(values, order):
@@ -52,7 +62,7 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 	n_groups = len(x_ticks)
 	figsize = max(8, n_groups / 6)
 
-	plt.rcParams.update({'font.size': FONT_SIZE})
+	plt.rcParams.update({'font.size': FONT_SIZE_BAR})
 
 	fig, ax = plt.subplots()
 
@@ -86,6 +96,40 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 	plt.savefig(out_file, bbox_inches='tight', format=out_file_format)
 
 
+def plot_piechart(values, labels,
+			  	  out_file, out_file_format,
+			  	  title=None):
+	plt.rcParams.update({'font.size': FONT_SIZE_PIE})
+
+	fig1, ax1 = plt.subplots()
+	patches, texts, autotexts = ax1.pie(values, labels=labels,
+			# explode=explode,
+			autopct='%1.1f%%',
+			# startangle=90,
+			radius=0.8,
+			pctdistance=0.8, # default: 0.6
+			labeldistance=1.1, # default: 1
+			)
+	# for text in texts:
+	# 	text.set_color('grey')
+	for autotext in autotexts:
+		autotext.set_color('white')
+
+	centre_circle = plt.Circle((0,0),0.45,fc='white')
+	fig = plt.gcf()
+	fig.gca().add_artist(centre_circle)
+
+	ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+	# plt.legend(patches, labels, loc='left center', bbox_to_anchor=(-0.1, 1.))
+
+	if title is not None:
+		plt.title(title)
+	plt.tight_layout()
+
+	plt.savefig(out_file, format=out_file_format)
+
+
 def plot_barchart_multiple(x_ticks, x_label,
 						   plot_data_list,
 						   out_file, out_file_format,
@@ -97,7 +141,7 @@ def plot_barchart_multiple(x_ticks, x_label,
 	n_groups = len(x_ticks)
 	figsize = max(8, n_groups / 6)
 
-	plt.rcParams.update({'font.size': FONT_SIZE})
+	plt.rcParams.update({'font.size': FONT_SIZE_BAR})
 
 	plt.figure()
 
@@ -373,20 +417,140 @@ def plot_baseline_helper(data, out_dir, out_file_format, baseline):
 	return (series_total, series_used)
 
 
-def plot_stats(data, out_dir, out_file_format, baseline):
-	data_items = sorted(data.items(), key=lambda x: x[0])
+def plot_column_stats(data_items, out_dir, out_file_format, baseline):
+	table_count = 0
+	in_columns_count_total, in_columns_size_total = 0, 0
+	used_columns_count_total = 0
+	out_columns_count_total, out_columns_size_total = 0, 0
+	ex_columns_count_total, ex_columns_size_total = 0, 0
+	metadata_size_total = 0
+	in_datatypes_total, out_datatypes_total, ex_datatypes_total = Counter(), Counter(), Counter()
 
 	for (wc, table), summary in data_items:
 		# NOTE: filter cases where VectorWise put multiple columns in the same file
 		if "used" not in summary["default_wc"]:
 			print("debug: \"used\" not in summary[\"default_wc\"]; wc={}, table={}".format(wc, table))
 			continue
-		# TODO
+		summary = summary["nocompression_wc"]
+		table_count += 1
+		in_columns_count_total += sum(summary["in_datatypes"].values())
+		in_columns_size_total += summary["used"]["size_baseline_B"]
+		used_columns_count_total += sum(summary["used"]["datatypes"]["in_columns"].values())
+		out_columns_count_total += sum(summary["used"]["datatypes"]["out_columns"].values())
+		out_columns_size_total += summary["used"]["size_components"]["out_size_B"]
+		ex_columns_count_total += sum(summary["used"]["datatypes"]["ex_columns"].values())
+		ex_columns_size_total += summary["used"]["size_components"]["ex_size_B"]
+		metadata_size_total += summary["used"]["size_components"]["metadata_size_B"]
+		in_datatypes_total += summary["used"]["datatypes"]["in_columns"]
+		out_datatypes_total += summary["used"]["datatypes"]["out_columns"]
+		ex_datatypes_total += summary["used"]["datatypes"]["ex_columns"]
 
-	if baseline == "Estimator model":
-		blackbox_label = "basic lightweight"
-	else:
-		blackbox_label = "blackbox"
+	in_columns_count_avg = float(in_columns_count_total) / table_count
+	in_columns_size_avg = float(in_columns_size_total) / table_count
+	used_columns_count_avg = float(used_columns_count_total) / table_count
+	out_columns_count_avg = float(out_columns_count_total) / table_count
+	out_columns_size_avg = float(out_columns_size_total) / table_count
+	ex_columns_count_avg = float(ex_columns_count_total) / table_count
+	ex_columns_size_avg = float(ex_columns_size_total) / table_count
+	metadata_size_avg = float(metadata_size_total) / table_count
+	in_datatypes_avg = {k: float(v) / table_count for (k, v) in in_datatypes_total.items()}
+	out_datatypes_avg = {k: float(v) / table_count for (k, v) in out_datatypes_total.items()}
+	ex_datatypes_avg = {k: float(v) / table_count for (k, v) in ex_datatypes_total.items()}
+
+	print("table_count={}".format(table_count))
+	print("in_columns_count_total={}\nin_columns_size_total={}\nused_columns_count_total={}\nout_columns_count_total={}\nout_columns_size_total={}\nex_columns_count_total={}\nex_columns_size_total={}\nmetadata_size_total={}\nin_datatypes_total={}\nout_datatypes_total={}\nex_datatypes_total={}".format(in_columns_count_total,sizeof_fmt(in_columns_size_total),used_columns_count_total,out_columns_count_total,sizeof_fmt(out_columns_size_total),ex_columns_count_total,sizeof_fmt(ex_columns_size_total),sizeof_fmt(metadata_size_total),in_datatypes_total,out_datatypes_total,ex_datatypes_total))
+	print("in_columns_count_avg={}\nin_columns_size_avg={}\nused_columns_count_avg={}\nout_columns_count_avg={}\nout_columns_size_avg={}\nex_columns_count_avg={}\nex_columns_size_avg={}\nmetadata_size_avg={}\nin_datatypes_avg={}\nout_datatypes_avg={}\nex_datatypes_avg={}".format(in_columns_count_avg,sizeof_fmt(in_columns_size_avg),used_columns_count_avg,out_columns_count_avg,sizeof_fmt(out_columns_size_avg),ex_columns_count_avg,sizeof_fmt(ex_columns_size_avg),sizeof_fmt(metadata_size_avg),in_datatypes_avg,out_datatypes_avg,ex_datatypes_avg))
+
+	# used columns datatype distribution
+	labels = in_datatypes_avg.keys()
+	values = [in_datatypes_avg[k] for k in labels]
+	out_file = os.path.join(out_dir, "used_datatypes.{}".format(out_file_format))
+	title = "Used columns datatype distribution"
+	plot_piechart(values, labels,
+				  out_file, out_file_format,
+				  title=None)
+
+	# out columns datatype distribution
+	labels = out_datatypes_avg.keys()
+	values = [out_datatypes_avg[k] for k in labels]
+	out_file = os.path.join(out_dir, "out_datatypes.{}".format(out_file_format))
+	title = "Ouput columns datatype distribution"
+	plot_piechart(values, labels,
+				  out_file, out_file_format,
+				  title=None)
+
+	# out size distribution
+	labels = ["metadata", "data", "exceptions"]
+	values = [metadata_size_avg, out_columns_size_avg, ex_columns_size_avg]
+	out_file = os.path.join(out_dir, "out_size_distribution.{}".format(out_file_format))
+	title = "Ouput size distribution"
+	plot_piechart(values, labels,
+				  out_file, out_file_format,
+				  title=None)
+
+
+def plot_expression_tree_stats(data_items, out_dir, out_file_format, baseline):
+	label_map = {
+		"ColumnCorrelation": "correlation",
+		"CharSetSplit": "split",
+		"NumberAsString": "numeric\nstrings",
+		"ConstantPatternDetector": "constant",
+		"DictPattern": "dictionary"
+	}
+
+	table_count, cc_count = 0, 0
+	expr_n_types_total = Counter()
+	cc_depth_total, cc_expr_n_total, cc_in_columns_total, cc_out_columns_total = 0, 0, 0, 0
+
+	for (wc, table), summary in data_items:
+		# NOTE: filter cases where VectorWise put multiple columns in the same file
+		if "used" not in summary["default_wc"]:
+			print("debug: \"used\" not in summary[\"default_wc\"]; wc={}, table={}".format(wc, table))
+			continue
+		summary = summary["nocompression_wc"]
+		table_count += 1
+
+		# ccs
+		for cc_idx in summary["used"]["expr_tree"]["cc_depths"]:
+			# if summary["used"]["expr_tree"]["cc_nb_expr_nodes"][cc_idx] == 1:
+			# 	continue
+			cc_count += 1
+			cc_depth_total += summary["used"]["expr_tree"]["cc_depths"][cc_idx]
+			cc_expr_n_total += summary["used"]["expr_tree"]["cc_nb_expr_nodes"][cc_idx]
+			cc_in_columns_total += summary["used"]["expr_tree"]["cc_in_columns"][cc_idx]
+			if cc_idx in summary["used"]["expr_tree"]["cc_out_columns"]:
+				cc_out_columns_total += summary["used"]["expr_tree"]["cc_out_columns"][cc_idx]
+
+		# pattern types
+		for cc_idx, patterns in summary["used"]["expr_tree"]["cc_patterns"].items():
+			expr_n_types_total += patterns
+
+	table_cc_avg = float(cc_count) / table_count
+	cc_depth_avg = float(cc_depth_total) / cc_count
+	cc_expr_n_avg = float(cc_expr_n_total) / cc_count
+	cc_in_columns_avg = float(cc_in_columns_total) / cc_count
+	cc_out_columns_avg = float(cc_out_columns_total) / cc_count
+
+	expr_n_types_avg = {k: float(v) / table_count for (k, v) in expr_n_types_total.items()}
+
+	print("table_cc_avg={}\ncc_depth_avg={}\ncc_expr_n_avg={}\ncc_in_columns_avg={}\ncc_out_columns_avg={}".format(table_cc_avg,cc_depth_avg,cc_expr_n_avg,cc_in_columns_avg,cc_out_columns_avg))
+
+	# expression node types distribution
+	patterns = expr_n_types_avg.keys()
+	values = [expr_n_types_avg[k] for k in patterns]
+	labels = [label_map[k] for k in patterns]
+	out_file = os.path.join(out_dir, "expr_n_types.{}".format(out_file_format))
+	title = "Expression node types distribution"
+	plot_piechart(values, labels,
+				  out_file, out_file_format,
+				  title=None)
+
+
+def plot_stats(data, out_dir, out_file_format, baseline):
+	data_items = sorted(data.items(), key=lambda x: x[0])
+
+	plot_column_stats(data_items, out_dir, out_file_format, baseline)
+	plot_expression_tree_stats(data_items, out_dir, out_file_format, baseline)
 
 
 def parse_args():
