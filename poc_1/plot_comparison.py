@@ -501,7 +501,7 @@ def plot_column_stats(data_items, out_dir, out_file_format, baseline):
 
 	# out size distribution
 	labels = ["metadata", "data", "exceptions"]
-	colors = [DEFAULT_COLORS[2], DEFAULT_COLORS[0], DEFAULT_COLORS[3]]
+	colors = [DEFAULT_COLORS[0], DEFAULT_COLORS[2], DEFAULT_COLORS[1]]
 	values = [metadata_size_avg, out_columns_size_avg, ex_columns_size_avg]
 	out_file = os.path.join(out_dir, "out_size_distribution.{}".format(out_file_format))
 	title = "Ouput size distribution"
