@@ -98,11 +98,13 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 
 def plot_piechart(values, labels,
 			  	  out_file, out_file_format,
+			  	  colors=None,
 			  	  title=None):
 	plt.rcParams.update({'font.size': FONT_SIZE_PIE})
 
 	fig1, ax1 = plt.subplots()
 	patches, texts, autotexts = ax1.pie(values, labels=labels,
+			colors=colors,
 			# explode=explode,
 			autopct='%1.1f%%',
 			# startangle=90,
@@ -445,6 +447,12 @@ def plot_column_stats(data_items, out_dir, out_file_format, baseline):
 		out_datatypes_total += summary["used"]["datatypes"]["out_columns"]
 		ex_datatypes_total += summary["used"]["datatypes"]["ex_columns"]
 
+	datatypes_total = in_datatypes_total + out_datatypes_total + ex_datatypes_total
+	datatype_colors = {}
+	for idx, (datatype, count) in enumerate(datatypes_total.most_common()):
+		# print(datatype, idx)
+		datatype_colors[datatype] = DEFAULT_COLORS[idx]
+
 	in_columns_count_avg = float(in_columns_count_total) / table_count
 	in_columns_size_avg = float(in_columns_size_total) / table_count
 	used_columns_count_avg = float(used_columns_count_total) / table_count
@@ -464,28 +472,42 @@ def plot_column_stats(data_items, out_dir, out_file_format, baseline):
 	# used columns datatype distribution
 	labels = in_datatypes_avg.keys()
 	values = [in_datatypes_avg[k] for k in labels]
+	try:
+		colors = [datatype_colors[k] for k in labels]
+	except Exception as e:
+		print("debug: unable to find color for datatype; falling back to default colors")
+		colors = None
 	out_file = os.path.join(out_dir, "used_datatypes.{}".format(out_file_format))
 	title = "Used columns datatype distribution"
 	plot_piechart(values, labels,
 				  out_file, out_file_format,
+				  colors=colors,
 				  title=None)
 
 	# out columns datatype distribution
 	labels = out_datatypes_avg.keys()
 	values = [out_datatypes_avg[k] for k in labels]
+	try:
+		colors = [datatype_colors[k] for k in labels]
+	except Exception as e:
+		print("debug: unable to find color for datatype; falling back to default colors")
+		colors = None
 	out_file = os.path.join(out_dir, "out_datatypes.{}".format(out_file_format))
 	title = "Ouput columns datatype distribution"
 	plot_piechart(values, labels,
 				  out_file, out_file_format,
+				  colors=colors,
 				  title=None)
 
 	# out size distribution
 	labels = ["metadata", "data", "exceptions"]
+	colors = [DEFAULT_COLORS[2], DEFAULT_COLORS[0], DEFAULT_COLORS[3]]
 	values = [metadata_size_avg, out_columns_size_avg, ex_columns_size_avg]
 	out_file = os.path.join(out_dir, "out_size_distribution.{}".format(out_file_format))
 	title = "Ouput size distribution"
 	plot_piechart(values, labels,
 				  out_file, out_file_format,
+				  colors=colors,
 				  title=None)
 
 
