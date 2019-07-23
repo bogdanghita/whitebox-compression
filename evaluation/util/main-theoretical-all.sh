@@ -5,7 +5,8 @@ WORKING_DIR="$(pwd)"
 
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
-testset_dir=$SCRIPT_DIR/../../testsets/testset_unique_schema_2
+# testset_dir=$SCRIPT_DIR/../../testsets/testset_unique_schema_2
+testset_dir=$SCRIPT_DIR/../../testsets/testset_full
 
 evaluate() {
 	wb=$1
@@ -83,6 +84,8 @@ wait
 echo "$(date) [done]"
 
 : <<'END_COMMENT'
+wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
+
 ./evaluation/util/main-theoretical-all.sh
 
 watch tail -n 40 eval_all_workbooks-theoretical.out
