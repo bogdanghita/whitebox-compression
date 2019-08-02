@@ -65,6 +65,7 @@ run_with_lock(){
 
 # eval all workbooks: baseline-nocompression, baseline-default
 nb_procs="$(grep -c ^processor /proc/cpuinfo )"
+# nb_procs=300
 echo "[parallelism] nb_procs=$nb_procs"
 
 open_sem $nb_procs

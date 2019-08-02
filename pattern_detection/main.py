@@ -14,6 +14,7 @@ from lib.expression_tree import ExpressionTree
 from plot_expression_tree import plot_expression_tree
 from plot_correlation_graph import plot_correlation_graph
 import plot_pattern_distribution, plot_ngram_freq_masks, plot_correlation_coefficients
+import recursive_exhaustive_learning as rec_exh
 
 
 # TODO: read this from a config file
@@ -254,6 +255,10 @@ def parse_args():
 		help="Use <fdelim> as delimiter between fields", default="|")
 	parser.add_argument("--null", dest="null", type=str,
 		help="Interprets <NULL> as NULLs", default="null")
+	parser.add_argument("--rec-exh", dest="rec_exh", action='store_true',
+		help="Use the recursive exhaustive learning algorithm")
+	parser.add_argument("--test-sample", dest="test_sample", type=str,
+		help="Sample used for estimator test in the recursive exhausting algorithm")
 
 	return parser.parse_args()
 
@@ -475,7 +480,13 @@ def main():
 		fd.close()
 
 	# build compression tree
-	compression_tree = build_compression_tree(args, in_data_manager, columns)
+	if args.rec_exh:
+		print("[algorithm] recursive exhaustive")
+		rec_exh_obj = rec_exh.RecursiveExhaustiveLearning(args, in_data_manager, columns)
+		compression_tree = rec_exh_obj.build_compression_tree()
+	else:
+		print("[algorithm] iterative greedy")
+		compression_tree = build_compression_tree(args, in_data_manager, columns)
 	# build decompression tree
 	decompression_tree = build_decompression_tree(compression_tree)
 
@@ -511,9 +522,12 @@ if __name__ == "__main__":
 #[remote]
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
-#[local]
+#[local-cwi]
 wbs_dir=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1
 repo_wbs_dir=/ufs/bogdan/work/master-project/public_bi_benchmark-master_project/benchmark
+#[local-personal]
+wbs_dir=/media/bogdan/Data/Bogdan/Work/cwi-data/tableau-public-bench/data/PublicBIbenchmark-poc_1
+repo_wbs_dir=/media/bogdan/Data/Bogdan/Work/cwi/master-project/public_bi_benchmark-master_project/benchmark
 
 ================================================================================
 wb=CommonGovernment
@@ -539,6 +553,9 @@ pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
 corr_coefs_output_dir=$wbs_dir/$wb/$table.corr_coefs
 expr_tree_output_dir=$wbs_dir/$wb/$table.expr_tree
+# uncomment if you want to use the recursive exhaustive algorithm
+rec_exh="--rec-exh"
+test_sample="--test-sample $wbs_dir/$wb/$table.sample-theoretical-test.csv"
 
 #[sample]
 ./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
@@ -551,6 +568,8 @@ time ./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.
 --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir \
 --corr-coefs-output-dir $corr_coefs_output_dir \
 --expr-tree-output-dir $expr_tree_output_dir \
+$rec_exh \
+$test_sample \
 $wbs_dir/$wb/$table.sample.csv
 
 #[plot-expr-tree]
