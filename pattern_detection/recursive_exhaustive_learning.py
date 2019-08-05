@@ -119,13 +119,15 @@ class RecursiveExhaustiveLearning(object):
 		expression_tree_list = []
 		for idx, col in enumerate(self.columns):
 			# debug
-			# if col.col_id not in ["0", "1"]:
+			# if col.col_id not in ["19"]:
 			# 	continue
 			# end-debug
 
 			tree_in = ExpressionTree([col], tree_type="compression")
-			(size, tree_out, details) = self._build_tree(col, tree_in, 
-														 self.in_data_manager_list[idx])
+			res = self._build_tree(col, tree_in, self.in_data_manager_list[idx])
+			if res is None:
+				raise Exception("Unexpected _build_tree result: None")
+			(size, tree_out, details) = res
 			expression_tree_list.append(tree_out)
 			# debug
 			details_obj[col.col_id] = dict(size=sizeof_fmt(size), details=details)
@@ -247,7 +249,8 @@ class RecursiveExhaustiveLearning(object):
 
 		# limit tree depth
 		if len(tree_in.get_node_levels()) >= self.config["max_depth"]:
-			return []
+			print("debug: max_depth={} reached".format(self.config["max_depth"]))
+			return None
 
 		print("[_build_tree] col_in={}".format(col_in))
 
@@ -294,8 +297,10 @@ class RecursiveExhaustiveLearning(object):
 		# recursive call for output columns
 		sol_list = []
 		for idx, col_out in enumerate(col_out_list):
-			(size_c, tree_out_c, details) = self._build_tree(col_out, tree_out, data_mgr_out_list[idx])
-			sol_list.append((size_c, tree_out_c, details))
+			res = self._build_tree(col_out, tree_out, data_mgr_out_list[idx])
+			if res is not None:
+				# (size_c, tree_out_c, details) = res
+				sol_list.append(res)
 
 		# debug
 		global DEBUG_COUNTER
