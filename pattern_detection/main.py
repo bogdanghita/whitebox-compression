@@ -9,7 +9,7 @@ from copy import deepcopy
 from lib.util import *
 from lib.pattern_selectors import *
 from patterns import *
-from apply_expression import ExpressionManager
+from apply_expression import ExpressionManager, apply_expression_manager_list
 from lib.expression_tree import ExpressionTree
 from plot_expression_tree import plot_expression_tree
 from plot_correlation_graph import plot_correlation_graph
@@ -405,7 +405,7 @@ def build_compression_tree_iteration(args, stage, it, in_columns, pattern_detect
 	return (out_columns, out_data_manager)
 
 
-def build_compression_tree(args, in_data_manager, columns):
+def build_compression_tree_greedy(args, in_data_manager, columns):
 	in_columns = deepcopy(columns)
 	expression_tree = ExpressionTree(in_columns, tree_type="compression")
 	pattern_log = PatternLog()
@@ -433,6 +433,48 @@ def build_compression_tree(args, in_data_manager, columns):
 
 	return expression_tree
 
+def build_compression_tree_rec_exh(args, in_data_manager, columns):
+	# apply recursive exhaustive learning with single-column pattern detectors
+	rec_exh_obj = rec_exh.RecursiveExhaustiveLearning(args, in_data_manager, columns,
+													  rec_exh_config)
+	compression_tree = rec_exh_obj.build_compression_tree()
+	
+	# apply greedy learning with column correlation
+	# apply compression_tree on input data
+	expr_manager_list = []
+	in_columns = columns
+	for idx, level in enumerate(compression_tree.levels):
+		expr_nodes = [compression_tree.get_node(node_id) for node_id in level]
+		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
+		expr_manager_list.append(expr_manager)
+		# out_columns becomes in_columns for the next level
+		in_columns = expr_manager.get_out_columns()
+	# data loop
+	out_data_manager = DataManager()
+	in_data_manager.read_seek_set()
+	while True:
+		in_tpl = in_data_manager.read_tuple()
+		if in_tpl is None:
+			break
+		out_tpl = apply_expression_manager_list(in_tpl, expr_manager_list)
+		out_data_manager.write_tuple(out_tpl)
+	# prepare in_data_manager for next stage
+	in_data_manager = out_data_manager
+	in_data_manager.read_seek_set()
+
+	# apply column correlation
+	# pattern detectors & selector
+	it_stage = iteration_stages[-1]
+	pattern_log = PatternLog()
+	pattern_detectors = init_pattern_detectors(it_stage["pattern_detectors"], in_columns, pattern_log, compression_tree, args.null)
+	pattern_selector = init_pattern_selector(it_stage["pattern_selector"])
+	# build compression tree
+	res = build_compression_tree_iteration(args, 1, 0,
+				in_columns, pattern_detectors, pattern_selector, in_data_manager,
+				compression_tree, pattern_log)
+	# (out_columns, out_data_manager) = res
+	
+	return compression_tree
 
 def build_decompression_tree(c_tree):
 	in_columns = [c_tree.get_column(col_id)["col_info"] for col_id in c_tree.get_out_columns()]
@@ -488,12 +530,10 @@ def main():
 	# build compression tree
 	if args.rec_exh:
 		print("[algorithm] recursive exhaustive")
-		rec_exh_obj = rec_exh.RecursiveExhaustiveLearning(args, in_data_manager, columns,
-														  rec_exh_config)
-		compression_tree = rec_exh_obj.build_compression_tree()
+		compression_tree = build_compression_tree_rec_exh(args, in_data_manager, columns)
 	else:
 		print("[algorithm] iterative greedy")
-		compression_tree = build_compression_tree(args, in_data_manager, columns)
+		compression_tree = build_compression_tree_greedy(args, in_data_manager, columns)
 	# build decompression tree
 	decompression_tree = build_decompression_tree(compression_tree)
 
