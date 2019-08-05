@@ -263,6 +263,8 @@ def parse_args():
 		help="Use the recursive exhaustive learning algorithm")
 	parser.add_argument("--test-sample", dest="test_sample", type=str,
 		help="Sample used for estimator test in the recursive exhausting algorithm")
+	parser.add_argument('--full-file-linecount', dest='full_file_linecount', type=int,
+		help="Number of lines in the full file that the sample was taken from", required=True)
 
 	return parser.parse_args()
 
@@ -561,6 +563,7 @@ expr_tree_output_dir=$wbs_dir/$wb/$table.expr_tree
 # uncomment if you want to use the recursive exhaustive algorithm
 rec_exh="--rec-exh"
 test_sample="--test-sample $wbs_dir/$wb/$table.sample-theoretical-test.csv"
+full_file_linecount="--full-file-linecount $(cat $repo_wbs_dir/$wb/samples/$table.linecount)"
 
 #[sample]
 ./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
@@ -575,6 +578,7 @@ time ./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.
 --expr-tree-output-dir $expr_tree_output_dir \
 $rec_exh \
 $test_sample \
+$full_file_linecount \
 $wbs_dir/$wb/$table.sample.csv
 
 #[plot-expr-tree]
