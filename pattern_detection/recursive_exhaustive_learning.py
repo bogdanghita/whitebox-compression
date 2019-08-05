@@ -11,6 +11,19 @@ from apply_expression import ExpressionManager
 from lib.expression_tree import ExpressionTree
 
 
+# debug
+from plot_expression_tree import plot_expression_tree
+import shutil
+DEBUG_COUNTER = 0
+def rm_rf(target):
+	if os.path.exists(target):
+		shutil.rmtree(target)
+def mkdir_p(target):
+	if not os.path.exists(target):
+		os.makedirs(target)
+# end-debug
+
+
 pattern_detectors = {
 	"ConstantPatternDetector": {"min_constant_ratio": 0.9},
 	"DictPattern": {"max_dict_size": 64 * 1024, "max_key_ratio": 0.1},
@@ -97,7 +110,7 @@ class RecursiveExhaustiveLearning(object):
 		expression_tree_list = []
 		for idx, col in enumerate(self.columns):
 			# debug
-			if col.col_id != "1":
+			if col.col_id not in ["0", "1"]:
 				continue
 			# end-debug
 
@@ -106,12 +119,28 @@ class RecursiveExhaustiveLearning(object):
 												self.in_data_manager_list[idx])
 			expression_tree_list.append(tree_out)
 
+		expression_tree = ExpressionTree(self.columns, tree_type="compression")
 		if len(expression_tree_list) == 0:
-			return ExpressionTree(self.columns, tree_type="compression")
+			return expression_tree
 		else:
-			expression_tree = expression_tree_list[0]
-			for tree in expression_tree_list[1:]:
+			# debug
+			global DEBUG_COUNTER
+			DEBUG_COUNTER += 1
+			out_dir = "/tmp/debug/build_compression_tree/{}".format(DEBUG_COUNTER)
+			rm_rf(out_dir)
+			mkdir_p(out_dir)
+			for idx, tree in enumerate(expression_tree_list):
+				out_file = out_dir+"/{}.svg".format(idx)
+				plot_expression_tree(tree, out_file)
+			# end-debug
+
+			for idx, tree in enumerate(expression_tree_list):
 				expression_tree = ExpressionTree.merge(expression_tree, tree)
+
+			# debug
+			out_file = out_dir+"/merged.svg"
+			plot_expression_tree(expression_tree, out_file)
+			# end-debug
 
 		return expression_tree
 
@@ -236,16 +265,34 @@ class RecursiveExhaustiveLearning(object):
 			for idx, col_out in enumerate(col_out_list):
 				data_mgr_out_list[idx].write_tuple(tpl_new[idx])
 
-		# recursive call for output column
+		# recursive call for output columns
 		sol_list = []
 		for idx, col_out in enumerate(col_out_list):
 			(size_c, tree_out_c) = self._build_tree(col_out, tree_out, data_mgr_out_list[idx])
 			sol_list.append((size_c, tree_out_c))
 
+		# debug
+		global DEBUG_COUNTER
+		DEBUG_COUNTER += 1
+		out_dir = "/tmp/debug/apply_expr_node/{}".format(DEBUG_COUNTER)
+		rm_rf(out_dir)
+		mkdir_p(out_dir)
+		# end-debug
+
 		# merge resulting trees
 		size = 0
-		for (size_c, tree_out_c) in sol_list:
+		for idx, (size_c, tree_out_c) in enumerate(sol_list):
+			# debug
+			out_file = out_dir+"/{}.svg".format(idx)
+			plot_expression_tree(tree_out_c, out_file)
+			# end-debug
+
 			size += size_c
 			tree_out = ExpressionTree.merge(tree_out, tree_out_c)
+
+		# debug
+		out_file = out_dir+"/merged.svg"
+		plot_expression_tree(tree_out, out_file)
+		# end-debug
 
 		return (size, tree_out)

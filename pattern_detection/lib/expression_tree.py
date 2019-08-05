@@ -4,15 +4,15 @@ import json
 from copy import deepcopy
 from lib.util import *
 # debug
-from plot_expression_tree import plot_expression_tree
-import shutil
-DEBUG_COUNTER = 0
-def rm_rf(target):
-	if os.path.exists(target):
-		shutil.rmtree(target)
-def mkdir_p(target):
-	if not os.path.exists(target):
-		os.makedirs(target)
+# from plot_expression_tree import plot_expression_tree
+# import shutil
+# DEBUG_COUNTER = 0
+# def rm_rf(target):
+# 	if os.path.exists(target):
+# 		shutil.rmtree(target)
+# def mkdir_p(target):
+# 	if not os.path.exists(target):
+# 		os.makedirs(target)
 # end-debug
 
 
@@ -305,31 +305,33 @@ class ExpressionTree(object):
 		*for each connected component
 		"""
 		# debug
-		global DEBUG_COUNTER
-		DEBUG_COUNTER += 1
+		# global DEBUG_COUNTER
+		# DEBUG_COUNTER += 1
 		# end-debug
 
 		# split into connected components
-		# ccs_a = tree_a.get_connected_components(debug=debug)
-		# ccs_b = tree_b.get_connected_components(debug=debug)
-		debug = DEBUG_COUNTER == 16
-		ccs_a = tree_a.get_connected_components(debug=debug)
+		ccs_a = tree_a.get_connected_components()
 		ccs_b = tree_b.get_connected_components()
+		# debug
+		# debug = DEBUG_COUNTER == 16
+		# ccs_a = tree_a.get_connected_components(debug=debug)
+		# ccs_b = tree_b.get_connected_components()
+		# end-debug
 		
 		# debug
-		out_dir = "/tmp/debug/{}".format(DEBUG_COUNTER)
-		rm_rf(out_dir)
-		mkdir_p(out_dir)
-		out_file = out_dir+"/a.svg"
-		plot_expression_tree(tree_a, out_file)
-		out_file = out_dir+"/b.svg"
-		plot_expression_tree(tree_b, out_file)
-		for d_cc_idx, d_cc in enumerate(ccs_a):
-			out_file =  out_dir+"/a_{}.svg".format(d_cc_idx)
-			plot_expression_tree(d_cc, out_file)
-		for d_cc_idx, d_cc in enumerate(ccs_b):
-			out_file =  out_dir+"/b_{}.svg".format(d_cc_idx)
-			plot_expression_tree(d_cc, out_file)
+		# out_dir = "/tmp/debug/{}".format(DEBUG_COUNTER)
+		# rm_rf(out_dir)
+		# mkdir_p(out_dir)
+		# out_file = out_dir+"/a.svg"
+		# plot_expression_tree(tree_a, out_file)
+		# out_file = out_dir+"/b.svg"
+		# plot_expression_tree(tree_b, out_file)
+		# for d_cc_idx, d_cc in enumerate(ccs_a):
+		# 	out_file =  out_dir+"/a_{}.svg".format(d_cc_idx)
+		# 	plot_expression_tree(d_cc, out_file)
+		# for d_cc_idx, d_cc in enumerate(ccs_b):
+		# 	out_file =  out_dir+"/b_{}.svg".format(d_cc_idx)
+		# 	plot_expression_tree(d_cc, out_file)
 		# end-debug
 
 		# find connected components that need to be merged
@@ -339,9 +341,9 @@ class ExpressionTree(object):
 				if len(set(cc_a.columns.keys()) & cc_b.columns.keys()) > 0:
 					if idx_a in merge_ccs_a or idx_b in merge_ccs_b:
 						# debug
-						print("DEBUG_COUNTER={}".format(DEBUG_COUNTER))
-						print("merge_pairs: {}".format(merge_pairs))
-						print("conflict: idx_a={}, idx_b={}".format(idx_a, idx_b))
+						# print("DEBUG_COUNTER={}".format(DEBUG_COUNTER))
+						# print("merge_pairs: {}".format(merge_pairs))
+						# print("conflict: idx_a={}, idx_b={}".format(idx_a, idx_b))
 						# end-debug
 						print("error: multiple merge candidates for the same cc")
 						raise Exception("Unable to merge trees")
@@ -366,9 +368,15 @@ class ExpressionTree(object):
 		# put all connected components together in a single ExpressionTree
 		tree_res = ExpressionTree._unify_ccs(ccs, tree_type)
 
+		# add unused columns
+		for tree_tmp in [tree_a, tree_b]:
+			for col_id in tree_tmp.get_unused_columns():
+				if col_id not in tree_res.columns:
+					tree_res.columns[col_id] = tree_tmp.columns[col_id]
+
 		# debug
-		out_file =  out_dir+"/ab.svg"
-		plot_expression_tree(tree_res, out_file)
+		# out_file =  out_dir+"/ab.svg"
+		# plot_expression_tree(tree_res, out_file)
 		# end-debug
 
 		return tree_res
