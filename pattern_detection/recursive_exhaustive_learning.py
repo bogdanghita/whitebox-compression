@@ -108,8 +108,8 @@ class RecursiveExhaustiveLearning(object):
 
 	def build_compression_tree(self):
 		# debug
-		global DEBUG_COUNTER
-		DEBUG_COUNTER += 1
+		# global DEBUG_COUNTER
+		# DEBUG_COUNTER += 1
 		out_dir = "/tmp/debug/build_compression_tree"
 		rm_rf(out_dir)
 		mkdir_p(out_dir)
@@ -142,17 +142,17 @@ class RecursiveExhaustiveLearning(object):
 			return expression_tree
 		else:
 			# debug
-			for idx, tree in enumerate(expression_tree_list):
-				out_file = out_dir+"/{}.svg".format(idx)
-				plot_expression_tree(tree, out_file)
+			# for idx, tree in enumerate(expression_tree_list):
+			# 	out_file = out_dir+"/{}.svg".format(idx)
+			# 	plot_expression_tree(tree, out_file)
 			# end-debug
 
 			for idx, tree in enumerate(expression_tree_list):
 				expression_tree = ExpressionTree.merge(expression_tree, tree)
 
 			# debug
-			out_file = out_dir+"/merged.svg"
-			plot_expression_tree(expression_tree, out_file)
+			# out_file = out_dir+"/merged.svg"
+			# plot_expression_tree(expression_tree, out_file)
 			# end-debug
 
 		return expression_tree
@@ -299,27 +299,27 @@ class RecursiveExhaustiveLearning(object):
 			sol_list.append(res)
 
 		# debug
-		global DEBUG_COUNTER
-		DEBUG_COUNTER += 1
-		out_dir = "/tmp/debug/apply_expr_node/{}".format(DEBUG_COUNTER)
-		rm_rf(out_dir)
-		mkdir_p(out_dir)
+		# global DEBUG_COUNTER
+		# DEBUG_COUNTER += 1
+		# out_dir = "/tmp/debug/apply_expr_node/{}".format(DEBUG_COUNTER)
+		# rm_rf(out_dir)
+		# mkdir_p(out_dir)
 		# end-debug
 
 		# merge resulting trees
 		size = 0
 		for idx, (size_c, tree_out_c, details) in enumerate(sol_list):
 			# debug
-			out_file = out_dir+"/{}.svg".format(idx)
-			plot_expression_tree(tree_out_c, out_file)
+			# out_file = out_dir+"/{}.svg".format(idx)
+			# plot_expression_tree(tree_out_c, out_file)
 			# end-debug
 
 			size += size_c
 			tree_out = ExpressionTree.merge(tree_out, tree_out_c)
 
 		# debug
-		out_file = out_dir+"/merged.svg"
-		plot_expression_tree(tree_out, out_file)
+		# out_file = out_dir+"/merged.svg"
+		# plot_expression_tree(tree_out, out_file)
 		# end-debug
 
 		return (size, tree_out, {})
