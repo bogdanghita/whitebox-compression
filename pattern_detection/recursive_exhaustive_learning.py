@@ -96,6 +96,11 @@ class RecursiveExhaustiveLearning(object):
 	def build_compression_tree(self):
 		expression_tree_list = []
 		for idx, col in enumerate(self.columns):
+			# debug
+			if col.col_id != "1":
+				continue
+			# end-debug
+
 			tree_in = ExpressionTree([col], tree_type="compression")
 			(size, tree_out) = self._build_tree(col, tree_in, 
 												self.in_data_manager_list[idx])
@@ -122,7 +127,7 @@ class RecursiveExhaustiveLearning(object):
 			if attr is None:
 				break
 			for estimator in estimator_train_list:
-				estimator.feed_tuple(attr)
+				estimator.feed_tuple([attr])
 		# retrieve metadata
 		metadata = {}
 		for estimator in estimator_train_list:
@@ -138,10 +143,12 @@ class RecursiveExhaustiveLearning(object):
 			if attr is None:
 				break
 			for estimator in estimator_test_list:
-				estimator.feed_tuple(attr)
+				estimator.feed_tuple([attr])
 		# evaluate estimators
 		for estimator in estimator_test_list:
 			res = estimator.evaluate()
+			if col_in.col_id not in res:
+				continue
 			size_list = res[col_in.col_id]
 			size = sum(size_list)
 			sol_list.append((size, estimator.name))
@@ -163,7 +170,7 @@ class RecursiveExhaustiveLearning(object):
 			attr = data_mgr_in.read_tuple()
 			if attr is None:
 				break
-			pd.feed_tuple(attr)
+			pd.feed_tuple([attr])
 
 		# evaluate pattern detector
 		columns = pd.evaluate()
@@ -175,7 +182,7 @@ class RecursiveExhaustiveLearning(object):
 		for p in patterns:
 			if not self._accept_result(p):
 				continue
-			expr_node = pd.get_compression_node()
+			expr_node = pd.get_compression_node(p)
 			expr_node_list.append(expr_node)
 
 		return expr_node_list
@@ -186,6 +193,8 @@ class RecursiveExhaustiveLearning(object):
 		# limit tree depth
 		if len(tree_in.get_node_levels()) >= self.config["max_depth"]:
 			return []
+
+		print("[_build_tree] col_in={}".format(col_in))
 
 		# estimators
 		sol_estimator_list = self._estimator_evaluate(col_in, data_mgr_in)
@@ -206,7 +215,7 @@ class RecursiveExhaustiveLearning(object):
 
 		return min(sol_list, key=lambda x: x[0])
 
-	def _apply_expr_node(col_in, expr_node, tree_in, data_mgr_in):
+	def _apply_expr_node(self, col_in, expr_node, tree_in, data_mgr_in):
 		# update tree
 		tree_out = deepcopy(tree_in)
 		tree_out.add_level([expr_node])

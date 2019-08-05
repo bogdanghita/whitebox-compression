@@ -210,6 +210,12 @@ class ExpressionNode(object):
 	def __repr__(self):
 		return "ExpressionNode(p_id=%r,p_name=%r,cols_in=%r,cols_in_consumed=%r,cols_out=%r,operator_info=%r,details=%r,pattern_signature=%r,parents=%r,children=%r)" % (self.p_id, self.p_name, self.cols_in, self.cols_in_consumed, self.cols_out, self.operator_info, self.details, self.pattern_signature, self.parents, self.children)
 
+	def repr_short(self):
+		return "p_id=%r,cols_in=%s,cols_out=%s" % (
+				self.p_id, 
+				[c.col_id for c in self.cols_in], 
+				[c.col_id for c in self.cols_out])
+
 	def to_dict(self):
 		return {
 			"p_id": self.p_id,
