@@ -191,7 +191,7 @@ class ExpressionTree(object):
 
 	def get_connected_components(self):
 		"""
-		Returns: List[ExpressionNode]
+		Returns: List[ExpressionTree]
 		"""
 		unused_nodes = set(self.nodes.keys())
 		connected_components = {}
@@ -274,6 +274,110 @@ class ExpressionTree(object):
 			m_dfs(unvisited_nodes.pop())
 
 		return explored_nodes[::-1]
+
+	@classmethod
+	def merge(cls, tree_a, tree_b, tree_type="compression"):
+		""" NOTE: this method assumes that either:
+		- tree_a and tree_b are independent trees
+		- OR tree_a and tree_b have a common subtree starting at the root
+		*for each connected component
+		"""
+		# split into connected components
+		ccs_a = tree_a.get_connected_components()
+		ccs_b = tree_b.get_connected_components()
+		
+		# find connected components that need to be merged
+		merge_pairs, merge_ccs = [], set()
+		for idx_a, cc_a in enumerate(ccs_a):
+			for idx_b, cc_b in enumerate(ccs_b):
+				if len(set(cc_a.columns.keys()) & cc_b.columns.keys()) > 0:
+					if idx_a in merge_ccs or idx_b in merge_ccs:
+						print("error: multiple merge candidates for the same cc")
+						raise Exception("Unable to merge trees")
+					merge_pairs.append((idx_a, idx_b))
+					merge_ccs.add(idx_a)
+					merge_ccs.add(idx_b)
+
+		ccs = []		
+		# add all ccs that do not need to be merged to the cc list
+		for idx_a, cc_a in enumerate(ccs_a):
+			if idx_a not in merge_ccs:
+				ccs.append(cc_a)
+		for idx_b, cc_b in enumerate(ccs_b):
+			if idx_b not in merge_ccs:
+				ccs.append(cc_b)
+
+		# merge connected components that need to be merged
+		for (cc_a, cc_b) in merge_pairs:
+			cc_merged = ExpressionTree._merge_ccs(cc_a, cc_b, tree_type)
+			ccs.append(cc_merged)
+
+		# put all connected components together in a single ExpressionTree
+		tree_res = ExpressionTree._unify_ccs(ccs, tree_type)
+		return tree_res
+
+	@classmethod
+	def _merge_ccs(cls, cc_a, cc_b, tree_type):
+		in_columns_a, in_columns_b = cc_a.get_in_columns(), cc_b.get_in_columns()
+		if set(in_columns_a) != set(in_columns_b):
+			raise Exception("cc_a and cc_b have different root nodes")
+
+		in_columns = [cc_a.get_column(col_id)["col_info"] for col_id in cc_a.get_in_columns()]
+		tree_res = ExpressionTree(in_columns, tree_type)
+
+		levels_a, levels_b = cc_a.get_node_levels(), cc_b.get_node_levels()
+		if len(levels_b) > len(levels_a):
+			cc_a, cc_b = cc_b, cc_a
+			levels_a, levels_b = levels_b, levels_a
+		
+		l_b = 0
+		for node_ids_b in levels_b:
+			expr_nodes_a = [cc_a.get_node(node_id) for node_id in levels_a[l_b]]
+			expr_nodes_b = [cc_b.get_node(node_id) for node_id in node_ids_b]
+			l_b += 1
+
+			expr_nodes_dict = {}
+			for expr_node in expr_nodes_a + expr_nodes_b:
+				key = (expr_node.p_name, 
+					   expr_node.pattern_signature,
+					   ",".join(sorted([c.col_id for c in expr_node.cols_in])),
+					   ",".join(sorted([c.col_id for c in expr_node.cols_out])))
+				# keep only unique nodes
+				expr_nodes_dict[key] = expr_node 
+			
+			expr_nodes_merged = expr_nodes_dict.values()
+			tree_res.add_level(expr_nodes_merged)
+
+		for l_a in range(l_b, len(levels_a)):
+			expr_nodes_a = [cc_a.get_node(node_id) for node_id in levels_a[l_a]]
+			tree_res.add_level(expr_nodes_a)
+
+		return tree_res
+
+	@classmethod
+	def _unify_ccs(cls, ccs, tree_type):
+		in_columns = []
+		for cc in ccs:
+			in_columns_cc = [cc.get_column(col_id)["col_info"] for col_id in cc.get_in_columns()]
+			in_columns.extend(in_columns_cc)
+		tree_res = ExpressionTree(in_columns, tree_type)
+
+		# add levels
+		nb_levels = 0
+		while True:
+			expr_nodes = []
+			for cc in ccs:
+				levels_cc = cc.get_node_levels()
+				if (nb_levels + 1) > len(levels_cc):
+					continue
+				expr_nodes_cc = [cc.get_node(node_id) for node_id in levels_cc[nb_levels]]
+				expr_nodes.extend(expr_nodes_cc)
+			if len(expr_nodes) == 0:
+				break
+			tree_res.add_level(expr_nodes)
+			nb_levels += 1
+
+		return tree_res
 
 
 def read_expr_tree(expr_tree_file):

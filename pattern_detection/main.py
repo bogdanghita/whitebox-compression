@@ -54,6 +54,10 @@ iteration_stages = [
 	}
 }
 ]
+rec_exh_config = {
+	"min_col_coverage": 0.2,
+	"max_depth": 5
+}
 
 
 class PatternDetectionEngine(object):
@@ -482,7 +486,8 @@ def main():
 	# build compression tree
 	if args.rec_exh:
 		print("[algorithm] recursive exhaustive")
-		rec_exh_obj = rec_exh.RecursiveExhaustiveLearning(args, in_data_manager, columns)
+		rec_exh_obj = rec_exh.RecursiveExhaustiveLearning(args, in_data_manager, columns,
+														  rec_exh_config)
 		compression_tree = rec_exh_obj.build_compression_tree()
 	else:
 		print("[algorithm] iterative greedy")
