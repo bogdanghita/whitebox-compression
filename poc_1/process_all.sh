@@ -53,6 +53,10 @@ generate_expression() {
 	ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
 	corr_coefs_output_dir=$wbs_dir/$wb/$table.corr_coefs
 	expr_tree_output_dir=$wbs_dir/$wb/$table.expr_tree
+	# uncomment if you want to use the recursive exhaustive algorithm
+	rec_exh="--rec-exh"
+	test_sample="--test-sample $wbs_dir/$wb/$table.sample-theoretical-test.csv"
+	full_file_linecount="--full-file-linecount $(cat $repo_wbs_dir/$wb/samples/$table.linecount)"
 
 	mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $corr_coefs_output_dir $expr_tree_output_dir
 
@@ -62,7 +66,11 @@ generate_expression() {
 	--pattern-distribution-output-dir $pattern_distr_out_dir \
 	--ngram-freq-masks-output-dir $ngram_freq_masks_output_dir \
 	--corr-coefs-output-dir $corr_coefs_output_dir \
-	--expr-tree-output-dir $expr_tree_output_dir $sample_file
+	--expr-tree-output-dir $expr_tree_output_dir \
+	$rec_exh \
+	$test_sample \
+	$full_file_linecount \
+	$sample_file
 
 	echo "[generate_expression][end]   $(date) $wb $table"
 }
