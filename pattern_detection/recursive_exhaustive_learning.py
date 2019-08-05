@@ -125,8 +125,6 @@ class RecursiveExhaustiveLearning(object):
 
 			tree_in = ExpressionTree([col], tree_type="compression")
 			res = self._build_tree(col, tree_in, self.in_data_manager_list[idx])
-			if res is None:
-				raise Exception("Unexpected _build_tree result: None")
 			(size, tree_out, details) = res
 			expression_tree_list.append(tree_out)
 			# debug
@@ -247,11 +245,6 @@ class RecursiveExhaustiveLearning(object):
 	def _build_tree(self, col_in, tree_in, data_mgr_in):
 		sol_list = []
 
-		# limit tree depth
-		if len(tree_in.get_node_levels()) >= self.config["max_depth"]:
-			print("debug: max_depth={} reached".format(self.config["max_depth"]))
-			return None
-
 		print("[_build_tree] col_in={}".format(col_in))
 
 		# estimators
@@ -259,17 +252,22 @@ class RecursiveExhaustiveLearning(object):
 		for (size, estimator_name) in sol_estimator_list:
 			sol_list.append((size, tree_in, {"estimator": estimator_name}))
 
-		# pattern detectors
-		pd_list = init_pattern_detectors(col_in, tree_in, self.args.null)
-		expr_node_list = []
-		for pd in pd_list:
-			expr_node_list_tmp = self._pd_evaluate(col_in, pd, data_mgr_in)
-			expr_node_list.extend(expr_node_list_tmp)
-
-		# apply pattern detectors & recurse
-		for expr_node in expr_node_list:
-			(size, tree_out, details) = self._apply_expr_node(col_in, expr_node, tree_in, data_mgr_in)
-			sol_list.append((size, tree_out, {}))
+		# limit tree depth
+		if len(tree_in.get_node_levels()) < self.config["max_depth"]:
+			# pattern detectors
+			pd_list = init_pattern_detectors(col_in, tree_in, self.args.null)
+			expr_node_list = []
+			for pd in pd_list:
+				expr_node_list_tmp = self._pd_evaluate(col_in, pd, data_mgr_in)
+				expr_node_list.extend(expr_node_list_tmp)
+			# apply pattern detectors & recurse
+			for expr_node in expr_node_list:
+				(size, tree_out, details) = self._apply_expr_node(col_in, expr_node, 
+																  tree_in, 
+																  data_mgr_in)
+				sol_list.append((size, tree_out, {}))
+		else:
+			print("debug: max_depth={} reached".format(self.config["max_depth"]))
 
 		return min(sol_list, key=lambda x: x[0])
 
@@ -298,9 +296,7 @@ class RecursiveExhaustiveLearning(object):
 		sol_list = []
 		for idx, col_out in enumerate(col_out_list):
 			res = self._build_tree(col_out, tree_out, data_mgr_out_list[idx])
-			if res is not None:
-				# (size_c, tree_out_c, details) = res
-				sol_list.append(res)
+			sol_list.append(res)
 
 		# debug
 		global DEBUG_COUNTER

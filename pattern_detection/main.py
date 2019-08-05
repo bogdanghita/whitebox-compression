@@ -56,7 +56,7 @@ iteration_stages = [
 ]
 rec_exh_config = {
 	"min_col_coverage": 0.2,
-	"max_depth": 4
+	"max_depth": 5
 }
 
 
