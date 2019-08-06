@@ -285,7 +285,7 @@ def plot_used(data_items, out_dir, out_file_format,
 	for (wc, table), summary in data_items:
 		# NOTE: filter cases where VectorWise put multiple columns in the same file
 		if "used" not in summary["default_wc"]:
-			print("debug: \"used\" not in summary[\"default_wc\"]; wc={}, table={}".format(wc, table))
+			print("debug: [plot_used] \"used\" not in summary[\"default_wc\"]; wc={}, table={}, baseline={}".format(wc, table, baseline))
 			continue
 		size_nocompression = summary["nocompression_wc"]["used"]["size_baseline_B"]
 		size_default = summary["default_wc"]["used"]["size_baseline_B"]
@@ -431,7 +431,7 @@ def plot_column_stats(data_items, out_dir, out_file_format, baseline):
 	for (wc, table), summary in data_items:
 		# NOTE: filter cases where VectorWise put multiple columns in the same file
 		if "used" not in summary["default_wc"]:
-			print("debug: \"used\" not in summary[\"default_wc\"]; wc={}, table={}".format(wc, table))
+			print("debug: [plot_column_stats] \"used\" not in summary[\"default_wc\"]; wc={}, table={}, baseline={}".format(wc, table, baseline))
 			continue
 		summary = summary["nocompression_wc"]
 		table_count += 1
@@ -527,7 +527,7 @@ def plot_expression_tree_stats(data_items, out_dir, out_file_format, baseline):
 	for (wc, table), summary in data_items:
 		# NOTE: filter cases where VectorWise put multiple columns in the same file
 		if "used" not in summary["default_wc"]:
-			print("debug: \"used\" not in summary[\"default_wc\"]; wc={}, table={}".format(wc, table))
+			print("debug: [plot_expression_tree_stats] \"used\" not in summary[\"default_wc\"]; wc={}, table={}, baseline={}".format(wc, table, baseline))
 			continue
 		summary = summary["nocompression_wc"]
 		table_count += 1

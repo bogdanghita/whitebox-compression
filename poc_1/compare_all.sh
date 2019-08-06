@@ -33,7 +33,13 @@ compare() {
 	stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-$baseline.json
 	stats_file_wc=$base_dir/$out_table.eval-$baseline.json
 	expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
-	apply_expr_stats_file=$base_dir/$out_table.stats.json
+
+	if [ $baseline == "vectorwise" ]; then
+		apply_expr_stats_file=$base_dir/$out_table.stats.json
+	else
+		apply_expr_stats_file=$base_dir/test/$out_table.stats.json
+	fi
+
 	summary_out_file_nocompression_default=$output_dir/$table.summary.nocompression-default.json
 	summary_out_file_nocompression_wc=$output_dir/$table.summary.nocompression-wc.json
 	summary_out_file_default_wc=$output_dir/$table.summary.default-wc.json
