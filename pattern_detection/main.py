@@ -264,7 +264,7 @@ def parse_args():
 	parser.add_argument("--test-sample", dest="test_sample", type=str,
 		help="Sample used for estimator test in the recursive exhausting algorithm")
 	parser.add_argument('--full-file-linecount', dest='full_file_linecount', type=int,
-		help="Number of lines in the full file that the sample was taken from", required=True)
+		help="Number of lines in the full file that the sample was taken from")
 
 	return parser.parse_args()
 

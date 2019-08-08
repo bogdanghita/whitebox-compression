@@ -11,15 +11,17 @@ testset_dir=$SCRIPT_DIR/../testsets/testset_unique_schema_2
 usage() {
 cat <<EOM
 Usage: "$(basename $0)" <wbs-dir>
-  wbs-dir    root directory with all the PBIB workbooks
+  wbs-dir                 root directory with all the PBIB workbooks
+  recursive-exhaustive    "true"/"false"
 EOM
 }
 
-if [ "$#" -lt 1 ]; then
+if [ "$#" -lt 2 ]; then
 	usage
 	exit 1
 fi
 wbs_dir="$1"
+rec_exh="$2"
 
 
 generate_sample() {
@@ -53,10 +55,14 @@ generate_expression() {
 	ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
 	corr_coefs_output_dir=$wbs_dir/$wb/$table.corr_coefs
 	expr_tree_output_dir=$wbs_dir/$wb/$table.expr_tree
-	# uncomment if you want to use the recursive exhaustive algorithm
-	rec_exh="--rec-exh"
-	test_sample="--test-sample $wbs_dir/$wb/$table.sample-theoretical-test.csv"
-	full_file_linecount="--full-file-linecount $(cat $repo_wbs_dir/$wb/samples/$table.linecount)"
+	if [ $rec_exh == "true" ]; then
+		echo "Learning mode: recursive exhaustive"
+		rec_exh_option="--rec-exh"
+		test_sample="--test-sample $wbs_dir/$wb/$table.sample-theoretical-test.csv"
+		full_file_linecount="--full-file-linecount $(cat $repo_wbs_dir/$wb/samples/$table.linecount)"
+	else
+		echo "Learning mode: iterative greedy"
+	fi
 
 	mkdir -p $pattern_distr_out_dir $ngram_freq_masks_output_dir $corr_coefs_output_dir $expr_tree_output_dir
 
@@ -67,7 +73,7 @@ generate_expression() {
 	--ngram-freq-masks-output-dir $ngram_freq_masks_output_dir \
 	--corr-coefs-output-dir $corr_coefs_output_dir \
 	--expr-tree-output-dir $expr_tree_output_dir \
-	$rec_exh \
+	$rec_exh_option \
 	$test_sample \
 	$full_file_linecount \
 	$sample_file
@@ -125,12 +131,12 @@ process() {
 
 	echo "[process][start] $(date) $wb $table"
 
-	generate_sample $wb $table $wbs_dir/$wb/$table.sample.csv
-	generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-train.csv
-	generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-test.csv
+	# generate_sample $wb $table $wbs_dir/$wb/$table.sample.csv
+	# generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-train.csv
+	# generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-test.csv
 	generate_expression $wb $table
 	apply_expression $wb $table
-	apply_expression_theoretical $wb $table
+	# apply_expression_theoretical $wb $table
 
 	echo "[process][end]   $(date) $wb $table"
 }
@@ -176,7 +182,9 @@ wait
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 
 ================================================================================
-date; ./poc_1/process_all.sh $wbs_dir; echo $?; date
+recursive_exhaustive="false"
+# recursive_exhaustive="true"
+date; ./poc_1/process_all.sh $wbs_dir $recursive_exhaustive; echo $?; date
 
 cat $wbs_dir/*/*.poc_1.process.out | less
 

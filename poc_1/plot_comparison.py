@@ -7,6 +7,9 @@ import json
 from copy import copy, deepcopy
 from statistics import mean
 from collections import Counter
+from lib.util import *
+from pattern_detection.patterns import *
+from pattern_detection.lib.expression_tree import *
 
 # NOTE: this is needed when running on remote server through ssh
 # see: https://stackoverflow.com/questions/4706451/how-to-save-a-figure-remotely-with-pylab
@@ -582,6 +585,8 @@ def parse_args():
 
 	parser.add_argument('--wbs-dir', dest='wbs_dir', type=str,
 		help="Path to workbooks directory")
+	parser.add_argument('--repo-wbs-dir', dest='repo_wbs_dir', type=str,
+		help="Path to PBIB benchmark directory")
 	parser.add_argument('--testset-dir', dest='testset_dir', type=str,
 		help="Path to testset directory")
 	parser.add_argument('--out-dir', dest='out_dir', type=str,
@@ -758,8 +763,107 @@ def compute_general_stats(series_vectorwise, series_theoretical):
 	return res
 
 
-def main(wbs_dir, testset_dir, out_dir, out_file_format):
+def compute_applyexpr_stats(wbs_dir, repo_wbs_dir, testset_dir):
+	total_stats = {
+		"exout_col_count": 0,
+		"in_attr_count": [],
+		"ex_attr_count": [],
+		"ex_ratio": []
+	}
 
+	statdump_stats_file = os.path.join(repo_wbs_dir,
+									   "../scripts/analysis/data_analysis/output/stats.json")
+	with open(statdump_stats_file, 'r') as fp:
+		statdump_stats = json.load(fp)
+
+	for wb in os.listdir(testset_dir):
+		with open(os.path.join(testset_dir, wb), 'r') as fp_wb:
+			for table in fp_wb:
+				table = table.strip()
+
+				if table not in statdump_stats["tables"]:
+					raise Exception("Table not found in statdump file: table={}".format(table))
+
+				exprtree_file = os.path.join(wbs_dir, wb, 
+											 "{}.expr_tree/c_tree.json".format(table))
+				applyexpr_stats_file = os.path.join(wbs_dir, wb, 
+													"{}.poc_1_out/".format(table),
+													"{}_out.stats.json".format(table))
+				linecount_file = os.path.join(repo_wbs_dir, wb, 
+											  "samples", 
+											  "{}.linecount".format(table))
+
+				expr_tree = read_expr_tree(exprtree_file)
+
+				try:
+					with open(applyexpr_stats_file, 'r') as fp_applyexpr, \
+						 open(linecount_file, 'r') as fp_linecount:
+						applyexpr_stats = json.load(fp_applyexpr)
+						linecount = int(fp_linecount.read())
+				except Exception as e:
+					print('error: unable to load apply expression stats for ({}, {}): error={}'.format(wb, table, e))
+					raise e
+
+				all_columns = {}
+
+				input_columns = {}
+				for in_col_id in expr_tree.get_in_columns():
+					if in_col_id not in statdump_stats["tables"][table]:
+						raise Exception("Input column not found in statdump file: in_col_id={}".format(in_col_id))
+					col_statdump_stats = statdump_stats["tables"][table][in_col_id]["statdump"]
+					input_columns[in_col_id] = deepcopy(col_statdump_stats)
+					all_columns[in_col_id] = {
+						"null_count": col_statdump_stats["null_ratio"] * linecount
+					}
+
+				innerout_columns = {}
+				for level, level_data in applyexpr_stats["level_stats"].items():
+					for out_col in level_data["out_columns"]:
+						# NOTE: add output columns only for the level they are created on; the other levels just ovewrites the metrics
+						if out_col["col_id"] in innerout_columns:
+							continue
+						innerout_columns[out_col["col_id"]] = out_col
+						all_columns[out_col["col_id"]] = {
+							"null_count": out_col["null_count"]
+						}
+
+				for ex_col_id, ex_col in all_columns.items():
+					# we only consider output exception columns
+					if not (ex_col_id in expr_tree.get_out_columns() and
+							OutputColumnManager.is_exception_col_id(ex_col_id)):
+						continue
+					in_col_id = OutputColumnManager.get_input_col_id(ex_col_id)
+					if in_col_id not in all_columns:
+						raise Exception("Input column not found: ex_col_id={}, in_col_id={}".format(ex_col_id, in_col_id))
+					in_col = all_columns[in_col_id]
+					
+					# gather metrics
+					in_attr_count = linecount - in_col["null_count"]
+					ex_attr_count = linecount - ex_col["null_count"]
+					ex_ratio = float(ex_attr_count) / in_attr_count
+					total_stats["exout_col_count"] += 1
+					total_stats["in_attr_count"].append(in_attr_count)
+					total_stats["ex_attr_count"].append(ex_attr_count)
+					total_stats["ex_ratio"].append(ex_ratio)
+
+					# print(ex_col_id, in_col_id, ex_col, in_col, in_attr_count, ex_attr_count, ex_ratio)
+
+	total_in_attr_count = sum(total_stats["in_attr_count"])
+	total_ex_attr_count = sum(total_stats["ex_attr_count"])
+	total_ex_attr_ratio = float(total_ex_attr_count) / total_in_attr_count
+	avg_ex_ratio = np.mean(total_stats["ex_ratio"])
+
+	res = {
+		"total_in_attr_count": total_in_attr_count,
+		"total_ex_attr_count": total_ex_attr_count,
+		"total_ex_attr_ratio": total_ex_attr_ratio,
+		"avg_ex_ratio": avg_ex_ratio
+	}
+	return res
+
+
+def main(wbs_dir, repo_wbs_dir, testset_dir, out_dir, out_file_format):
+	
 	# vectorwise baseline
 	out_dir_tmp = os.path.join(out_dir, "vectorwise")
 	if not os.path.exists(out_dir_tmp):
@@ -785,6 +889,10 @@ def main(wbs_dir, testset_dir, out_dir, out_file_format):
 	# general stats
 	general_stats = compute_general_stats(series_vectorwise, series_theoretical)
 	print(json.dumps(general_stats, indent=2))
+	
+	# apply_expression stats
+	applyexpr_stats = compute_applyexpr_stats(wbs_dir, repo_wbs_dir, testset_dir)
+	print(json.dumps(applyexpr_stats, indent=2))
 
 
 if __name__ == "__main__":
@@ -792,4 +900,4 @@ if __name__ == "__main__":
 	print(args)
 
 	out_file_format = "svg" if args.out_file_format is None else args.out_file_format
-	main(args.wbs_dir, args.testset_dir, args.out_dir, out_file_format)
+	main(args.wbs_dir, args.repo_wbs_dir, args.testset_dir, args.out_dir, out_file_format)

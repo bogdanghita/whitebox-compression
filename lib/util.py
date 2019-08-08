@@ -312,6 +312,16 @@ class OutputColumnManager(object):
 	def is_exception_col(cls, col):
 		return col.col_id.endswith("__ex")
 
+	@classmethod
+	def is_exception_col_id(cls, col_id):
+		return col_id.endswith("__ex")
+
+	@classmethod
+	def get_input_col_id(cls, ex_col_id):
+		if not cls.is_exception_col_id(ex_col_id):
+			raise Exception("Not an exception column")
+		return ex_col_id[:-len("__ex")]
+
 
 def parse_schema_file(schema_file):
 	schema = {}

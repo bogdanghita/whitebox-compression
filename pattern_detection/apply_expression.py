@@ -144,12 +144,7 @@ class ExpressionManager(object):
 		out_columns_stats = deepcopy(self.out_columns_stats)
 		for out_col_s in out_columns_stats:
 			out_col_s["null_ratio"] = float(out_col_s["null_count"]) / valid_tuple_count if valid_tuple_count > 0 else float("inf")
-		# other stats
-		valid_tuple_ratio = float(valid_tuple_count) / total_tuple_count if total_tuple_count > 0 else float("inf")
 		stats = {
-			"total_tuple_count": total_tuple_count,
-			"valid_tuple_count": valid_tuple_count,
-			"valid_tuple_ratio": valid_tuple_ratio,
 			"out_columns": out_columns_stats
 		}
 		return stats
@@ -418,8 +413,17 @@ def main():
 			pass
 
 	# output stats
-	# TODO: these stats are not relevant in the current form; update or discard them
-	stats = expr_manager_list[-1].get_stats(valid_tuple_count, total_tuple_count)
+	valid_tuple_ratio = float(valid_tuple_count) / total_tuple_count if total_tuple_count > 0 else float("inf")
+	out_columns_stats = expr_manager_list[-1].get_stats(valid_tuple_count, total_tuple_count)["out_columns"]
+	stats = {
+		"total_tuple_count": total_tuple_count,
+		"valid_tuple_count": valid_tuple_count,
+		"valid_tuple_ratio": valid_tuple_ratio,
+		"out_columns": out_columns_stats,
+		"level_stats": {}
+	}
+	for level, expr_mgr in enumerate(expr_manager_list):
+		stats["level_stats"][level] = expr_mgr.get_stats(valid_tuple_count, total_tuple_count)
 	stats_file = os.path.join(args.output_dir, "{}.stats.json".format(args.out_table_name))
 	with open(stats_file, 'w') as fd_s:
 		json.dump(stats, fd_s, indent=2)
@@ -432,8 +436,12 @@ if __name__ == "__main__":
 
 
 """
+#[remote]
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
+#[local-personal]
+wbs_dir=/media/bogdan/Data/Bogdan/Work/cwi-data/tableau-public-bench/data/PublicBIbenchmark-poc_1
+repo_wbs_dir=/media/bogdan/Data/Bogdan/Work/cwi/master-project/public_bi_benchmark-master_project/benchmark
 
 ================================================================================
 wb=CommonGovernment
