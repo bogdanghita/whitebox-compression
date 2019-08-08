@@ -93,7 +93,7 @@ compare_all() {
 }
 
 
-# compare_all
+compare_all
 plot_comparison
 
 

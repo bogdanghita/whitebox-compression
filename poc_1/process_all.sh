@@ -131,12 +131,12 @@ process() {
 
 	echo "[process][start] $(date) $wb $table"
 
-	# generate_sample $wb $table $wbs_dir/$wb/$table.sample.csv
-	# generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-train.csv
-	# generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-test.csv
+	generate_sample $wb $table $wbs_dir/$wb/$table.sample.csv
+	generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-train.csv
+	generate_sample $wb $table $wbs_dir/$wb/$table.sample-theoretical-test.csv
 	generate_expression $wb $table
 	apply_expression $wb $table
-	# apply_expression_theoretical $wb $table
+	apply_expression_theoretical $wb $table
 
 	echo "[process][end]   $(date) $wb $table"
 }
@@ -182,8 +182,8 @@ wait
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 
 ================================================================================
-recursive_exhaustive="false"
-# recursive_exhaustive="true"
+# recursive_exhaustive="false"
+recursive_exhaustive="true"
 date; ./poc_1/process_all.sh $wbs_dir $recursive_exhaustive; echo $?; date
 
 cat $wbs_dir/*/*.poc_1.process.out | less
