@@ -144,12 +144,7 @@ class ExpressionManager(object):
 		out_columns_stats = deepcopy(self.out_columns_stats)
 		for out_col_s in out_columns_stats:
 			out_col_s["null_ratio"] = float(out_col_s["null_count"]) / valid_tuple_count if valid_tuple_count > 0 else float("inf")
-		# other stats
-		valid_tuple_ratio = float(valid_tuple_count) / total_tuple_count if total_tuple_count > 0 else float("inf")
 		stats = {
-			"total_tuple_count": total_tuple_count,
-			"valid_tuple_count": valid_tuple_count,
-			"valid_tuple_ratio": valid_tuple_ratio,
 			"out_columns": out_columns_stats
 		}
 		return stats
@@ -418,8 +413,17 @@ def main():
 			pass
 
 	# output stats
-	# TODO: these stats are not relevant in the current form; update or discard them
-	stats = expr_manager_list[-1].get_stats(valid_tuple_count, total_tuple_count)
+	valid_tuple_ratio = float(valid_tuple_count) / total_tuple_count if total_tuple_count > 0 else float("inf")
+	out_columns_stats = expr_manager_list[-1].get_stats(valid_tuple_count, total_tuple_count)["out_columns"]
+	stats = {
+		"total_tuple_count": total_tuple_count,
+		"valid_tuple_count": valid_tuple_count,
+		"valid_tuple_ratio": valid_tuple_ratio,
+		"out_columns": out_columns_stats,
+		"level_stats": {}
+	}
+	for level, expr_mgr in enumerate(expr_manager_list):
+		stats["level_stats"][level] = expr_mgr.get_stats(valid_tuple_count, total_tuple_count)
 	stats_file = os.path.join(args.output_dir, "{}.stats.json".format(args.out_table_name))
 	with open(stats_file, 'w') as fd_s:
 		json.dump(stats, fd_s, indent=2)
@@ -432,8 +436,12 @@ if __name__ == "__main__":
 
 
 """
+#[remote]
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
+#[local-personal]
+wbs_dir=/media/bogdan/Data/Bogdan/Work/cwi-data/tableau-public-bench/data/PublicBIbenchmark-poc_1
+repo_wbs_dir=/media/bogdan/Data/Bogdan/Work/cwi/master-project/public_bi_benchmark-master_project/benchmark
 
 ================================================================================
 wb=CommonGovernment
@@ -453,31 +461,31 @@ table=Generico_2
 
 
 ================================================================================
-input_file=$wbs_dir/$wb/$table.csv
 expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
-output_dir=$wbs_dir/$wb/$table.poc_1_out
 out_table="${table}_out"
 
+# [apply-expression]
+input_file=$wbs_dir/$wb/$table.csv
+output_dir=$wbs_dir/$wb/$table.poc_1_out
+mkdir -p $output_dir && \
+time ./pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
+
+# [apply-expression-theoretical]
+input_file=$wbs_dir/$wb/$table.sample-theoretical-test.csv
+output_dir=$wbs_dir/$wb/$table.poc_1_out-theoretical
+mkdir -p $output_dir && \
+time ./pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
+
+cat $output_dir/$out_table.stats.json | less
+
+
+# [load & evaluation]
 n_input_file=$output_dir/$out_table.csv
 n_schema_file=$output_dir/$out_table.table.sql
 wv_n_schema_file=$output_dir/$out_table.table-vectorwise.sql
 db_name=pbib
 source ~/.ingVWsh
 
-stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
-stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
-stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json
-apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json
-summary_out_file=$output_dir/$table.summary.json
-
-
-# [apply-expression]
-mkdir -p $output_dir && \
-time ./pattern_detection/apply_expression.py --expr-tree-file $expr_tree_file --header-file $repo_wbs_dir/$wb/samples/$table.header-renamed.csv --datatypes-file $repo_wbs_dir/$wb/samples/$table.datatypes.csv --output-dir $output_dir --out-table-name $out_table $input_file
-
-cat $output_dir/$out_table.stats.json | less
-
-# [load & evaluation]
 ./util/VectorWiseify-schema.sh $n_schema_file $wv_n_schema_file > /dev/null
 time ./evaluation/main-vectorwise.sh $db_name $n_input_file $wv_n_schema_file $out_table $output_dir
 
@@ -486,7 +494,14 @@ cat $output_dir/stats-vectorwise/$out_table.compression-log.out | less
 cat $output_dir/load-vectorwise/$out_table.data-files.out | less
 cat $output_dir/$out_table.eval-vectorwise.json | less
 
+
 # [compare]
+stats_file_nocompression=$wbs_dir/$wb/$table.evaluation-nocompression/$table.eval-vectorwise.json
+stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-vectorwise.json
+stats_file_wc=$wbs_dir/$wb/$table.poc_1_out/$out_table.eval-vectorwise.json
+apply_expr_stats_file=$wbs_dir/$wb/$table.poc_1_out/$out_table.stats.json
+summary_out_file=$output_dir/$table.summary.json
+
 # ./evaluation/compare_stats.py $stats_file_nocompression $stats_file_default
 ./evaluation/compare_stats.py $stats_file_default $stats_file_wc --expr-tree-file $expr_tree_file --apply-expr-stats-file $apply_expr_stats_file --summary-out-file $summary_out_file
 

@@ -3,6 +3,7 @@
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 WORKING_DIR="$(pwd)"
 testset_dir=$SCRIPT_DIR/../testsets/testset_unique_schema_2
+repo_wbs_dir=$SCRIPT_DIR/../../public_bi_benchmark-master_project/benchmark
 
 
 usage() {
@@ -33,7 +34,13 @@ compare() {
 	stats_file_default=$wbs_dir/$wb/$table.evaluation/$table.eval-$baseline.json
 	stats_file_wc=$base_dir/$out_table.eval-$baseline.json
 	expr_tree_file=$wbs_dir/$wb/$table.expr_tree/c_tree.json
-	apply_expr_stats_file=$base_dir/$out_table.stats.json
+
+	if [ $baseline == "vectorwise" ]; then
+		apply_expr_stats_file=$base_dir/$out_table.stats.json
+	else
+		apply_expr_stats_file=$base_dir/test/$out_table.stats.json
+	fi
+
 	summary_out_file_nocompression_default=$output_dir/$table.summary.nocompression-default.json
 	summary_out_file_nocompression_wc=$output_dir/$table.summary.nocompression-wc.json
 	summary_out_file_default_wc=$output_dir/$table.summary.default-wc.json
@@ -62,9 +69,11 @@ plot_comparison() {
 	echo "$(date) [plot_comparison]"
 
 	output_dir=$SCRIPT_DIR/output/output_tmp
+	# out_file_format="svg"
+	out_file_format="pdf"
 
 	mkdir -p $output_dir
-	$SCRIPT_DIR/plot_comparison.py --wbs-dir $wbs_dir --testset-dir $testset_dir --out-dir $output_dir
+	$SCRIPT_DIR/plot_comparison.py --wbs-dir $wbs_dir --repo-wbs-dir $repo_wbs_dir --testset-dir $testset_dir --out-dir $output_dir --out-file-format $out_file_format
 }
 
 
@@ -101,5 +110,7 @@ cat $wbs_dir/*/*.poc_1-theoretical.compare.out | less
 cat $wbs_dir/*/*.poc_1_out-theoretical/compare_stats/*.compare_stats.default-wc.out | grep -e "table_compression_ratio" -e "used_compression_ratio="
 
 ls -lah ./poc_1/output/output_tmp/*
+
+scp -r bogdan@bricks14:/scratch/bogdan/master-project/whitebox-compression/poc_1/output/output_tmp/* poc_1/output/output_tmp/
 
 END_COMMENT

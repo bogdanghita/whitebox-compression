@@ -466,6 +466,9 @@ class DictPattern(PatternDetector):
 		res = PatternDetector.empty_col_item(col)
 		res["nulls"] = []
 		res["counter"] = Counter()
+		res["valid_count"] = 0
+		res["exception_count"] = 0
+		res["attrs"] = defaultdict(list)
 		return res
 
 	def handle_attr(self, attr, idx):
@@ -479,10 +482,11 @@ class DictPattern(PatternDetector):
 		if attr == self.null_value:
 			col["nulls"].append(self.row_count-1)
 			return True
+		col["valid_count"] += 1
 
 		col["counter"][attr] += 1
 
-		self.columns[idx]["patterns"]["default"]["rows"].append(self.row_count-1)
+		col["attrs"][attr].append(self.row_count-1)
 
 		return True
 
@@ -493,38 +497,48 @@ class DictPattern(PatternDetector):
 			attr = tpl[idx]
 			self.handle_attr(attr, idx)
 
-	def dict_compressible(self, col_item):
-		counter = col_item["counter"]
-		nb_keys = len(counter.keys())
-		nb_elems = sum(counter.values())
-
-		# print(col_item["info"].col_id, nb_keys, nb_elems, float(nb_keys) / nb_elems)
+	@classmethod
+	def dict_compressible(cls, col, counter, valid_count, exception_count, max_key_ratio=1):
+		"""
+		NOTE: counter is already optimized
+		"""
 
 		# check number of keys
-		if (nb_keys >= DATATYPES["smallint"]["range"][1] or
-			float(nb_keys) / nb_elems > self.max_key_ratio):
+		nb_keys = len(counter.keys())
+		"""
+		NOTE-1: max_key_ratio should not be taken into account anymore
+		NOTE-2: for the poc we store the dict ids as a normal column which is at most smallint
+		"""
+		# if (nb_keys >= DATATYPES["smallint"]["range"][1] or
+		# 	float(nb_keys) / valid_count > max_key_ratio):
+		# 	return False
+		if nb_keys >= DATATYPES["smallint"]["range"][1]:
 			return False
 
 		# NOTE: for now we only consider varchar columns; thus, keys are strings
 
-		# check dict size
-		# size_keys = sum([DatatypeAnalyzer.get_value_size(key) for key in counter.keys()])
-		size_keys = self.get_dict_size(counter.keys())
-		if size_keys > self.max_dict_size:
-			return False
+		# input column size
+		datatype_size = DatatypeAnalyzer.get_datatype_size(col.datatype)
+		size_in_col = datatype_size * valid_count
+
+		# output column size
+		size_out_col = DictEstimatorTest.get_col_size(counter.keys(), valid_count)
+
+		# exceptions size
+		size_exceptions = datatype_size * exception_count
+
+		# dictionary size
+		# size_keys = DictEstimatorTest.get_dict_size(counter.keys())
 
 		# check total size of input vs total size of output
-		# required_bits = nb_bits_int(nb_keys-1)
-		# size_out_col = float(required_bits) / 8 * nb_elems
-		size_out_col = DictEstimator.get_col_size(counter.keys(), nb_elems)
-		size_in_col = sum([DatatypeAnalyzer.get_value_size(key) * count for key, count in counter.items()])
 		'''
 		NOTE: we do not take into account the size of the dict, because the relation:
-			size_in_col < size_out_col + size_keys
+			size_in_col < size_out_col + size_exceptions + size_keys
 			may be False on the sample, but True on the full column
+		TODO: extrapolate (size_out_col + size_exceptions) to full dataset size and add size_keys
 		'''
-		# if size_in_col < size_out_col + size_keys:
-		if size_in_col < size_out_col:
+		# if size_in_col < size_out_col + size_exceptions + size_keys:
+		if size_in_col < size_out_col + size_exceptions:
 			return False
 
 		return True
@@ -542,6 +556,12 @@ class DictPattern(PatternDetector):
 
 		datatype = DataType(name=name)
 		return datatype
+
+	def fill_in_rows(self, col):
+		counter = col["counter"]
+		for attr in counter.keys():
+			rows = col["attrs"][attr]
+			col["patterns"]["default"]["rows"].extend(rows)
 
 	def compute_coverage(self, col):
 		null_cnt = len(col["nulls"])
@@ -603,14 +623,27 @@ class DictPattern(PatternDetector):
 		res = dict()
 
 		for idx, col in self.columns.items():
-			if len(col["patterns"]["default"]["rows"]) == 0:
-				continue
 			if len(col["counter"].keys()) == 0:
 				continue
-			if not self.dict_compressible(col):
+
+			# optimize dictionary
+			counter = col["counter"]
+			counter_optimized = DictEstimatorTrain.optimize_dictionary(col["counter"], self.max_dict_size)
+			# compute exception count
+			col["exception_count"] = sum([count for key, count in counter.items() if key not in counter_optimized])
+			# update counter
+			col["counter"] = counter_optimized
+
+			# only consider column if it is dict_compressible; no score needed
+			if not self.dict_compressible(col=col["info"],
+										  counter=col["counter"],
+										  valid_count=col["valid_count"],
+										  exception_count=col["exception_count"],
+										  max_key_ratio=self.max_key_ratio):
 				continue
 
-			# consider column if it is dict_compressible; no score needed
+			self.fill_in_rows(col)
+
 			p_item = self.build_pattern_data(col)
 			res[col["info"].col_id] = [p_item]
 
@@ -637,14 +670,10 @@ class DictPattern(PatternDetector):
 		return operator
 
 	@classmethod
-	def get_dict_size(cls, map_keys):
-		return DictEstimator.get_dict_size(map_keys)
-
-	@classmethod
 	def get_metadata_size(cls, operator_info):
 		map_obj = operator_info["map"]
 		# return sum([DatatypeAnalyzer.get_value_size(k) for k in map_obj.keys()])
-		return cls.get_dict_size(map_obj.keys())
+		return DictEstimatorTest.get_dict_size(map_obj.keys())
 
 	@classmethod
 	def get_operator_dec_info(cls, operator_info):

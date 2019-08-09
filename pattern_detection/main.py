@@ -9,20 +9,22 @@ from copy import deepcopy
 from lib.util import *
 from lib.pattern_selectors import *
 from patterns import *
-from apply_expression import ExpressionManager
+from apply_expression import ExpressionManager, apply_expression_manager_list
 from lib.expression_tree import ExpressionTree
 from plot_expression_tree import plot_expression_tree
 from plot_correlation_graph import plot_correlation_graph
 import plot_pattern_distribution, plot_ngram_freq_masks, plot_correlation_coefficients
+import recursive_exhaustive_learning as rec_exh
 
 
 # TODO: read this from a config file
 iteration_stages = [
 {
-	"max_it": 2,
+	"max_it": 16,
 	"pattern_detectors": {
 		"ConstantPatternDetector": {"min_constant_ratio": 0.9},
 		"DictPattern": {"max_dict_size": 64 * 1024, "max_key_ratio": 0.1},
+		"NumberAsString": {},
 		"CharSetSplit": {
 			"default_placeholder": "?",
 				"char_sets": [
@@ -34,7 +36,7 @@ iteration_stages = [
 	"pattern_selector": {
 		"type": "PriorityPatternSelector",
 		"params": {
-			"priorities": [["ConstantPatternDetector"], ["DictPattern"], ["CharSetSplit"]],
+			"priorities": [["ConstantPatternDetector"], ["DictPattern"], ["NumberAsString"], ["CharSetSplit"]],
 			"coverage_pattern_selector_args": {
 				"min_col_coverage": 0.2
 			}
@@ -50,50 +52,12 @@ iteration_stages = [
 		"type": "CorrelationPatternSelector",
 		"params": {}
 	}
-},
-{
-	"max_it": 1,
-	"pattern_detectors": {
-		"NumberAsString": {}
-	},
-	"pattern_selector": {
-		"type": "CoveragePatternSelector",
-		"params": {
-			"min_col_coverage": 0.2
-		}
-	}
-},
-{
-	"max_it": 1,
-	"pattern_detectors": {
-		"ConstantPatternDetector": {"min_constant_ratio": 0.9},
-		"DictPattern": {"max_dict_size": 64 * 1024, "max_key_ratio": 0.1},
-	},
-	"pattern_selector": {
-		"type": "PriorityPatternSelector",
-		"params": {
-			"priorities": [["ConstantPatternDetector"], ["DictPattern"]],
-			"coverage_pattern_selector_args": {
-				"min_col_coverage": 0.2
-			}
-		}
-	}
 }
 ]
-# iteration_stages = [
-# {
-# 	"max_it": 1,
-# 	"pattern_detectors": {
-# 		"NumberAsString": {}
-# 	},
-# 	"pattern_selector": {
-# 		"type": "CoveragePatternSelector",
-# 		"params": {
-# 			"min_col_coverage": 0.2
-# 		}
-# 	}
-# }
-# ]
+rec_exh_config = {
+	"min_col_coverage": 0.2,
+	"max_depth": 5
+}
 
 
 class PatternDetectionEngine(object):
@@ -176,7 +140,10 @@ class OutputManager(object):
 				fd.write(fdelim.join(header) + "\n")
 
 				# write one row at a time
-				# NOTE: we assume that col_p[p_id]["rows"] is sorted in increasing order
+				# TODO: make the implementation easier by using bitmaps instead of row ids
+				for p_id in header:
+					col_p[p_id]["rows"] = sorted(col_p[p_id]["rows"])
+
 				row_iterators = {p:0 for p in col_p.keys()}
 				row_count = 0
 				while True:
@@ -292,6 +259,12 @@ def parse_args():
 		help="Use <fdelim> as delimiter between fields", default="|")
 	parser.add_argument("--null", dest="null", type=str,
 		help="Interprets <NULL> as NULLs", default="null")
+	parser.add_argument("--rec-exh", dest="rec_exh", action='store_true',
+		help="Use the recursive exhaustive learning algorithm")
+	parser.add_argument("--test-sample", dest="test_sample", type=str,
+		help="Sample used for estimator test in the recursive exhausting algorithm")
+	parser.add_argument('--full-file-linecount', dest='full_file_linecount', type=int,
+		help="Number of lines in the full file that the sample was taken from")
 
 	return parser.parse_args()
 
@@ -432,7 +405,7 @@ def build_compression_tree_iteration(args, stage, it, in_columns, pattern_detect
 	return (out_columns, out_data_manager)
 
 
-def build_compression_tree(args, in_data_manager, columns):
+def build_compression_tree_greedy(args, in_data_manager, columns):
 	in_columns = deepcopy(columns)
 	expression_tree = ExpressionTree(in_columns, tree_type="compression")
 	pattern_log = PatternLog()
@@ -460,6 +433,48 @@ def build_compression_tree(args, in_data_manager, columns):
 
 	return expression_tree
 
+def build_compression_tree_rec_exh(args, in_data_manager, columns):
+	# apply recursive exhaustive learning with single-column pattern detectors
+	rec_exh_obj = rec_exh.RecursiveExhaustiveLearning(args, in_data_manager, columns,
+													  rec_exh_config)
+	compression_tree = rec_exh_obj.build_compression_tree()
+	
+	# apply greedy learning with column correlation
+	# apply compression_tree on input data
+	expr_manager_list = []
+	in_columns = columns
+	for idx, level in enumerate(compression_tree.levels):
+		expr_nodes = [compression_tree.get_node(node_id) for node_id in level]
+		expr_manager = ExpressionManager(in_columns, expr_nodes, args.null)
+		expr_manager_list.append(expr_manager)
+		# out_columns becomes in_columns for the next level
+		in_columns = expr_manager.get_out_columns()
+	# data loop
+	out_data_manager = DataManager()
+	in_data_manager.read_seek_set()
+	while True:
+		in_tpl = in_data_manager.read_tuple()
+		if in_tpl is None:
+			break
+		out_tpl = apply_expression_manager_list(in_tpl, expr_manager_list)
+		out_data_manager.write_tuple(out_tpl)
+	# prepare in_data_manager for next stage
+	in_data_manager = out_data_manager
+	in_data_manager.read_seek_set()
+
+	# apply column correlation
+	# pattern detectors & selector
+	it_stage = iteration_stages[-1]
+	pattern_log = PatternLog()
+	pattern_detectors = init_pattern_detectors(it_stage["pattern_detectors"], in_columns, pattern_log, compression_tree, args.null)
+	pattern_selector = init_pattern_selector(it_stage["pattern_selector"])
+	# build compression tree
+	res = build_compression_tree_iteration(args, 1, 0,
+				in_columns, pattern_detectors, pattern_selector, in_data_manager,
+				compression_tree, pattern_log)
+	# (out_columns, out_data_manager) = res
+	
+	return compression_tree
 
 def build_decompression_tree(c_tree):
 	in_columns = [c_tree.get_column(col_id)["col_info"] for col_id in c_tree.get_out_columns()]
@@ -513,7 +528,12 @@ def main():
 		fd.close()
 
 	# build compression tree
-	compression_tree = build_compression_tree(args, in_data_manager, columns)
+	if args.rec_exh:
+		print("[algorithm] recursive exhaustive")
+		compression_tree = build_compression_tree_rec_exh(args, in_data_manager, columns)
+	else:
+		print("[algorithm] iterative greedy")
+		compression_tree = build_compression_tree_greedy(args, in_data_manager, columns)
 	# build decompression tree
 	decompression_tree = build_decompression_tree(compression_tree)
 
@@ -549,9 +569,12 @@ if __name__ == "__main__":
 #[remote]
 wbs_dir=/scratch/bogdan/tableau-public-bench/data/PublicBIbenchmark-test
 repo_wbs_dir=/scratch/bogdan/master-project/public_bi_benchmark-master_project/benchmark
-#[local]
+#[local-cwi]
 wbs_dir=/export/scratch1/bogdan/tableau-public-bench/data/PublicBIbenchmark-poc_1
 repo_wbs_dir=/ufs/bogdan/work/master-project/public_bi_benchmark-master_project/benchmark
+#[local-personal]
+wbs_dir=/media/bogdan/Data/Bogdan/Work/cwi-data/tableau-public-bench/data/PublicBIbenchmark-poc_1
+repo_wbs_dir=/media/bogdan/Data/Bogdan/Work/cwi/master-project/public_bi_benchmark-master_project/benchmark
 
 ================================================================================
 wb=CommonGovernment
@@ -577,6 +600,10 @@ pattern_distr_out_dir=$wbs_dir/$wb/$table.patterns
 ngram_freq_masks_output_dir=$wbs_dir/$wb/$table.ngram_freq_masks
 corr_coefs_output_dir=$wbs_dir/$wb/$table.corr_coefs
 expr_tree_output_dir=$wbs_dir/$wb/$table.expr_tree
+# uncomment if you want to use the recursive exhaustive algorithm
+rec_exh="--rec-exh"
+test_sample="--test-sample $wbs_dir/$wb/$table.sample-theoretical-test.csv"
+full_file_linecount="--full-file-linecount $(cat $repo_wbs_dir/$wb/samples/$table.linecount)"
 
 #[sample]
 ./sampling/main.py --dataset-nb-rows $dataset_nb_rows --max-sample-size $max_sample_size --sample-block-nb-rows 64 --output-file $wbs_dir/$wb/$table.sample.csv $wbs_dir/$wb/$table.csv
@@ -589,6 +616,9 @@ time ./pattern_detection/main.py --header-file $repo_wbs_dir/$wb/samples/$table.
 --ngram-freq-masks-output-dir $ngram_freq_masks_output_dir \
 --corr-coefs-output-dir $corr_coefs_output_dir \
 --expr-tree-output-dir $expr_tree_output_dir \
+$rec_exh \
+$test_sample \
+$full_file_linecount \
 $wbs_dir/$wb/$table.sample.csv
 
 #[plot-expr-tree]

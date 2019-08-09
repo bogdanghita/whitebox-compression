@@ -4,3 +4,4 @@ pattern_detection/output
 evaluation/output
 poc_1/output
 testsets/testset_test
+pattern_detection/lib/plot_expression_tree.py

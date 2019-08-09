@@ -3,6 +3,17 @@ import sys
 import json
 from copy import deepcopy
 from lib.util import *
+# debug
+# from plot_expression_tree import plot_expression_tree
+# import shutil
+# DEBUG_COUNTER = 0
+# def rm_rf(target):
+# 	if os.path.exists(target):
+# 		shutil.rmtree(target)
+# def mkdir_p(target):
+# 	if not os.path.exists(target):
+# 		os.makedirs(target)
+# end-debug
 
 
 class ExpressionTree(object):
@@ -83,6 +94,15 @@ class ExpressionTree(object):
 
 		return expr_tree
 
+	def __repr__(self):
+		output = ""
+		for l_idx, l_nodes in enumerate(self.levels):
+			output += "\n[level={}] nodes={}".format(l_idx, l_nodes)
+			for node_id in l_nodes:
+				node = self.nodes[node_id]
+				output += "\n" + node.repr_short()
+		return output
+
 	def add_level(self, expr_nodes):
 		level = []
 
@@ -105,12 +125,11 @@ class ExpressionTree(object):
 				# add parent & child nodes
 				for p_node_id in col_item["output_of"]:
 					# check if not already added
-					if p_node_id in expr_n.parents:
-						continue
+					if p_node_id not in expr_n.parents:
+						expr_n.parents.add(p_node_id)
 					if p_node_id not in self.nodes:
 						raise Exception("Inexistent parent node: p_node_id={}".format(p_node_id))
 					p_node = self.nodes[p_node_id]
-					expr_n.parents.add(p_node_id)
 					p_node.children.add(node_id)
 
 			# add output columns; fill in "output_of"
@@ -176,7 +195,6 @@ class ExpressionTree(object):
 					res.append(col_id)
 		return sorted(res)
 
-
 	def get_unused_columns(self):
 		# NOTE: used but not consumed columns have len(input_of) > 0
 		return sorted(list(filter(lambda col_id: len(self.columns[col_id]["output_of"]) == 0 and len(self.columns[col_id]["input_of"]) == 0, self.columns.keys())))
@@ -189,9 +207,9 @@ class ExpressionTree(object):
 				continue
 			yield from self._dfs(child_id, visited)
 
-	def get_connected_components(self):
+	def get_connected_components(self, debug=False):
 		"""
-		Returns: List[ExpressionNode]
+		Returns: List[ExpressionTree]
 		"""
 		unused_nodes = set(self.nodes.keys())
 		connected_components = {}
@@ -236,6 +254,10 @@ class ExpressionTree(object):
 					connected_components[component_id] |= connected_components[n_c_id]
 					del connected_components[n_c_id]
 
+		if debug:
+			print(self.get_in_columns(), connected_components)
+			print(json.dumps(self.to_dict(), indent=2))
+
 		# create an expression tree for each connected component
 		res = []
 		for cc in connected_components.values():
@@ -274,6 +296,153 @@ class ExpressionTree(object):
 			m_dfs(unvisited_nodes.pop())
 
 		return explored_nodes[::-1]
+
+	@classmethod
+	def merge(cls, tree_a, tree_b, tree_type="compression"):
+		""" NOTE: this method assumes that either:
+		- tree_a and tree_b are independent trees
+		- OR tree_a and tree_b have a common subtree starting at the root
+		*for each connected component
+		"""
+		# debug
+		# global DEBUG_COUNTER
+		# DEBUG_COUNTER += 1
+		# end-debug
+
+		# split into connected components
+		ccs_a = tree_a.get_connected_components()
+		ccs_b = tree_b.get_connected_components()
+		# debug
+		# debug = DEBUG_COUNTER == 16
+		# ccs_a = tree_a.get_connected_components(debug=debug)
+		# ccs_b = tree_b.get_connected_components()
+		# end-debug
+		
+		# debug
+		# out_dir = "/tmp/debug/{}".format(DEBUG_COUNTER)
+		# rm_rf(out_dir)
+		# mkdir_p(out_dir)
+		# out_file = out_dir+"/a.svg"
+		# plot_expression_tree(tree_a, out_file)
+		# out_file = out_dir+"/b.svg"
+		# plot_expression_tree(tree_b, out_file)
+		# for d_cc_idx, d_cc in enumerate(ccs_a):
+		# 	out_file =  out_dir+"/a_{}.svg".format(d_cc_idx)
+		# 	plot_expression_tree(d_cc, out_file)
+		# for d_cc_idx, d_cc in enumerate(ccs_b):
+		# 	out_file =  out_dir+"/b_{}.svg".format(d_cc_idx)
+		# 	plot_expression_tree(d_cc, out_file)
+		# end-debug
+
+		# find connected components that need to be merged
+		merge_pairs, merge_ccs_a, merge_ccs_b = [], set(), set()
+		for idx_a, cc_a in enumerate(ccs_a):
+			for idx_b, cc_b in enumerate(ccs_b):
+				if len(set(cc_a.columns.keys()) & cc_b.columns.keys()) > 0:
+					if idx_a in merge_ccs_a or idx_b in merge_ccs_b:
+						# debug
+						# print("DEBUG_COUNTER={}".format(DEBUG_COUNTER))
+						# print("merge_pairs: {}".format(merge_pairs))
+						# print("conflict: idx_a={}, idx_b={}".format(idx_a, idx_b))
+						# end-debug
+						print("error: multiple merge candidates for the same cc")
+						raise Exception("Unable to merge trees")
+					merge_pairs.append((idx_a, idx_b))
+					merge_ccs_a.add(idx_a)
+					merge_ccs_b.add(idx_b)
+
+		ccs = []
+		# add all ccs that do not need to be merged to the cc list
+		for idx_a, cc_a in enumerate(ccs_a):
+			if idx_a not in merge_ccs_a:
+				ccs.append(cc_a)
+		for idx_b, cc_b in enumerate(ccs_b):
+			if idx_b not in merge_ccs_b:
+				ccs.append(cc_b)
+
+		# merge connected components that need to be merged
+		for (idx_a, idx_b) in merge_pairs:
+			cc_merged = ExpressionTree._merge_ccs(ccs_a[idx_a], ccs_b[idx_b], tree_type)
+			ccs.append(cc_merged)
+
+		# put all connected components together in a single ExpressionTree
+		tree_res = ExpressionTree._unify_ccs(ccs, tree_type)
+
+		# add unused columns
+		for tree_tmp in [tree_a, tree_b]:
+			for col_id in tree_tmp.get_unused_columns():
+				if col_id not in tree_res.columns:
+					tree_res.columns[col_id] = tree_tmp.columns[col_id]
+
+		# debug
+		# out_file =  out_dir+"/ab.svg"
+		# plot_expression_tree(tree_res, out_file)
+		# end-debug
+
+		return tree_res
+
+	@classmethod
+	def _merge_ccs(cls, cc_a, cc_b, tree_type):
+		in_columns_a, in_columns_b = cc_a.get_in_columns(), cc_b.get_in_columns()
+		if set(in_columns_a) != set(in_columns_b):
+			raise Exception("cc_a and cc_b have different root nodes")
+
+		in_columns = [cc_a.get_column(col_id)["col_info"] for col_id in cc_a.get_in_columns()]
+		tree_res = ExpressionTree(in_columns, tree_type)
+
+		levels_a, levels_b = cc_a.get_node_levels(), cc_b.get_node_levels()
+		if len(levels_b) > len(levels_a):
+			cc_a, cc_b = cc_b, cc_a
+			levels_a, levels_b = levels_b, levels_a
+		
+		l_b = 0
+		for node_ids_b in levels_b:
+			expr_nodes_a = [cc_a.get_node(node_id) for node_id in levels_a[l_b]]
+			expr_nodes_b = [cc_b.get_node(node_id) for node_id in node_ids_b]
+			l_b += 1
+
+			expr_nodes_dict = {}
+			for expr_node in expr_nodes_a + expr_nodes_b:
+				key = (expr_node.p_name, 
+					   expr_node.pattern_signature,
+					   ",".join(sorted([c.col_id for c in expr_node.cols_in])),
+					   ",".join(sorted([c.col_id for c in expr_node.cols_out])))
+				# keep only unique nodes
+				expr_nodes_dict[key] = expr_node 
+			
+			expr_nodes_merged = expr_nodes_dict.values()
+			tree_res.add_level(expr_nodes_merged)
+
+		for l_a in range(l_b, len(levels_a)):
+			expr_nodes_a = [cc_a.get_node(node_id) for node_id in levels_a[l_a]]
+			tree_res.add_level(expr_nodes_a)
+
+		return tree_res
+
+	@classmethod
+	def _unify_ccs(cls, ccs, tree_type):
+		in_columns = []
+		for cc in ccs:
+			in_columns_cc = [cc.get_column(col_id)["col_info"] for col_id in cc.get_in_columns()]
+			in_columns.extend(in_columns_cc)
+		tree_res = ExpressionTree(in_columns, tree_type)
+
+		# add levels
+		nb_levels = 0
+		while True:
+			expr_nodes = []
+			for cc in ccs:
+				levels_cc = cc.get_node_levels()
+				if (nb_levels + 1) > len(levels_cc):
+					continue
+				expr_nodes_cc = [cc.get_node(node_id) for node_id in levels_cc[nb_levels]]
+				expr_nodes.extend(expr_nodes_cc)
+			if len(expr_nodes) == 0:
+				break
+			tree_res.add_level(expr_nodes)
+			nb_levels += 1
+
+		return tree_res
 
 
 def read_expr_tree(expr_tree_file):
