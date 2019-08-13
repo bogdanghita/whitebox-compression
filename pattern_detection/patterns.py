@@ -1589,8 +1589,8 @@ class ColumnCorrelation(PatternDetector):
 				# if source_idx == target_idx:
 				# 	continue
 				(corr_coef, corr_map) = self.evaluate_correlation(source_col, target_col)
-				# corr_coef, corr_map = self._evaluate_correlation_CV(source_col, target_col), {}
-				# corr_coef, corr_map = self._evaluate_correlation_TU(source_col, target_col), {}
+				# corr_coef, corr_map = self._evaluate_correlation_CV(target_col, source_col), {}
+				# corr_coef, corr_map = self._evaluate_correlation_TU(target_col, source_col), {}
 				corr_coefs[source_col_id][target_col_id] = corr_coef
 
 				if source_idx != target_idx and self.select_correlation(corr_coef, corr_map):
