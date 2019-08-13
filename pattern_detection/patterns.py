@@ -1560,6 +1560,24 @@ class ColumnCorrelation(PatternDetector):
 
 		return operator
 
+	def _evaluate_correlation_CV(self, source_col, target_col):
+		source_col_id, target_col_id = source_col["info"].col_id, target_col["info"].col_id
+		source_attrs, target_attrs = np.array(source_col["attrs"]), np.array(target_col["attrs"])
+
+		corr_coef = cramers_v(source_attrs, target_attrs)
+		print(source_col_id, target_col_id, corr_coef)
+
+		return corr_coef
+
+	def _evaluate_correlation_TU(self, source_col, target_col):
+		source_col_id, target_col_id = source_col["info"].col_id, target_col["info"].col_id
+		source_attrs, target_attrs = np.array(source_col["attrs"]), np.array(target_col["attrs"])
+
+		corr_coef = theils_u(source_attrs, target_attrs)
+		print(source_col_id, target_col_id, corr_coef)
+
+		return corr_coef
+
 	def get_corr_coefs(self):
 		corr_coefs = defaultdict(dict)
 		selected_corrs = []
@@ -1571,10 +1589,13 @@ class ColumnCorrelation(PatternDetector):
 				# if source_idx == target_idx:
 				# 	continue
 				(corr_coef, corr_map) = self.evaluate_correlation(source_col, target_col)
+				# corr_coef, corr_map = self._evaluate_correlation_CV(source_col, target_col), {}
+				# corr_coef, corr_map = self._evaluate_correlation_TU(source_col, target_col), {}
 				corr_coefs[source_col_id][target_col_id] = corr_coef
 
 				if source_idx != target_idx and self.select_correlation(corr_coef, corr_map):
 					selected_corrs.append((source_col_id, target_col_id, corr_coef))
+
 			# print(corr_coefs[source_col_id])
 
 		return corr_coefs, selected_corrs
