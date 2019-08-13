@@ -26,6 +26,7 @@ def get_edge(source_col_id, target_col_id, corr_coef, selected):
 
 def plot_correlation_graph(corrs, out_file):
 	graph = pydot.Dot(graph_type='digraph')
+	# graph = pydot.Dot(graph_type='digraph', margin=0)
 
 	vertices = {}
 	for ((source_col_id, target_col_id, corr_coef), selected) in corrs:
@@ -40,6 +41,7 @@ def plot_correlation_graph(corrs, out_file):
 		graph.add_edge(edge)
 
 	graph.write_svg(out_file)
+	# graph.write_pdf(out_file)
 
 
 def parse_args():
