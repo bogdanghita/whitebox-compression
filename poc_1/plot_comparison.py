@@ -53,9 +53,11 @@ def reorder(values, order):
 def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 				  x_label, y_label,
 				  out_file, out_file_format,
-				  title,
+				  title=None,
 				  order=None,
-				  y_lim=None):
+				  y_lim=None,
+				  hlines=[],
+				  texts=[]):
 	x_ticks = deepcopy(x_ticks)
 	series_list = deepcopy(series_list)
 	if order is not None:
@@ -78,15 +80,22 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 	for idx, (s, l, c) in enumerate(zip(series_list, series_labels, series_colors)):
 		rects = plt.bar(index + (idx * bar_width), s, bar_width, label=l, color=c)
 
+	# plt.yscale("log")
 	plt.xlim((-1, len(x_ticks)))
 	if y_lim is not None:
 		plt.ylim(y_lim)
 
-	plt.xlabel(x_label)
+	for hl in hlines:
+		plt.axhline(**hl)
+	for txt in texts:
+		plt.text(**txt)
+
+	# plt.xlabel(x_label)
 	plt.ylabel(y_label)
 	plt.xticks(index + ((len(series_list)-1) * bar_width), x_ticks, rotation=270)
 	plt.legend()
-	plt.title(title)
+	if title is not None:
+		plt.title(title)
 
 	target_aspect_ratio = 0.25
 	x_min, x_max = plt.gca().get_xlim()
@@ -210,9 +219,45 @@ def plot_total(data_items, out_dir, out_file_format,
 		blackbox_label = "blackbox"
 
 	# ratio
+	total_ratio_default, total_ratio_wc = 2.58, 3.72
 	order_ratio = sorted(range(len(data_items)), 
 				   key=lambda i: data_items[i][1]["nocompression_wc"]["total"]["compression_ratio"],
 				   reverse=True)
+	hlines = [
+		{
+			"y": total_ratio_default,
+			"linewidth": 1,
+			"color": COLORS["default"]
+		},
+		{
+			"y": total_ratio_wc,
+			"linewidth": 1,
+			"color": COLORS["wc"]
+		}
+	]
+	texts = [
+		{
+		"x": len(table_series)-3, "y": 5, "s": 'total ratio', 
+		"va": 'center', 
+		"ha": 'center', 
+		},
+		{
+		"x": len(table_series)-1.5, "y": total_ratio_default, "s": total_ratio_default, 
+		"fontsize": 6, 
+		"va": 'center', 
+		"ha": 'center', 
+		"color": COLORS["default"],
+		"bbox": dict(facecolor='w', edgecolor='none', pad=0.1)
+		},
+		{
+		"x": len(table_series)-1.5, "y": total_ratio_wc, "s": total_ratio_wc, 
+		"fontsize": 6, 
+		"va": 'center', 
+		"ha": 'center', 
+		"color": COLORS["wc"],
+		"bbox": dict(facecolor='w', edgecolor='none', pad=0.1)
+		}
+	]
 	out_file = os.path.join(out_dir, "ratio_total.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
@@ -220,9 +265,11 @@ def plot_total(data_items, out_dir, out_file_format,
 				  [COLORS["default"], COLORS["wc"]],
 				  "table", "compression ratio",
 				  out_file, out_file_format,
-				  title="Compression ratio ({} baseline)".format(baseline),
+				  # title="Compression ratio ({} baseline)".format(baseline),
 				  order=order_ratio,
-				  # y_lim=Y_LIM_ratio
+				  # y_lim=Y_LIM_ratio,
+				  hlines=hlines,
+				  texts = texts
 				  )
 
 	# size
@@ -605,6 +652,8 @@ def plot_baseline(wbs_dir, testset_dir, out_dir, out_file_format, base_dir_exten
 		with open(os.path.join(testset_dir, wb), 'r') as fp_wb:
 			for table in fp_wb:
 				table = table.strip()
+				if table.lower() == "iublibrary_1":
+					continue
 
 				base_dir = os.path.join(wbs_dir, wb,
 										"{}.{}".format(table, base_dir_extension),
