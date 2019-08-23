@@ -73,7 +73,7 @@ plot_comparison() {
 	out_file_format="pdf"
 
 	mkdir -p $output_dir
-	$SCRIPT_DIR/plot_comparison.py --wbs-dir $wbs_dir --repo-wbs-dir $repo_wbs_dir --testset-dir $testset_dir --out-dir $output_dir --out-file-format $out_file_format
+	$SCRIPT_DIR/plot_comparison-vertical.py --wbs-dir $wbs_dir --repo-wbs-dir $repo_wbs_dir --testset-dir $testset_dir --out-dir $output_dir --out-file-format $out_file_format
 }
 
 

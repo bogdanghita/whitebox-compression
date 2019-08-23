@@ -65,44 +65,44 @@ def plot_barchart(x_ticks, series_list, series_labels, series_colors,
 			reorder(v_list, order)
 
 	n_groups = len(x_ticks)
-	figsize = max(8, n_groups / 6)
+	# figsize = max(8, n_groups / 6)
 
 	plt.rcParams.update({'font.size': FONT_SIZE_BAR})
 
 	fig, ax = plt.subplots()
 
-	# plt.figure(figsize=(2*figsize, figsize), dpi=100)
-	plt.figure()
+	plt.figure(figsize=(2.6, 5), dpi=100)
+	# plt.figure()
 
 	index = np.arange(n_groups)
 	bar_width = 0.3
 
 	for idx, (s, l, c) in enumerate(zip(series_list, series_labels, series_colors)):
-		rects = plt.bar(index + (idx * bar_width), s, bar_width, label=l, color=c)
+		rects = plt.barh(index + (idx * bar_width), s, bar_width, label=l, color=c)
 
-	plt.yscale("log")
-	plt.xlim((-1, len(x_ticks)))
+	plt.xscale("log")
+	plt.ylim((-1, len(x_ticks)))
 	if y_lim is not None:
 		plt.ylim(y_lim)
 
 	for hl in hlines:
-		plt.axhline(**hl)
+		plt.axvline(**hl)
 	for txt in texts:
 		plt.text(**txt)
 
 	# plt.xlabel(x_label)
-	plt.ylabel(y_label)
-	plt.xticks(index + ((len(series_list)-1) * bar_width), x_ticks, rotation=270)
+	plt.xlabel(y_label)
+	plt.yticks(index + ((len(series_list)-1) * bar_width), x_ticks)
 	plt.legend()
 	if title is not None:
 		plt.title(title)
 
-	target_aspect_ratio = 0.25
+	target_aspect_ratio = 1.75
 	x_min, x_max = plt.gca().get_xlim()
 	y_min, y_max = plt.gca().get_ylim()
 	aspect_ratio = target_aspect_ratio / (float(y_max - y_min) / (x_max - x_min))
 	# print(x_min, x_max, y_min, y_max, aspect_ratio)
-	plt.axes().set_aspect(aspect=aspect_ratio)
+	# plt.axes().set_aspect(aspect=aspect_ratio)
 	plt.tight_layout()
 
 	plt.savefig(out_file, bbox_inches='tight', format=out_file_format)
@@ -142,6 +142,69 @@ def plot_piechart(values, labels,
 	plt.tight_layout()
 
 	plt.savefig(out_file, format=out_file_format)
+
+
+def plot_piechart_multiple(values_list, labels_list,
+			  			   out_file, out_file_format,
+			  			   colors_list=None,
+			  			   title=None,
+			  			   order_list=None):
+	# plt.rcParams.update({'font.size': FONT_SIZE_PIE})
+	plt.rcParams.update({'font.size': 9.5})
+
+	plt.figure(figsize=(2, 7.4), dpi=100)
+
+	bbox_to_anchor = [(0.5, -0.7), (0.5, -0.6)]
+	title = ["Logical", "Physical"]
+
+	for i, values in enumerate(values_list):
+		values, labels, colors = values_list[i], list(labels_list[i]), colors_list[i]
+
+		if order_list is not None:
+			for lst in [values, labels, colors]:
+				reorder(lst, order_list[i])
+
+		v_sum = sum(values)
+		for i_v, v in enumerate(values):
+			p = float(v) / v_sum * 100
+			labels[i_v] += " ({:.1f}%)".format(p)
+		
+		ax = plt.subplot(len(values_list), 1, i+1)
+		# patches, texts, autotexts = ax.pie(values, labels=labels,
+		patches, texts = ax.pie(values,
+				colors=colors,
+				# explode=explode,
+				# autopct='%1.1f%%',
+				# startangle=90,
+				# radius=0.8,
+				# pctdistance=0.8, # default: 0.6
+				# labeldistance=1.1, # default: 1
+				)
+		# for text in texts:
+		# 	text.set_color('grey')
+		# for autotext in autotexts:
+		# 	autotext.set_color('white')
+
+		# centre_circle = plt.Circle((0,0),0.45,fc='white')
+		# fig = plt.gcf()
+		# fig.gca().add_artist(centre_circle)
+
+		ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+		plt.title(title[i], 
+				  # fontsize=7
+				  )
+
+		# plt.legend(patches, labels, loc='left center', bbox_to_anchor=(-0.1, 1.))
+		plt.legend(patches, labels, loc='lower center', bbox_to_anchor=bbox_to_anchor[i],
+					# fontsize=7
+					)
+		# plt.legend(patches, labels, loc='upper center')
+
+	# if title is not None:
+	# 	plt.title(title)
+	plt.tight_layout()
+
+	plt.savefig(out_file, bbox_inches='tight', format=out_file_format)
 
 
 def plot_barchart_multiple(x_ticks, x_label,
@@ -343,7 +406,8 @@ def plot_used(data_items, out_dir, out_file_format,
 		size_default = summary["default_wc"]["used"]["size_baseline_B"]
 		size_wc = summary["default_wc"]["used"]["size_target_B"]
 
-		table_series.append(table)
+		table_label = table if table != "CommonGovernment_1" else "CommonGov..._1"
+		table_series.append(table_label)
 		size_nocompression_series.append(to_gib(size_nocompression))
 		size_default_series.append(to_gib(size_default))
 		size_wc_series.append(to_gib(size_wc))
@@ -356,59 +420,61 @@ def plot_used(data_items, out_dir, out_file_format,
 		blackbox_label = "blackbox"
 
 	# ratio
-	total_ratio_default, total_ratio_wc = 3.35, 6.45 
+	total_ratio_default, total_ratio_wc = 3.35, 6.45
 	order_ratio = sorted(range(len(table_series)), 
 				   key=lambda i: ratio_wc_series[i],
 				   reverse=True)
 	hlines = [
 		{
-			"y": total_ratio_default,
+			"x": total_ratio_default,
 			"linewidth": 1,
 			"color": COLORS["default"],
 			"linestyle": "dotted"
 		},
 		{
-			"y": total_ratio_wc,
+			"x": total_ratio_wc,
 			"linewidth": 1,
 			"color": COLORS["wc"],
 			"linestyle": "dotted"
 		}
 	]
 	texts = [
+		# {
+		# "x": 1, "y": 1, "s": 'total ratio', 
+		# "va": 'center', 
+		# "ha": 'center', 
+		# },
 		{
-		"x": len(table_series)-2.5, "y": 5, "s": 'total ratio', 
-		"va": 'center', 
-		"ha": 'center', 
-		},
-		{
-		"x": len(table_series)-1.5, "y": total_ratio_default, "s": total_ratio_default, 
+		"x": total_ratio_default, "y": -2.6, "s": total_ratio_default, 
 		"fontsize": 6, 
 		"va": 'center', 
 		"ha": 'center', 
+		"rotation": 270,
 		"color": COLORS["default"],
-		"bbox": dict(facecolor='w', edgecolor='none', pad=0.1)
+		# "bbox": dict(facecolor='w', edgecolor='none', pad=0.1)
 		},
 		{
-		"x": len(table_series)-1.5, "y": total_ratio_wc, "s": total_ratio_wc, 
+		"x": total_ratio_wc-0.5, "y": -2.6, "s": total_ratio_wc, 
 		"fontsize": 6, 
 		"va": 'center', 
 		"ha": 'center', 
+		"rotation": 270,
 		"color": COLORS["wc"],
-		"bbox": dict(facecolor='w', edgecolor='none', pad=0.1)
+		# "bbox": dict(facecolor='w', edgecolor='none', pad=0.1)
 		}
 	]
 	out_file = os.path.join(out_dir, "ratio_used.{}".format(out_file_format))
 	plot_barchart(table_series,
 				  [ratio_default_series, ratio_wc_series],
-				  ["{} compression".format(blackbox_label), "whitebox compression"],
+				  ["{}".format(blackbox_label), "whitebox"],
 				  [COLORS["default"], COLORS["wc"]],
 				  "table", "compression ratio",
 				  out_file, out_file_format,
-				  title="Used columns ratio ({} baseline)".format(baseline),
+				  # title="Used columns ratio ({} baseline)".format(baseline),
 				  order=order_ratio,
 				  # y_lim=Y_LIM_ratio,
-				  texts=texts,
-				  hlines=hlines
+				  hlines=hlines,
+				  texts = texts
 				  )
 
 	# size
@@ -499,10 +565,12 @@ def plot_baseline_helper(data, out_dir, out_file_format, baseline):
 	data_items = sorted(data.items(), key=lambda x: x[0])
 
 	# total
-	series_total = plot_total(data_items, out_dir, out_file_format, baseline)
+	# series_total = plot_total(data_items, out_dir, out_file_format, baseline)
 
 	# used
 	series_used = plot_used(data_items, out_dir, out_file_format, baseline)
+
+	sys.exit(0)
 
 	# total vs used size
 	order = series_used["order_ratio"]
@@ -561,6 +629,8 @@ def plot_column_stats(data_items, out_dir, out_file_format, baseline):
 	print("in_columns_count_total={}\nin_columns_size_total={}\nused_columns_count_total={}\nout_columns_count_total={}\nout_columns_size_total={}\nex_columns_count_total={}\nex_columns_size_total={}\nmetadata_size_total={}\nin_datatypes_total={}\nout_datatypes_total={}\nex_datatypes_total={}".format(in_columns_count_total,sizeof_fmt(in_columns_size_total),used_columns_count_total,out_columns_count_total,sizeof_fmt(out_columns_size_total),ex_columns_count_total,sizeof_fmt(ex_columns_size_total),sizeof_fmt(metadata_size_total),in_datatypes_total,out_datatypes_total,ex_datatypes_total))
 	print("in_columns_count_avg={}\nin_columns_size_avg={}\nused_columns_count_avg={}\nout_columns_count_avg={}\nout_columns_size_avg={}\nex_columns_count_avg={}\nex_columns_size_avg={}\nmetadata_size_avg={}\nin_datatypes_avg={}\nout_datatypes_avg={}\nex_datatypes_avg={}".format(in_columns_count_avg,sizeof_fmt(in_columns_size_avg),used_columns_count_avg,out_columns_count_avg,sizeof_fmt(out_columns_size_avg),ex_columns_count_avg,sizeof_fmt(ex_columns_size_avg),sizeof_fmt(metadata_size_avg),in_datatypes_avg,out_datatypes_avg,ex_datatypes_avg))
 
+	values_list, labels_list, colors_list, order_list = [], [], [], []
+
 	# used columns datatype distribution
 	labels = in_datatypes_avg.keys()
 	values = [in_datatypes_avg[k] for k in labels]
@@ -569,6 +639,11 @@ def plot_column_stats(data_items, out_dir, out_file_format, baseline):
 	except Exception as e:
 		print("debug: unable to find color for datatype; falling back to default colors")
 		colors = None
+	order = sorted(range(len(values)), key=lambda i: values[i], reverse=True)
+	labels_list.append(labels)
+	values_list.append(values)
+	colors_list.append(colors)
+	order_list.append(order)
 	out_file = os.path.join(out_dir, "used_datatypes.{}".format(out_file_format))
 	title = "Used columns datatype distribution"
 	plot_piechart(values, labels,
@@ -584,6 +659,11 @@ def plot_column_stats(data_items, out_dir, out_file_format, baseline):
 	except Exception as e:
 		print("debug: unable to find color for datatype; falling back to default colors")
 		colors = None
+	order = sorted(range(len(values)), key=lambda i: values[i], reverse=True)
+	labels_list.append(labels)
+	values_list.append(values)
+	colors_list.append(colors)
+	order_list.append(order)
 	out_file = os.path.join(out_dir, "out_datatypes.{}".format(out_file_format))
 	title = "Ouput columns datatype distribution"
 	plot_piechart(values, labels,
@@ -601,6 +681,14 @@ def plot_column_stats(data_items, out_dir, out_file_format, baseline):
 				  out_file, out_file_format,
 				  colors=colors,
 				  title=None)
+
+	# out_file_format = "svg"
+	out_file = os.path.join(out_dir, "datatypes_distribution.{}".format(out_file_format))
+	plot_piechart_multiple(values_list, labels_list,
+						   out_file, out_file_format,
+						   colors_list=colors_list,
+						   title=None,
+						   order_list=order_list)
 
 
 def plot_expression_tree_stats(data_items, out_dir, out_file_format, baseline):
